@@ -4,10 +4,10 @@ license: BSD-3-Clause
 description: "Diagnose signature failures, resume a justified rebase after conflicts, re-sign rewritten commits when the rebase replay is a silent no-op, rebuild a whole stack parent-first so already-valid commits are not orphaned onto old parents, scan many open pull requests without a shallow-clone range error, compare signing repair with current branch-update or merge-queue requirements, and tell a label short-circuit apart from a signature failure when a provenance gate fails inside review-to-merge drive work."
 category: tooling
 date: 2026-07-17
-version: "1.9.0"
+version: "1.10.0"
 user-invocable: false
 verification: verified-ci
-tags: [git, signing, rebase, ci, gpg, exec, conflict-resolution, update-branch, force-with-lease, stale-info, branch-protection, up-to-date, stacked-pr, squash-merge, merge-queue, ssh-signing, commit-tree, provenance-gate, label-gate, batch-resign, shallow-clone, parent-first]
+tags: [git, signing, rebase, ci, gpg, exec, conflict-resolution, update-branch, force-with-lease, stale-info, branch-protection, up-to-date, stacked-pr, squash-merge, merge-queue, ssh-signing, commit-tree, provenance-gate, label-gate, batch-resign, shallow-clone, parent-first, ld-library-path, signer-env-scrub]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-rebase-signing-ci.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -297,6 +297,41 @@ branch.
 5. **Prove preservation per branch**: equal tip tree, identical subjects, count, author,
    committer, dates, and message, and zero unverified commits in the range and in the forge API.
 
+### Signer-boundary environment scrub when the bundled git must stay (v1.10.0)
+
+The v1.5.0 signer-exec trap rule says to drive object writes with the **system git** when a
+privately built git breaks the exec'd ssh helper. That remediation needs a usable system git:
+SSH signing support starts at git 2.34, and some hosts lock tooling to the bundled binary.
+When the system git is absent, too old, or must not run, keep the bundled git and scrub the
+environment at the signer boundary instead.
+
+1. **Diagnose the injected environment before choosing a remediation.** Point
+   `gpg.ssh.program` at a dumpenv shim for one probe commit; the shim shows exactly what the
+   launcher added (observed: `LD_LIBRARY_PATH` set to the bundled install's own library
+   directory, which made the system `ssh-keygen` load a mismatched OpenSSL at start-up):
+
+   ```sh
+   printf '#!/bin/sh\nenv > "$HOME/signer-env.txt"\nexit 1\n' > dumpenv.sh && chmod +x dumpenv.sh
+   git -c gpg.ssh.program="$PWD/dumpenv.sh" commit -S --allow-empty -m probe 2>&1 | tail -2
+   grep '^LD_LIBRARY_PATH=' "$HOME/signer-env.txt"
+   ```
+
+2. **Sign with the same bundled git through an env-scrubbing wrapper.** The wrapper clears the
+   injected search path for the signer helper only:
+
+   ```sh
+   printf '#!/bin/sh\nexec env -u LD_LIBRARY_PATH /usr/bin/ssh-keygen "$@"\n' > ssh-keygen-clean.sh
+   chmod +x ssh-keygen-clean.sh
+   git -c gpg.ssh.program="$PWD/ssh-keygen-clean.sh" commit -S -s -m "<subject>"
+   ```
+
+3. `-c` scopes the signer override to one invocation, so no persistent config changes. Run the
+   standalone `ssh-keygen -Y sign` test first (v1.5.0 trap, rule 3): when that test fails, the
+   key or config is the problem and no environment scrub will help. Verified on a host where
+   the bundled launcher set `LD_LIBRARY_PATH` before every child process: the plain commit died
+   with `fatal: failed to write commit object` after `OpenSSL version mismatch`, and the
+   scrubbed wrapper produced a valid SSH signature object with the same git and key.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -310,6 +345,7 @@ branch.
 | Hand-invoking the queued `--exec` command instead of `git rebase --continue` | Replicated the exec command after resolving a conflict | The pick was not finalized, so `git commit --amend` corrupted the "onto" checkout. `git reflog` showed `rebase (start): checkout` then `commit (amend)` with no intervening pick | Always run `git rebase --continue`; if corrupted, `git reset --keep <pre-rebase-sha>` then `git rebase --quit` |
 | Re-signing a rewritten branch with `git rebase --exec 'git commit --amend -S --no-edit' origin/main` | Standard exec-based re-sign after a forge commit-provenance gate failed with `invalid_signature` on every rewritten commit | The replay absorbed the picks — the rewritten commits already sat on top of the current base, so git skipped every pick and the exec hook never ran; the command exited instantly, no new objects were created, and `%G?` stayed `N` on the whole stack | Check `%G?` after any exec-based repair; when it does not change, the replay was a no-op — rebuild the stack per-commit with `commit-tree -S` (preserving author, committer, and both dates) and force-push the rebuilt head; every rebuilt commit is a new object and re-triggers the forge check |
 | Signing through a privately built/bundled git with `gpg.format=ssh` | Running the `commit-tree` re-sign loop with a bundled git binary whose launcher sets its own library search path | The signed object write died with `OpenSSL version mismatch` — the bundled environment broke the exec'd `ssh-keygen` at load time, even though the same `ssh-keygen -Y sign` succeeded standalone | Use the system git for local object operations (`commit-tree` needs no network); keep the bundled git for network operations only; verify a standalone `ssh-keygen -Y sign` test succeeds before attributing a signing failure to the key or config |
+| One-shot signed commit through a bundled git when the system git is not usable | `git commit -S -s` with `gpg.format=ssh` on a host whose git launcher injects its library path into every child process | The child `ssh-keygen` aborted with `OpenSSL version mismatch. Built against 30000020, you have 30500070` and `fatal: failed to write commit object` | The fault is the injected library search path, not the key or config; when the system git is absent, too old (< 2.34 for SSH signing), or locked away, pin `gpg.ssh.program` per invocation to an env-scrubbing wrapper (`env -u LD_LIBRARY_PATH`) instead of switching git binaries |
 | Treating every `%G?` `U` as benign and accepting a foreign-signed stack | Almost re-delivered PR branches whose older commits an earlier automation identity had signed with its own key under the same author name; `git verify-commit` printed a good signature with `No principal matched` | `%GK` showed a fingerprint that is not the configured `user.signingkey`'s; without discrimination the foreign signature would have been rewritten or shipped unquestioned | Discriminate `%GK` against your key fingerprint first; a mismatch means foreign — get explicit authorship authority, re-sign with `--force-rebase --exec`, verify tree hashes byte-identical, and push with a lease pinned to the verified old head |
 | Pushing an empty signed commit to start a gated provenance run after the state label changed | The delivery instructions said to push because a run from before the label would replay the old payload; an empty commit was pushed before the workflow triggers were read | The workflow triggered on `labeled` as well as `synchronize`, so the label flip had already started a run at the same head, and that run passed. The empty commit added history noise and its message was false | Read `on.pull_request_target.types` before any push. A `labeled` trigger starts the run with the new label set; push only when the trigger list lacks `labeled` |
 | Batch rebuild that skipped already-`G` commits | Rebuilt only the failing commits | Already-valid commits above the unsigned run kept old parents; the unchanged tip passed the tree check | Rebuild when a parent has a target; validate the whole range |
