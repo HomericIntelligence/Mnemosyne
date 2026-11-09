@@ -134,7 +134,6 @@ optional log directory and standard-error fallback, and stated the disposition
 of the family with no production load path. The review also required each
 behavior test to load through the real loader rather than a private helper.
 
-<<<<<<< HEAD
 ## 2026-11: Correct the doc anchors, then dispose per ask (v3.8.0 source case)
 
 A planning probe for a "warn instead of fail closed" issue checked four kinds of
@@ -189,7 +188,7 @@ Rules the case supports:
    plan with a tracking action, not a code action in the consumer.
 3. An accepted alternate acceptance form discharges the delivery criterion by
    evidence, not by a mock run.
-=======
+
 ## 2026-11: A usable-plan verdict needs more than premise truth (v3.9.0 source case)
 
 Source evidence: a read-only request to state in one line whether a release-plan
@@ -215,7 +214,6 @@ the requested one-line form plus a short justification. Rule applied: a plan fil
 is judged for execution, not only for premise truth; an edit that voids a cited
 range, a structural duplicate, an unowned required action, and an unnamed change
 each block use.
->>>>>>> a8745c09 (feat(planning-verify): judge a plan file for use, not only premise truth)
 
 ## Retrieval note
 
@@ -256,3 +254,41 @@ git show <sha> -- <files>                             # clause-by-clause dischar
 
 Limit: no implementation outcome follows from this session. The lesson records the
 planning decision support only.
+
+## 3.9.0 — a claimed installed-tree apply does not survive a re-provision
+
+Source evidence: a planning pass for an issue whose body still described four pull requests as
+blocked on a delivery helper. The helper is not source in the planning repository; it is a script
+in an installed skill tree outside version control.
+
+Observed sequence (generalized):
+
+1. An early comment claimed the fix was applied by hand into the installed tree, with named backup
+   files beside each patched script.
+2. A later planning pass read the same installed script and found no trace of the change: the
+   marker strings were absent, no backup files existed, and every script in the tree carried one
+   modification time, minutes before the reading. The install had been re-provisioned from source
+   and the manual apply was gone.
+3. The durable change lived in an open source pull request. Its required checks failed on the
+   branch head and passed on the default branch, so the failure was branch-introduced and belonged
+   to the source lane.
+4. The issue's stated blocker was already discharged: every named pull request was merged, two of
+   them by the owner with a non-approval state label still applied. The remaining work was evidence
+   collection and a closeout, not helper code.
+
+Commands that produced the disposition:
+
+```bash
+grep -c -i '<change-marker>' <installed-script>        # 0 -> change absent
+ls <installed-scripts>/*.bak-*                          # none -> no backup of the apply
+stat -c '%y %n' <installed-scripts>/*                   # one time -> whole tree replaced
+gh pr view <n> --json state,mergedAt                    # merged -> premise discharged
+gh api repos/<org>/<repo>/commits/<default>/check-runs  # green on default, red on head -> introduced
+```
+
+Disposition: residual-only plan. Zero source changes in the planning repository, no in-tree patch,
+no re-creation of the closed patch pull request. The plan named the source pull request as the
+dependency and the installed-tree re-verify as the acceptance check.
+
+Limit: the apply and the re-provision were observed only through file state, not through an install
+log, so the re-provision is dated by modification time.
