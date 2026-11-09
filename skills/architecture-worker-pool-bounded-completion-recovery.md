@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Design bounded worker completion queues with nonblocking publication, coordinator-owned recovery, durable restart state, and deadline-bound shutdown."
 category: architecture
 date: 2026-07-24
-version: "1.0.1"
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -29,7 +29,7 @@ history-cleanup-date: "2026-09-20"
 |-------|-------|
 | **Date** | 2026-07-24 |
 | **Objective** | Bound every stage and worker-completion queue by the worker window while keeping rejected work recoverable, observable, and shutdown-safe. |
-| **Outcome** | Proposed architecture and test contract captured from a ProjectHephaestus pipeline change request. No implementation or pipeline test has been run. |
+| **Outcome** | Proposed architecture and test contract captured from a pipeline change request. The capacity-relative observability rule (step 7) was later applied in a plan review: the saturation signal must use the occupancy the admission check uses, because the queue length operator counts only ready items. No implementation or pipeline test has been run. |
 | **Verification** | `unverified` — validate the implementation's fault paths and restart recovery before promoting this workflow. |
 
 ## When to Use
@@ -96,9 +96,15 @@ if not completion_q.offer((handle, result)):
 
    Treat `queue_depth_threshold` as a percentage in `[0, 100]`; default `100` means a non-empty queue alerts when full, not when it has already rejected work. Emit a separate critical `queue_saturated` alert only when `saturated_queues` contains an actual rejected stage or completion enqueue. Export capacities, depths, monotonic rejection totals, and this tick's saturated queues in the observability snapshot.
 
+   Measure saturation along the same path that admits work, not through the length operator. A queue that leases items to workers usually reports only its ready items from `__len__`, while its admission check counts ready plus leased items against capacity. A saturated queue can therefore report a length below capacity. Compute `saturated_queues` from the occupancy that the admission check uses, so the signal matches the condition that rejects a push. Keep the percentage rule on the ready backlog, because that backlog is the gauge operators already read. Do not derive both signals from one number.
+
+   Validate the percentage at each entry point that accepts it, and again in the coordinator constructor beside the existing capacity checks. A bad value then fails at startup instead of raising on every health request. Reject `bool` values for depths and capacities, as the existing guards do. Skip a stage whose capacity is absent or invalid in the snapshot rather than inventing a rule for it.
+
+   Keep the compatibility alert name and the configuration field name. Only the documented unit changes. Check for drift tests that derive expected documentation from the alert label set, the emitted metric names, and the alert name pattern. A new alert name and a larger label cap then require the documentation and its drift test in the same change.
+
 8. **Give every external shutdown a deadline.** A signal handler and any other caller that requests shutdown must set or preserve a grace deadline and set the coalesced wake latch. Preserve first-signal graceful and second-signal immediate semantics, but do not let a non-signal shutdown enter an unbounded wait.
 
-9. **Test normal and fault capacity paths deterministically.** Start with contract tests for `C`, invalid capacities, FIFO behavior, global admission, checked reinsertions, and no overflow deque. Fill `C` completion-result slots while requesting concurrent wakes repeatedly; the result depth must remain `C`. Force a normal completion rejection and assert the coordinator removes the exact handle, parks that item resumable, writes JSONL `queue_saturated` with metrics disabled, shuts the pool down, and returns without waiting for grace expiry. Then force rejection-mailbox overflow and assert every live handle is parked. Finally seed a fresh coordinator from the unchanged durable journal and prove recovery.
+9. **Test normal and fault capacity paths deterministically.** Start with contract tests for `C`, invalid capacities, FIFO behavior, global admission, checked reinsertions, and no overflow deque. Fill `C` completion-result slots while requesting concurrent wakes repeatedly; the result depth must remain `C`. Force a normal completion rejection and assert the coordinator removes the exact handle, parks that item resumable, writes JSONL `queue_saturated` with metrics disabled, shuts the pool down, and returns without waiting for grace expiry. Then force rejection-mailbox overflow and assert every live handle is parked. Finally seed a fresh coordinator from the unchanged durable journal and prove recovery. Guard the threshold boundary explicitly: a depth equal to capacity fires at threshold `100`, and threshold `0` keeps the old any-non-empty behaviour.
 
 ### Acceptance Commands
 
@@ -128,6 +134,7 @@ uv run pytest <observability-test-dir>/test_alerts.py <pipeline-test-dir>/test_c
 | Worker-only shutdown | Have a rejected worker callback set shutdown and leave the coordinator to drain normal results. | The coordinator can retain the exact rejected handle in `in_flight` and wait until grace expiry for a result it never received. | Retain the rejected `(handle, result)` in a bounded mailbox and drain it before normal completions. |
 | Metrics-only saturation | Emit saturation solely through optional metrics/alerts. | With metrics disabled, operators and restart tooling lose the only record of rejected work. | Write `queue_saturated` directly through the durable JSONL/event-log path. |
 | Absolute depth threshold | Compare raw queue depth with a fixed threshold while capacities vary. | "Full" becomes unreachable or inconsistent across deployments. | Evaluate backlog as a percentage of measured queue capacity and reserve saturation for actual rejection. |
+| Saturation from the length operator | Derive `saturated_queues` from `len(queue)` while capacity counts ready plus leased items. | A queue that leases its work reports a length below capacity. The saturation signal stays empty while admission rejects new work. | Compute saturation from the same occupancy that the admission check uses; keep the percentage rule on the ready backlog. |
 
 ## Results & Parameters
 
@@ -162,4 +169,5 @@ uv run pytest <observability-test-dir>/test_alerts.py <pipeline-test-dir>/test_c
 
 | Project | Context | Details |
 |---------|---------|---------|
-| ProjectHephaestus | Proposed queue-backpressure and completion-recovery change | Design request only; implementation and acceptance tests remain pending. |
+| Queue-based automation pipeline | Proposed backpressure and completion-recovery change | Design request only; implementation and acceptance tests remain pending. |
+| Queue-based automation pipeline | Plan review of capacity-relative queue alerting | Source read confirmed that the length operator counts ready items only and that admission counts ready plus leased items. Saturation semantics amended in v1.1.0. No test was run. |
