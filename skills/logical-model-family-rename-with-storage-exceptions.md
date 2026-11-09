@@ -4,10 +4,10 @@ license: BSD-3-Clause
 description: "Rename logical repository or model references while preserving real storage and package identities; reconcile directory moves and newer files in a package rename."
 category: tooling
 date: 2026-07-12
-version: "1.3.1"
+version: "1.4.0"
 user-invocable: false
 verification: verified-ci
-tags: [model-family, rename, manifests, h200-slurm, storage-exceptions, ruff, repo-rename, url-sweep, package-rename, deferred-breaking-change, git-mv, whole-tree-rename, rebase, coverage-validator, mojo]
+tags: [model-family, rename, manifests, h200-slurm, storage-exceptions, ruff, repo-rename, url-sweep, package-rename, deferred-breaking-change, git-mv, whole-tree-rename, rebase, coverage-validator, mojo, recorded-history, frozen-evidence, historical-refs]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/logical-model-family-rename-with-storage-exceptions.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -72,6 +72,15 @@ just validate
 1. **Rename tracked files first with `git mv`.** Do not rely only on content replacement. Move old-name files across docs/runbooks, docs/evaluations, manifests, and scripts to new-name filenames so `git log --follow` remains useful.
 
 2. **Separate logical identifiers from physical storage.** Logical repo surfaces should move to the new family name: `model_id`, `display_name`, `host`, `slurm_job_name`, route endpoints, `manifest_version`, profile names, default registries, tool README text, and benchmark report examples. Real storage paths should remain unchanged when that is where the data actually lives.
+
+3. **Separate live names from recorded names.** A third class must keep the old name: any string that names something as it existed when it was recorded. A bulk substring rename over the whole tree silently rewrites this class too, and the result is a record that asserts something false. Keep the old name in each of these:
+
+   - **Recorded measurements and receipts.** Files written by a completed run describe that run. Rewriting their identifiers falsifies them, and any digest computed over their original bytes stops matching. Restore these paths from the pre-rename commit rather than editing them forward.
+   - **Branch, tag, and commit references.** A ref recorded in prose is a lookup key. Renaming it leaves a pointer to something that does not exist. Verify each ref resolves before and after.
+   - **Statements about history.** A sentence of the form "historical artifacts use the old name and are retained so the record stays traceable" becomes self-contradictory if the rename edits the name it is describing.
+   - **Archived external identities** such as a published package, checkpoint, or artifact path that exists outside this repository.
+
+   A useful test before running the rename: for each occurrence, ask whether the string names something that exists now or something that happened before. Only the first follows the new name.
 
 3. **Protect known physical storage references.** Preserve paths like `/workspace/checkpoints/<vendor>/<old-family>-...` and `/shared/benchmarks/<old-family>_single_node_suite/...` unless the backing data has actually moved. Rewriting those paths makes Slurm jobs point at nonexistent checkpoint or benchmark artifacts.
 
@@ -189,6 +198,7 @@ post-branch) still carrying old refs. `sed` those too, then re-verify build + va
 | Rename every old token everywhere | Bulk replacement included checkpoint and benchmark storage strings | External storage paths still physically contained the old name, so rewritten jobs would point at paths that did not exist | Treat logical identifiers and physical storage locations as different classes of data. Preserve real paths unless storage has actually moved. |
 | Placeholder tokens containing the old name | Protected strings used placeholders that included the replacement target before a bulk rewrite | The placeholder itself contained the target token and was transformed, making restoration fail | Use neutral placeholder tokens with no old or new name in them, or restore from `HEAD` before continuing. |
 | Adjacent string literal stale-token guard | A test tried to avoid embedding the stale token by writing adjacent string literals | Ruff can collapse adjacent string literals back into the exact old token, defeating the guard's intent | Use explicit concatenation, for example `"old" + "family"` and `"old" + "_family"`. |
+| Whole-tree rename included recorded history | A substring sweep replaced the old name in completed measurement receipts, attempt logs, and a recovery branch ref recorded in prose | Rewriting a completed run makes the record assert something false and breaks any digest computed over its original bytes; the renamed branch ref pointed at nothing | Classify each occurrence as naming something that exists now or something that happened before. Only the first follows the new name. Restore recorded paths from the pre-rename commit. |
 | Filename audit skipped | Content was updated but old filenames were not checked separately | A repo-wide content grep does not prove tracked filenames were renamed | Run the tracked-filename stale-name audit from Quick Reference and require no matches. |
 | Assumed repo rename == package rename | Planned to rewrite the `projectodyssey` Mojo package and all ~546 imports inline in the repo-rename PR | Renaming a repo does not rename its package; conflating them makes a massive breaking change that leaves the tree half-renamed | Defer the package/source rename to its own atomic PR tracked by a `state:needs-plan` issue; the reference sweep and the package rename are different classes of change. |
 | Global `\bProjectOdyssey\b` sweep | Substituted the bare word everywhere | Risked hitting `pixi.toml`/`pyproject.toml` `name = "ProjectOdyssey"` and workflow `version('ProjectOdyssey')` — package identity, not references | Scope sed to the URL form (`github.com/Org/ProjectRepo`) plus repo-name prose; exclude `name=` fields, `.github/workflows`, and `.mojo`. |
