@@ -1,12 +1,12 @@
 ---
 name: python-multi-env-install-consolidation
-description: "Consolidate divergent copies of a Python distribution across pip interpreter sites, conda environments, and uv tool isolates into one canonical newest-release install. Use when an install or upgrade request can hit several environments, when console scripts shadow each other on PATH, or when a locally built development wheel sits beside release copies."
+description: "Consolidate divergent copies of a Python distribution across pip interpreter sites, conda environments, and uv tool isolates into one canonical newest-release install, keeping the required optional extras. Use when an install or upgrade request can hit several environments, when console scripts shadow each other on PATH, when a locally built development wheel sits beside release copies, or when a pinned reinstall leaves a console script failing on a missing optional module."
 category: tooling
 date: 2026-10-09
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
-tags: [python-install, pip, uv-tool, conda, multi-environment, consolidation, direct-url, path-shadowing]
+tags: [python-install, pip, uv-tool, conda, multi-environment, consolidation, direct-url, path-shadowing, extras, optional-dependency, reinstall]
 ---
 
 # Python Multi-Environment Install Consolidation
@@ -29,6 +29,7 @@ Use this skill when one or more of these conditions apply:
 - The `pip` and `python3` executables on PATH resolve to different interpreters.
 - Console scripts of the same distribution exist in more than one bin directory on PATH.
 - A locally built development wheel copy exists beside release copies.
+- A reinstall replaces the distribution with the same version, and the console script then exits non-zero with a missing-optional-module error.
 
 ## Verified Workflow
 
@@ -46,19 +47,22 @@ cat .../site-packages/DIST_INFO.direct_url.json
 #    https URL  -> downloaded release copy
 #    file URL to a .whl -> locally built development wheel
 
-# 3. Remove each copy with the manager that owns it.
+# 3. Read the extra set the installed distribution already declares.
+python3 -c "import importlib.metadata as m; print(m.metadata('DIST').get_all('Provides-Extra'))"
+
+# 4. Remove each copy with the manager that owns it.
 pip uninstall -y DIST
 python3 -m pip uninstall -y DIST
 uv tool uninstall DIST     # also removes all entry-point scripts
 
-# 4. Install one canonical copy of the new release.
-python3 -m pip install --upgrade DIST   # import and scripts
-# or: uv tool install --upgrade DIST    # CLI-only isolate
+# 5. Install one canonical copy of the new release, WITH its required extras.
+python3 -m pip install --upgrade 'DIST[EXTRA]'   # import and scripts
+# or: uv tool install --upgrade 'DIST[EXTRA]'    # CLI-only isolate
 
-# 5. Verify closure on every surface.
+# 6. Verify closure on every surface, including one real command.
 python3 -c "import PKG; print(PKG.__version__)"
 pip show DIST 2>&1 | grep "not found"   # in each non-canonical site
-which SCRIPT && SCRIPT --help | head -3
+which SCRIPT && SCRIPT --version        # must exit zero, not a capability error
 ```
 
 ### Suggested Approach
@@ -94,11 +98,19 @@ others.
    sites. `uv tool uninstall` removes the isolate and every entry-point
    script in one operation. Do not delete files in site-packages by hand:
    orphaned scripts remain and still shadow.
-6. **Verify closure.** Success needs all of these results: import shows the
+6. **Carry the required extra set into the replacement install.** A distribution can
+   declare optional extras, and a console script can need one of them at run time.
+   A pinned reinstall that omits the extra installs the same version and the same
+   command, but the command then exits non-zero with a missing-module error. Read
+   the installed `Provides-Extra` set before removal, and give the install command
+   the same brackets the working install used: `'DIST[EXTRA]'`. Quote the value so
+   the shell does not read the brackets as a pattern. This is not a version
+   problem, so a version check alone will not see it. A `--version` smoke run will.
+7. **Verify closure.** Success needs all of these results: import shows the
    new release version in the canonical environment; `pip show` reports
    not-found in every other site; `uv tool list` shows no copy; `which`
-   resolves each console script into the canonical environment; one `--help`
-   smoke run exits zero.
+   resolves each console script into the canonical environment; one
+   `SCRIPT --version` run exits zero.
 
 Short decision-branch examples from the verified session:
 
@@ -114,6 +126,7 @@ Short decision-branch examples from the verified session:
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | ------- | -------------- | ------------- | -------------- |
 | N/A | The direct enumerated-then-consolidated approach was successful. | N/A | Enumeration before mutation made consolidation a single pass with no retries. |
+| 2 | Pinned the reinstall to `DIST==VERSION` without the extra the working install used | The version and command were correct, but the console script exited non-zero with a missing-optional-module error; the package looked installed and healthy | Read `Provides-Extra` before removal and reinstall `'DIST[EXTRA]'`; verify with a real command, not only an import |
 
 ## Results & Parameters
 
@@ -126,6 +139,7 @@ target_contexts:
   cli_only_isolated: "uv tool isolate (uv tool install)"
 constraints:
   requires_python: "read info.requires_python from the PyPI JSON API before target selection"
+  extra_set: "read Provides-Extra from the installed distribution; reinstall 'DIST[EXTRA]'"
   managers:
     - "INTERPRETER -m pip for each interpreter site"
     - "uv tool uninstall / uv tool install for isolates"
