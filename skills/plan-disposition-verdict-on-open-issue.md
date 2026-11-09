@@ -1,7 +1,7 @@
 ---
 name: plan-disposition-verdict-on-open-issue
 description: "Return a delivery verdict for an open issue before planning it again. Use when a task asks you to recover requirements, classify an issue as work or tracking, or decide whether work is done, and the issue carries a sealed plan whose paths, counts, or line citations may not match the checkout."
-category: planning
+category: architecture
 date: 2026-11-07
 version: "1.0.0"
 user-invocable: false
@@ -120,7 +120,7 @@ from the issue body into the verdict as facts. Mark each unverified claim as unc
 
 ## Failed Attempts
 
-| Attempt | What was tried | Why it failed | Lesson learned |
+| Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --- | --- | --- | --- |
 | Verdict from the title | Read the conventional-commit style title and called the work delivered | The title described the intended change, and no code for it existed | Test each named artifact at the current revision |
 | Verdict from the plan count | Trusted the row count in the sealed plan | The index held far more rows, and many tracked items had no row | Re-derive each enumerable set from the index |
