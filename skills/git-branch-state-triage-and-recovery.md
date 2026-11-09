@@ -4,10 +4,11 @@ description: >-
   Diagnose and recover stale, orphaned, diverged, prematurely merged, closed-PR, rewritten-SHA,
   or contaminated stacked branches, and retire classified work safely. Use before rebasing,
   discarding, replaying, opening a PR, or deleting stale branches when branch identity, ancestry,
-  PR ownership, the unique patch, or the remote retirement state is uncertain.
+  PR ownership, the unique patch, or the remote retirement state is uncertain. Also use for a
+  bulk local-branch inventory cleanup.
 category: tooling
 date: 2026-10-13
-version: "2.6.0"
+version: "2.7.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
@@ -277,6 +278,38 @@ git update-ref -d refs/remotes/origin/<branch>
 Retirement is complete only when re-enumeration returns zero refs in both the local branches and
 the remote heads for every retired pattern.
 
+#### Retirement of local-only branches
+
+A local inventory cleanup has no approved disposition list and no remote ref. The classification is
+the proof, so derive it from live PR state rather than an ahead count. Sort each branch into one
+class and retire only the first three:
+
+| Class | Evidence | Action |
+| --- | --- | --- |
+| Merged into trunk | `git merge-base --is-ancestor <branch> origin/main` is true | `git branch -d`; the command itself proves redundancy |
+| PR merged, branch not an ancestor | PR state is `MERGED` but ahead count is positive | Preserve a backup ref, then `git branch -D` |
+| PR closed, never landed | PR state is `CLOSED` and no open replacement exists | Preserve a backup ref, then `git branch -D` |
+| No PR ever opened | No pull request for any state names the head | Keep; it may hold the only copy of the work |
+| Open PR | PR state is `OPEN` | Keep |
+
+Squash and rebase merges leave the head ahead of trunk, so an ahead count never separates "already
+shipped" from "never shipped". Only PR state does. Use `git branch -d` where ancestry already holds,
+because its refusal catches a mistake that `-D` would hide. For the other classes, create a backup
+ref before deletion; a backup ref is the local-only equivalent of a format-patch archive:
+
+```bash
+git update-ref refs/backup/<branch> refs/heads/<branch>
+git branch -D <branch>
+```
+
+Restore a retired branch with `git branch <branch> refs/backup/<branch>`. Enumerate backups with
+`git for-each-ref refs/backup`.
+
+A branch that a worktree holds cannot be deleted at all; the command reports the holding worktree
+path. Do not detach or delete that worktree to free the branch inside a branch-only cleanup. Remove
+the worktree in its own operation, then re-enumerate, because other agents can create branches and
+stashes while the cleanup runs.
+
 ### 5. Verify and publish
 
 Before push, inspect `git diff <intended-base>..HEAD`, changed paths, commit signatures/trailers,
@@ -295,6 +328,7 @@ After push, ensure the PR head, base, and current-head checks match the recovere
 | Assume branch name from issue | Assume branch name from issue | Existing PR may use another head | Read `headRefName` from GitHub |
 | Bare `--force-with-lease` | Bare `--force-with-lease` | May not protect the observed head | Pin the branch and old OID explicitly |
 | Resolve each rebase conflict by taking the newer side | Treat per-hunk take-trunk-side resolution as the uniqueness classification | The resolutions converge to an empty final diff and discard behavioral units that trunk never landed | Split the delta into intent units; prove each unit landed or not-landed on current trunk; reshape or close from the recorded verdicts |
+| Retire local branches by ahead count | Delete every branch whose ahead count looked redundant | A squash merge leaves the head ahead of trunk, so the count cannot separate shipped from unshipped work, and a branch with no PR ever was deleted with its only copy | Classify by live PR state; use `-d` where ancestry holds and a backup ref before `-D` |
 | Rebuild child from trunk | Rebuild child from trunk | Loses intended stack dependency | Rebuild from the rebased parent |
 | Trust a point-in-time inventory | Retire branches from the initial local-only inventory | A remote head held commits that no local ref fetched; a parallel stream also created new matching objects mid-operation | Re-enumerate remote and local state at execution; archive remote-unique commits before `push origin --delete`; destroy only enumerated approved items |
 | Start a rebase from a merge-state gate only | Gated a rebase task on `mergeStateStatus` and stopped only on `CLEAN` | A merged PR reports `UNKNOWN`, not `CLEAN`, so the gate passed and the rebase was attempted against a deleted branch | Read `state` with the merge state; a `MERGED` or `CLOSED` PR stops at classification |

@@ -20,6 +20,7 @@ Supporting cases for
 | Rebase task on a PR merged before work started | Anonymized internal rebase session | verified-local | `state=MERGED`, `mergeStateStatus=UNKNOWN`, source ref deleted; path-scoped diff against the squash merge commit read empty; no rebase and no push |
 | Tracking-ref tip read after a refspec-only fetch | Anonymized coordinated multi-lane delivery session | verified-local | The fetch updated `FETCH_HEAD` only; the tip statement was stale by dozens of merges until an unqualified fetch and the forge branch API rebound it |
 | Closed PR replacement after head-fork deletion | Anonymized internal session | verified-local | Owner deleted the head fork; both PRs auto-closed and `gh pr reopen` returned `GraphQL: Could not open the pull request (reopenPullRequest)` even after a same-named fork was re-created, because the PRs' head binding pointed at the deleted repository identity. Recovered each head from the surviving local clone, verified tips matched the recorded `headRefOid` values, pushed to the new fork, and opened replacement PRs linking the closed ones as superseded |
+| Bulk local-only branch inventory cleanup | Anonymized single-maintainer automation repository | verified-local | 137 local branches reduced to 85. 52 retired: 16 by `git branch -d` where ancestry held, 36 by backup ref plus `git branch -D`. 30 merged branches stayed undeletable because worktrees held them. 52 branches with no PR and 2 with open PRs were kept |
 
 ## Detailed Verification
 
@@ -73,8 +74,24 @@ that carries a decision, and bind every published tip claim to the forge branch 
 truth, not a local ref. The reusable rule is that a fetch form and the ref it refreshes are a
 pair: verifying one without the other produces confident stale records.
 
+The bulk local-only inventory case exposed a gap between an ahead count and shipped state. The
+repository held 137 local branches, of which 51 carried commits ahead of trunk even though their
+pull requests had already merged by squash. Only 16 branches were true ancestors of trunk, so
+`git branch -d` could prove redundancy for those alone. Classifying the remainder by live pull
+request state split them into 50 branches with a merged or closed PR and 52 with no pull request in
+any state. The no-PR group was kept because an ahead count cannot distinguish "never landed" from
+"landed outside a PR", and one of those branches may hold the only copy. Deletion ran as backup
+ref plus `git branch -D` for the committed groups, giving 51 recoverable refs. A worktree-held
+branch refused deletion by name and path, which kept 30 branches that the classification had
+marked removable; freeing them would have required a worktree operation outside the requested
+scope. Between two invocations, a parallel session created a new branch, staged workflow edits, and
+fast-forwarded trunk, so the approved list was recomputed against fresh trunk before execution
+rather than reused.
+
 ## Provenance
 
+- Old/new version: `2.6.0` → `2.7.0`
+- Amendment base: `d33ae7500bbfe9fe029b606420bcdd1708692fb3`
 - Amendment base: `7558d40d2c5c2d286e09eedd75de310ed79e4bb8`
 - Old/new version: `2.4.0` → `2.5.0`
 - Superseded main SHA-256 (v2.4.0):
