@@ -117,7 +117,43 @@ intact, and the running usage stood exactly at it.
   The session reported the deficit and the three remedies and left the
   operator decision open.
 
-## Amendment record
+## Pin test and preemption evidence (2026-11-07)
+
+A later session on the same kind of fleet QOS (four-node, 32-GPU cap, intact) held a
+model-replica job at `QOSGrpNodeLimit` for many hours while the account already ran jobs on
+nodes that showed free capacity and lower-tier jobs of other tenants.
+
+- Running usage stood at the four-node cap. The pending job asked for one half node: four
+  GPUs, 700 GiB of memory, and 16 CPUs.
+- The first explanation told the owner that the QOS counts one node per job, even on a node it
+  already counted. This was an inference. It was wrong.
+- Pinning the pending job to a node that already ran a job of the same QOS
+  (`scontrol update JobId=<id> ReqNodeList=<node>`) changed the reason from
+  `QOSGrpNodeLimit` to `Resources` within seconds. The QOS counts a shared node once.
+- With the reason at `Resources`, the scheduler preempted the lower-tier jobs on that node
+  (partition-priority preemption, requeue mode) and the pinned job started within about
+  one minute. Before the pin, the same job had pended at the QOS limit for hours and the
+  scheduler never evaluated preemption.
+- The preemption setup that explained it: `PreemptType=preempt/partition_prio`,
+  `PreemptMode=REQUEUE`, partition tier 80 against tier 10, the QOS `Preempt` column empty.
+- The job later crashed for an engine reason. When it ended, a job of another tenant in the
+  same partition tier took the freed half node. That job could not be preempted. The next
+  pinned jobs then pended with reason `Resources` until it ended.
+- Per-node counters showed why a second job did not fit on another node: the CPUs were
+  exhausted by jobs of other tenants in the higher partition tier, and the requested
+  memory (not the used memory) of all jobs summed to nearly the node total.
+- A time estimate (`StartTime` in `scontrol show job`) appeared only after the job was past
+  the QOS limit.
+
+## Amendment record (1.2.0, pin test and preemption check)
+
+- Disposition `amend`, version 1.1.0 to 1.2.0, on the same canonical entry.
+- New decision value: the pin test that proves node co-location counts once, the preemption
+  setup check and its limit (same-tier jobs of other tenants are not preempted), the
+  three-counter node fit (GPU, CPU, requested memory), and one failed attempt (stating a
+  node-counting rule before the pin test).
+
+## Earlier amendment record (1.1.0)
 
 - Disposition `amend`, version 1.0.0 to 1.1.0, on the same canonical entry.
 - New decision value: the at-limit saturation branch, the node-count
@@ -125,3 +161,48 @@ intact, and the running usage stood exactly at it.
   and the floor-arithmetic check.
 - Duplicate search: no open pull request touched this entry or added an
   entry with the same intent at delivery time.
+
+## Ownership-branch evidence (2026-11-01)
+
+The ownership branch comes from an owner decision after the saturation
+session. It does not come from a completed code change in this session.
+
+- A deployment configuration recorded a measured QOS group cap for the fleet
+  account, taken from `sacctmgr` output.
+- The deployment start refused a requested pool set when a derived node
+  footprint exceeded that recorded cap, and it asked the cluster
+  administrators to raise the cap.
+- The requested nodes were derived as replica slots divided by slots per
+  node, so the derived node count was not the scheduler's node count.
+  Replicas of one model can share a node by GPU slice.
+- The owner decision: the service requests replicas and the scheduler decides
+  placement. The service computes no node count and sets no hard-coded node
+  budget. The recorded cap stays as a report-only measurement. The service
+  reports the scheduler refusal with the job id, the partition, the QOS, and
+  the scheduler message.
+- Floor values in the decision were a requested replica count per pool. They
+  were not a node budget.
+
+### Limits of this evidence
+
+- The refusal removal, the scheduler-refusal reporting, and the behavior test
+  named in the ownership branch were planned but not verified in this
+  session. Treat the branch as the set rule, not as a merged change.
+- No scheduler refusal message was captured in this session.
+
+## Amendment record (2026-11-01)
+
+- Disposition `amend`, version 1.1.0 to 1.2.0, on the same canonical entry.
+- New decision value: the ownership branch that separates the replica request
+  from the node footprint, the report-only rule for a recorded cap, the four
+  fields of a reported scheduler refusal, and the excluded source-scan test.
+- Duplicate search terms: `qos`, `grptres`, `capacity`, `replica`,
+  `node budget`, `refusal`, `preflight`, `placement`, `scheduler`.
+- Closest entries inspected: `slurm-multi-account-capacity-evaluation`
+  (placement arity and capacity parity, with no ownership rule),
+  `serving-lane-zero-floor-demotion` (replica floors, no node derivation),
+  `inference360-dynamic-serving-capacity` (capacity from an assigned GPU
+  subset), and `derive-placement-label-from-receipt-not-config-id` (derive a
+  placement label from a receipt). None covered the pre-flight refusal
+  failure mode.
+- No open pull request touched this entry at delivery time.
