@@ -70,3 +70,26 @@ Disposition: the waiting session reported the delivered state instead of
 claiming completion. The rule now requires the binding read again before any
 work starts after a wait, and treats a post-wait green read as a possibly
 stale signal until the lifecycle state confirms it.
+
+## Readiness field on a terminal pull request
+
+A rebase task instructed the session to read the lifecycle state and the merge
+readiness at the start, and to stop only when the readiness value was ready. The
+task also required a force-push and a status comment after the rebase.
+
+The binding read showed the pull request `MERGED` and the readiness value
+`UNKNOWN`. The readiness value did not match the stated stop condition, so a
+literal reading of the task would have started a rebase. The merge commit was
+already an ancestor of the default branch, and the local branch named for the
+rebase held an old base commit that did not contain the pull request change.
+
+Disposition: the session did not rebase, did not push, and did not comment. A
+rebase would have dropped the change, because the default branch already had it.
+The session restored the isolated checkout to the default-branch tip and deleted
+its own unneeded local branch. It reported the merged state, the merge commit,
+the ancestry proof, and the reason the readiness value did not apply.
+
+General rule: the lifecycle state decides. A readiness field is a merge
+computation for an open pull request. A terminal pull request can report a
+non-ready or unknown readiness value at any time, and that value is not a signal
+to start repair work.

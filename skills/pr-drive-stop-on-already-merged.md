@@ -1,9 +1,9 @@
 ---
 name: pr-drive-stop-on-already-merged
-description: "Stop a review-and-merge drive at the binding step when the target pull request is already merged, and check the lifecycle state again before you start after you waited for another lane. Use when a task says to review a pull request and drive it to merged, before any review round, comment, or auto-merge. Also use when a long task (for example a CI-failure fix session) queued behind a concurrent writer, and your final verification read reports green against a head you never bound."
+description: "Stop a review-and-merge or rebase drive at the binding step when the target pull request is already merged, and do not use merge-state readiness as a start signal for a terminal pull request. Check the lifecycle state again before you start after you waited for another lane. Use when a task says to review, rebase, or drive a pull request to merged, before any review round, rebase, comment, or auto-merge. Also use when the readiness field reports an unknown value, or when a long task (for example a CI-failure fix session) queued behind a concurrent writer, and your final verification read reports green against a head you never bound."
 category: ci-cd
 date: 2026-10-31
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 tags: [pull-request, merge-state, review-drive, terminal-state, forge, zero-writes, concurrent-lane, lifecycle-recheck]
 ---
@@ -24,6 +24,7 @@ tags: [pull-request, merge-state, review-drive, terminal-state, forge, zero-writ
 - A coordinator relaunches or hands off a pull request drive that another session may have finished.
 - A queued batch of drive tasks can contain items that merged while they waited.
 - The pull request carries a review-state label, such as an implementation-go marker, from an earlier round.
+- A rebase or conflict-resolution task gives a readiness field (for example a merge-state status) as the only stated condition to continue.
 - You hold a stale claim that the pull request is open, blocked, or waits for review.
 - A long task was queued behind a concurrent writer who owned the same
   artifact, and your final verification read shows green against a head you
@@ -40,7 +41,7 @@ Bind the lifecycle state before any review, repair, or comment:
 ```bash
 # 1. Read the artifact lifecycle state first.
 gh pr view <number> --repo <owner>/<repository> \
-  --json state,mergedAt,mergeCommit,headRefOid,labels
+  --json state,mergedAt,mergeCommit,headRefOid,labels,headRefName,mergeStateStatus
 
 # 2. For a merged state, prove the delivery on the target branch.
 git merge-base --is-ancestor <merge-commit-oid> <remote>/<default-branch> \
@@ -58,13 +59,17 @@ git merge-base --is-ancestor <merge-commit-oid> <remote>/<default-branch> \
    merge commit exists and is an ancestor of the default branch. Compare the merge
    parent with the recorded base when the task records one. Note the review-state
    label as the record of the delivered verdict.
-4. Stop with zero forge writes. Do not publish a reviewer round, an author response,
+4. Treat the lifecycle state as the start condition, not the readiness field. A terminal
+   pull request often reports a non-ready, unknown readiness value, because no merge
+   computation runs for it. A task that says "continue when the readiness value is not
+   ready" therefore still stops here.
+5. Stop with zero forge writes. Do not publish a reviewer round, an author response,
    a status comment, or an auto-merge request. A merged target needs no blocker
    comment: the delivery is on the pull request itself. A "post the blocker and
    stop" rule applies only when the verdict is unreachable or the delivery happened
    somewhere else.
-5. Record the session lesson and close the task through its already-complete rule.
-   Do not start the review workflow on a closed artifact.
+6. Record the session lesson and close the task through its already-complete rule.
+   Do not start the review or rebase workflow on a closed artifact.
 
 Continue useful work when a step is unavailable. If the merge commit is absent from
 the target branch, treat the delivery as not proven and re-check the forge record
@@ -110,6 +115,7 @@ Decision table for the binding read:
 | Observation | Decision |
 | ------- | ------- |
 | State is open | Continue the drive from the binding step |
+| State is merged and the readiness field is not ready (for example unknown) | Stop; the readiness field is not a start signal for a terminal pull request |
 | State is merged; merge commit is an ancestor of the default branch | Stop; zero forge writes; record the lesson |
 | State is merged; merge commit is absent from the default branch | Treat delivery as unproven; re-check the forge record |
 | State is closed without a merge | Report the terminal state and follow the task rule for delivered or stopped work |
@@ -121,7 +127,9 @@ A stop report contains:
 
 - the observed state, merge timestamp, and merge commit;
 - the ancestry proof for the merge commit on the default branch;
-- the review-state label that records the delivered verdict; and
+- the review-state label that records the delivered verdict;
+- the reason the readiness field did not apply, when the task used that field as its
+  start condition; and
 - the lesson step that closes the task.
 
 ## Verified On
@@ -132,6 +140,7 @@ A stop report contains:
 
 ## References
 
+- [Rebase a stale automation pull request onto refactored main](rebase-stale-automation-pr-onto-refactored-main.md)
 - [Check if already shipped before writing a plan](planning-check-already-shipped-before-planning.md)
 - [Verify PR ready for merge](verify-pr-ready.md)
 - [Stale plan already resolved](stale-plan-already-resolved.md)
