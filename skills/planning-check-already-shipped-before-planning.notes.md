@@ -15,6 +15,7 @@ The exact prior skill is archived in
 | Retrospective plan rejected | [immutable source](https://github.com/HomericIntelligence/Mnemosyne/blob/e7f342098c41f3d5fda1bf7c7fedf754abdaaad2/skills/planning-check-already-shipped-before-planning.md) | verified-local | Kept forward-looking closeout requirement |
 | Placeholder plan while tests ran | [immutable source](https://github.com/HomericIntelligence/Mnemosyne/blob/e7f342098c41f3d5fda1bf7c7fedf754abdaaad2/skills/planning-check-already-shipped-before-planning.md) | verified-local | Kept complete-at-handoff artifact rule |
 | False “foreign WIP” provenance claim | [immutable source](https://github.com/HomericIntelligence/Mnemosyne/blob/e7f342098c41f3d5fda1bf7c7fedf754abdaaad2/skills/planning-check-already-shipped-before-planning.md) | verified-local | Kept independent source/wiring provenance commands |
+| Retired decision option still offered in a retained row | [this session, 2026-11-07](#2026-11-07-retired-decision-option-still-offered) | verified-local | Kept the blocked-row classification rule |
 
 ## Case Details
 
@@ -132,3 +133,20 @@ build-wiring provenance must be checked separately.
   force. An open pull request delivers its diff only; it does not deliver the planning artifact.
 - Reuse limit: the check classification in this case rested on job-name and node-identity evidence
   gathered at the default-branch tip. A merge still depends on the owning repair lanes.
+## 2026-11-07: Retired decision option still offered
+
+- Context: a plan review for an issue whose owner decision retired one decision option from an
+  existing retirement procedure. The plan grouped the procedure's requirement rows as retained,
+  because their commands and evidence steps still applied. The decision changed only the option.
+- Defect: some rows in the retained group still carried the retired option and still named the
+  retired decision authority. A residue search over the procedure page found both. A second search
+  was needed for the same option class in the issue body, whose requirement and acceptance bullet
+  still offered it. The plan's single-page residue command could not detect either gap.
+- Consequence of the misclassification: a row marked retained reports the requirement as satisfied
+  while the retired option remains available, so the requirement cannot close.
+- Corrective classification: each row that still offers a retired option is a blocking item. The
+  plan lists the option and the authority it still names. The verification search covers every
+  artifact that can state the requirement, not only the procedure page.
+- Cost: one search per artifact. The grouping error is visible only when the scan covers the issue
+  requirements text as well as the procedure text.
+- Verification limit: review was read-only. No plan step was implemented in this session.
