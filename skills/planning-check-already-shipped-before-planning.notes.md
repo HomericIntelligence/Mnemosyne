@@ -111,3 +111,24 @@ build-wiring provenance must be checked separately.
 - Reference case: one usage search per deleted symbol, and one for each changed signature, gives all
   three counts in under a minute.
 - Verification limit: the plan review ran read-only. No plan step was implemented in this session.
+
+## 2026-11-07: Re-plan while the implementation is already in an open pull request
+
+- Context: a planning dispatch on a documentation issue. The issue body still described the defect
+  and carried an early planning label. The session context held a prior plan, a plan-review GO with
+  two conditions, and a completion report that named an open pull request at an exact head.
+- Live checks: the cited line at the default-branch tip still held the defect, so the issue premise
+  was true; the open pull request diff was exactly the one-line change; the pull request was open,
+  non-draft, mergeable, merge-state blocked, and carried the implementation gate label; its head was
+  not an ancestor of the default branch.
+- Delivered plan: implementation declared complete with zero residual source work, the two retained
+  review conditions restated as acceptance criteria with their measured baselines and an explicit
+  stop rule for a red result, prior-plan decay corrected, and a check-classification step for the
+  failing pull-request checks before any rerun. The prior plan expected pre-existing reds in a gate
+  suite; the review measured the suite green, so the revised plan retired that expectation instead
+  of repeating it.
+- Failed alternative: stopping the plan entirely because the open pull request already held the
+  change. That reading would have left the prior review conditions unbound and the stale baseline in
+  force. An open pull request delivers its diff only; it does not deliver the planning artifact.
+- Reuse limit: the check classification in this case rested on job-name and node-identity evidence
+  gathered at the default-branch tip. A merge still depends on the owning repair lanes.
