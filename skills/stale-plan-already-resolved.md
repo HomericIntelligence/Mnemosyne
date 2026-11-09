@@ -227,7 +227,6 @@ or changed it. Search for the **exact phrase or code snippet quoted in the issue
 git log -S "<exact phrase or snippet from the issue>" -- '<glob>'
 ```
 
-
 ```bash
 git log -S "<exact line or snippet the issue quotes>" -- '<globs from the issue>'
 # → surfaces the commit and PR that already removed or changed the line.
