@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Revive a goal-bearing OpenCode V2 lane whose goal record and session state disagree: goal active with a dead session, or an idle lane waiting on a self-resume that never fires. Use when a monitor or coordinator must decide wait versus revive for another owner's lane, the nudge must not redo delivered work, or a completion ceremony orders learn and a marker prefix."
 category: tooling
 date: 2026-11-07
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-live
 tags:
@@ -16,6 +16,8 @@ tags:
   - lane-revival
   - audit-not-redo
   - model-availability
+  - launcher-location
+  - auth-transient
   - completion-ceremony
 ---
 
@@ -68,7 +70,7 @@ nohup opencode run --session <lane> --model <provably-served-model> \
 1. **Map the fleet from two stores, not one.** The goal store records lifecycle (`active`, `paused`, `complete`, `unmet`, `usageLimited`); the session store records publishing (title, `time_updated`). Neither is sufficient alone. A goal can read `active` while its session has been silent for days after a host restart; conversely a goal can read stopped while its session title self-declares the task done. Take both reads before any action.
 2. **Classify before you touch.** Sample `time_updated` twice about twenty seconds apart. A lane is busy when the row moved or is fresher than about two minutes; skip busy lanes, a message competes with a live generation path. A lane is idle-detail when its goal status is recent or its tokens are still moving in the goal store; give it one bounded wait. A lane is divergent when the goal record reads active and the session row is days stale; only divergent lanes get one revive nudge. Terminal lanes (`usageLimited`, `unmet`, `paused`) from a superseded era get no nudge: resurrecting old-scope work risks duplicate lanes, and the goal policy does not treat those statuses as continuable.
 3. **Do not nudge a live silent lane.** An alive lane with zero output for tens of minutes is usually load-slowed, not wedged. That wait-versus-replace decision is a different branch with its own observed budgets; see the references. Your branch starts only when the session itself is dead or the wait condition is already true and the resume did not fire.
-4. **Nudge with proven served capacity, once.** Pass `--model` with a model that has a live worker now. The strongest local proof is the model your own session runs on; the fleet-standard model can sit at zero floor while a release is in flight. One parameter correction per failure class, then stop: `Model unavailable: <entry>` means the lane's stored entry is unserved (one retry on a proven entry); `no worker available for model <entry>; retry when a replica is ready` is a transient capacity state, not a delivery failure, and the fix is a different served entry rather than a follow-up loop.
+4. **Nudge with proven served capacity, once, from the lane's own location.** Pass `--model` with a model that has a live worker now. The strongest local proof is the model your own session runs on; the fleet-standard model can sit at zero floor while a release is in flight. One parameter correction per failure class, then stop: `Model unavailable: <entry>` means the lane's stored entry is unserved (one retry on a proven entry); `no worker available for model <entry>; retry when a replica is ready` is a transient capacity state, not a delivery failure, and the fix is a different served entry rather than a follow-up loop. Launch the run from the lane's own recorded location directory. From a different launcher directory the same lane and the same proven entry can answer `Model unavailable`, because the launcher's location resolves a different provider configuration; treat that answer as a location artifact, not proof of an unserved entry. `authentication is temporarily unavailable` is a transient auth flap: gate on a cheap probe and retry later; do not change the model for it.
 5. **Give the lane audited facts and an audit-not-redo instruction.** Put the outside facts you verified into the message, for example "all checks green, zero pending, automerge not armed, session idle thirty minutes". Then require: re-read the live forge state before any mutation; if the outcome is already delivered, close the goal with evidence and stop instead of redoing the work; if the mode blocks action, say so. Delivered revivals observed so far close their own goal records, do their own housekeeping, and some deliver outstanding learning before they stop.
 6. **Classify the outcome from the owned log, never from the launcher output.** Confirm the run attached through process state and log growth. A reply that names a mode block (for example plan mode) means only the owner can resume that lane; record it and move on. Do not send a second nudge to the same lane on the same condition; redeliver only after a new material fact appears.
 7. **Verify closure in the goal store, then run the ceremony.** New goal status plus a closure timestamp is the completion proof; log text is a claim. When the sweep's lanes are closed or escalated, run durable learning on the episode, then apply the marker prefix with the host rename tool against titles discovered read-only from the session store. A title already marked `Done:` upgrades by replacing that prefix, not by stacking a second one.
@@ -79,6 +81,7 @@ nohup opencode run --session <lane> --model <provably-served-model> \
 | --------- | ---------------- | --------------- | ---------------- |
 | Nudge with the lane's stored model | `opencode run --session <lane>` with no model override | The run died at once: the stored model entry was unserved on this host, and the lane could never have continued on it | Pass an explicitly served model; a stored entry is a declaration, not a proof of service |
 | Retry on the fleet-standard model | One retry against the serving entry other lanes name in their objectives | The run answered `no worker available ...; retry when a replica is ready`: a transient zero-floor capacity state, not a delivery failure | A zero-floor entry is the same unserved class for delivery purposes; switch to any entry that has a worker now, do not loop on capacity |
+| Launch a lane nudge from the coordinator's directory | `opencode run --session <lane> --model <proven entry>` run from the coordinator's own working directory | The run answered `Model unavailable: <proven entry>` twice, while the same lane and entry resolved when the run started from the lane's own recorded location | Launch from the lane's location; a foreign launcher turns a location mismatch into a false unserved-model verdict |
 | Treat the goal record as proof of liveness | Read `active` in the goal store and act as if the lane were running | The bound session had been dead for twelve days; the goal record was a divergent claim, not state | Cross-check the goal store against the session store before every decision; cross-store divergence is a normal failure mode after host churn |
 
 ## Results & Parameters
@@ -92,6 +95,8 @@ liveness:
   divergent_age: "days of silence while the goal record stays active"
 nudge:
   model: "an entry with a live worker; prefer the model your own session proves served"
+  location: "the lane's own recorded location directory; a foreign launcher can answer Model unavailable for a served entry"
+  auth_transient: "authentication is temporarily unavailable -> gate on a cheap probe and retry later; do not change the model"
   message_contract: ["outside facts you verified", "fresh forge read before mutation", "close with evidence, do not redo", "say so if the mode blocks action"]
   retries: "one parameter correction per failure class; then escalate, never loop"
 delete_candidates:

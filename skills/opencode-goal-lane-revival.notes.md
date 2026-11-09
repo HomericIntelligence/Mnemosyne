@@ -70,3 +70,22 @@ These strings classify the retry decision. They are stable across the observed r
   and was removed from every batch target list by identifier.
 - Terminal lanes from a superseded era were left untouched on purpose: two later
   release waves had already shipped their scope.
+
+## Launcher location changes the model-availability answer
+
+A coordinator revived several lanes by launching `opencode run --session <lane>` from its
+own working directory. Two lanes answered `Model unavailable: <entry>` immediately, for an
+entry that the coordinator's own session was running at that moment. An explicit
+`--model <same entry>` retry from the coordinator directory failed identically. The same
+lane, launched from its own recorded location directory, resolved the model (the runner
+printed the model banner and produced a turn). The stored model record matched the working
+entry exactly.
+
+So `Model unavailable` has two distinct causes: an unserved entry, or a launcher-location
+mismatch. The recovery order that held: launch from the lane's own location first; only
+after that fails, treat the entry as unserved and retry on a proven entry.
+
+A later probe in the same sweep answered `authentication is temporarily unavailable` on a
+location that had just resolved the model. That is a transient provider-auth flap, not a
+model or location verdict. Gate on a cheap probe, wait, and retry; do not change the model
+parameter for it.
