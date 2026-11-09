@@ -76,17 +76,18 @@ git rev-parse <default-branch>:<changed-path>
 8. If a review or repair step finishes after the merge, treat the merge as a delivery boundary,
    not a stop. The source branch is usually deleted, so a local commit cannot push. Check three
    things before you call a change lost or delivered:
-   - Prove the merged content for every path the prepared change touches. A squash merge
-     rewrites commits, so an ancestry test reports absent content as missing. Compare the
-     blob at `<merge-commit>:<path>` with the branch blob. If they differ, the change needs a
-     new branch and a new pull request. A local commit that holds the change is complete work.
-     Keep it and report its commit identifier.
-   - Report local work separately from delivered work. A local commit proves nothing about
-     the merged tree. A green required check at the source commit proves nothing about the
-     merged tree either.
-   - Name a path you cannot prove. A file-mode change on an unchanged file, such as an
-     executable bit, does not show in a text comparison. A whole-tree search shows absence, but
-     a presence claim needs a metadata read at the merge commit.
+
+- Prove the merged content for every path the prepared change touches. A squash merge
+  rewrites commits, so an ancestry test reports absent content as missing. Compare the
+  blob at `<merge-commit>:<path>` with the branch blob. If they differ, the change needs a
+  new branch and a new pull request. A local commit that holds the change is complete work.
+  Keep it and report its commit identifier.
+- Report local work separately from delivered work. A local commit proves nothing about
+  the merged tree. A green required check at the source commit proves nothing about the
+  merged tree either.
+- Name a path you cannot prove. A file-mode change on an unchanged file, such as an
+  executable bit, does not show in a text comparison. A whole-tree search shows absence, but
+  a presence claim needs a metadata read at the merge commit.
 
 If the linked issue is open after the merge, record that finding on the pull request or look
 for an authorized owner. Do not close an unrelated issue to make the state look complete.
