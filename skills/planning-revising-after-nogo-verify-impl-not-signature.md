@@ -1,10 +1,10 @@
 ---
 name: planning-revising-after-nogo-verify-impl-not-signature
 license: BSD-3-Clause
-description: "Revise plans after review exposes unsupported assumptions about implementation behavior, APIs, parameter counts, or pending dependencies."
+description: "Revise plans after review exposes unsupported assumptions about implementation behavior, APIs, parameter counts, or pending dependencies. Also use when an amendment changes only the prior findings: re-sweep every anchor it did not cite or correct."
 category: architecture
 date: 2026-07-02
-version: "1.0.1"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -25,6 +25,10 @@ tags:
   - scaffold-first
   - unmerged-dependency
   - path-gradient-vs-double-count
+  - amendment-resweep
+  - unedited-anchor-drift
+  - cross-section-fact-conflict
+  - silent-regression
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/planning-revising-after-nogo-verify-impl-not-signature.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -41,7 +45,7 @@ history-cleanup-date: "2026-09-20"
 | **Verification** | verified-local — every load-bearing R1 claim was verified by direct grep + Read of the pinned ProjectOdyssey `main` source (impl bodies, not signatures). Cited file:line: `normalization.mojo:371-455`, `any_tensor.mojo:1479`, `arithmetic.mojo:354` (`_reduce_broadcast_dims`), `tensor_creation.mojo:531`. The plan itself has not yet run through `pixi run mojo build` or CI, so behavior at merge time is `verified-local`, not `verified-ci`. |
 | **Category** | architecture / planning |
 | **Related Issues** | ProjectOdyssey #5515 R1 revision |
-| **Related Skills** | `mojo-planning-verify-type-semantics-and-source-counts` (pre-planning probe discipline), `planning-follower-issue-unmerged-dependency-assumptions` (unmerged-dep failure catalog — this skill's Pattern 6 is the positive counterpart) |
+| **Related Skills** | `mojo-planning-verify-type-semantics-and-source-counts` (pre-planning probe discipline), `planning-follower-issue-unmerged-dependency-assumptions` (unmerged-dep failure catalog — this skill's Pattern 6 is the positive counterpart), `planning-self-identified-defects-must-be-fixed-not-noted` (an addendum cannot clear a defect in an actionable section — see Pattern 8) |
 
 ## When to Use
 
@@ -55,6 +59,7 @@ Use this skill when:
 6. **You are about to write `f(..., seed=42)` for a stdlib function whose signature you have not read.** See Pattern 5.
 7. **A `@fieldwise_init` struct has 20+ fields and you are writing a factory.** See Pattern 5 in the sibling skill and Pattern 6 here (kwargs are legal and much more reviewable at that scale).
 8. **A `Depends on #<N>` target is still open and no PR references it.** See Pattern 6. Scaffold the contract locally in this PR rather than blocking.
+9. **You revise a plan and the amendment block answers only the prior REVIEW findings.** See Pattern 8. Re-sweep every anchor the amendment did not cite or correct.
 
 **Trigger keywords in a review comment:** "verify", "cite line", "signature vs semantics", "which stats does it actually use", "trust the docstring", "prove this by reading source", "unverified", "hand-wave", "count doesn't match".
 
@@ -206,6 +211,43 @@ gh pr list --search 'in:body #5514' --state open  # confirms no PR references th
 
 **Cross-reference:** the *failure catalog* for this pattern lives in `planning-follower-issue-unmerged-dependency-assumptions.md` (PR #2933 at time of writing). This skill's Pattern 7 is the *positive workflow*.
 
+### Pattern 8 — An amendment fixes its findings; re-sweep the anchors it did not touch
+
+**Recurring failure mode:** a revision answers each review finding with a corrected bullet list. The
+rest of the plan is a copy of the text that the prior reviewer marked as verified. That reviewed text
+had correct anchors. The edit rewrites the sentence that carried an anchor, and the anchor is dropped,
+moved, or renumbered. A later revision then repairs a weaker finding and restores a value that an
+earlier revision had already corrected. Both changes fall outside the current finding list, so
+nobody checks them.
+
+Observed sequence on one three-round plan review:
+
+- Revision N listed two call-argument positions correctly as a count.
+- Revision N+1 rewrote the surrounding sentence to answer a different finding and changed the two
+  positions to a wrong pair. The invalid claim passed the review.
+- Revision N+2 fixed an anchor that the review had reported. It restored the revision-N value in
+  the same sentence.
+- The final review found the restored value, because the final sweep compared the whole artifact.
+
+**Rule:** treat every amendment as a full revision. When the amendment block names only the prior
+findings, re-sweep these three sets before you publish:
+
+1. **Anchors the amendment did not cite or correct.** Confirm each one against the tree again. A
+   correction elsewhere in the section can invalidate it.
+2. **Sections that carry the same fact twice.** One claim can live in an Evidence list and in a
+   Change list. Correct both, or delete one. Two copies diverge, and a reader cannot tell which is
+   current.
+3. **Values that an earlier revision already corrected.** Do not restore a value from an older
+   revision. Check the diff against the previous revision, not only against the review text.
+
+Report the re-sweep in the amendment block, for example "anchors re-verified against base `<rev>`:
+N anchors, no drift". This tells the reviewer which text was checked and which was only carried over.
+
+**Why it stays with this skill.** The reason every amendment needs this sweep is that the artifact
+must stay self-consistent: an edit that changes meaning can make the text around it wrong, even when
+the editor believes that text is unchanged. An anchor that is only correct for the previous wording
+is not evidence for the new revision.
+
 ### Quick Reference
 
 ```text
@@ -227,6 +269,10 @@ gh pr list --search 'in:body #5514' --state open  # confirms no PR references th
 8. Unmerged dependency                 → scaffold the contract locally IN THIS PR;
                                           rename-pass if dep merges first with different
                                           names. Do not block.
+9. Amendment names only prior findings  → treat it as a full revision: re-sweep every
+                                          uncited anchor, every fact stated twice, and
+                                          every value an earlier revision corrected.
+                                          Report the sweep in the amendment block.
 ```
 
 **Verified probe commands (ProjectOdyssey main, 2026-07-02):**
@@ -271,6 +317,7 @@ gh pr list --search 'in:body #5514' --state open # → (empty)
 | Write `initialize_velocities(model) → ResNet18Velocities(model)` — a single-arg factory | R0 assumed velocities could be built from the model in one call | `@fieldwise_init` generates a per-field constructor. A single-arg call is illegal. The naive "fix" — 81 positional args — is unreviewable | Use kwargs, one per line. `@fieldwise_init` accepts them (sibling skill verified at `precision_config.mojo:68`). Positional at 81 args is a POLA violation; the field name is the review anchor |
 | Invent cache field names against `Depends on #5514` prose alone and hope they match on merge | R0 named 11 fields "conv pre-BN, BN pre-ReLU, ..." based on the dep issue body | The dep is still open, no PRs. Field-name drift on merge is guaranteed. R0 also blocked on the dep rather than shipping. | Scaffold the contract locally IN THIS PR: `@fieldwise_init(Movable)` structs defined in the same file as the code that consumes them. Compile-checked from PR-open. Rename pass if the dep merges first with different names — the 200 lines of block-helper bodies are naming-insensitive |
 | React to the NOGO by writing more prose justifying the R0 claims | R0.5 draft answered each reviewer point with additional argument | Prose does not verify. The reviewer's whole point was "your claims are not grounded in source". Answering with more claims fails identically | The fix for a NOGO on unverified claims is to OPEN THE FILE, read the impl body (not just the signature or docstring), and paste `file:line` back into the plan. Verification means reading impl bodies; hand-waving means arguing about signatures |
+| Let the amendment block answer only the review findings and carry the rest of the plan forward as "already verified" | A revision answered one review finding in the section that stated a shell argument contract, and changed two argument positions to a wrong pair while doing it. A later revision, while fixing an unrelated citation, restored a value that an earlier revision had already corrected | Both changes fell outside the current finding list, so neither reviewer round checked them. One round approved an invalid claim and the next restored a corrected one. Only the final whole-artifact sweep caught the restored value | Treat every amendment as a full revision. Re-sweep the anchors that the amendment did not cite or correct, every fact that the text states twice, and every value that an earlier revision corrected. Compare against the previous revision, not only against the review text (Pattern 8) |
 
 ## Results & Parameters
 
@@ -300,6 +347,7 @@ gh pr list --search 'in:body #5514' --state open # → (empty)
 6. **Grep the signature before writing a keyword arg.** Cite the line.
 7. **`@fieldwise_init` factories with 20+ fields use kwargs, one per line.**
 8. **Unmerged dep → scaffold-first; rename-pass on merge.** Do not block; do not invent names.
+9. **An amendment that names only the prior findings is a full revision.** Re-sweep the uncited anchors, the facts stated twice, and the values an earlier revision corrected. A pass that checks only the findings approves claims that nobody re-verified.
 
 ## Verified On
 
@@ -307,3 +355,4 @@ gh pr list --search 'in:body #5514' --state open # → (empty)
 | --------- | --------- | --------- |
 | ProjectOdyssey | Issue #5515 planning (R0) | R0 plan hand-waved all six patterns; reviewer NOGO'd for unverified claims. Failed Attempts table above captures the R0 mistakes verbatim |
 | ProjectOdyssey | Issue #5515 planning (R1, 2026-07-02) | `verified-local` — every load-bearing R1 claim verified by direct grep + Read of pinned `main` source (impl bodies, not signatures). Cited file:line evidence inline: `normalization.mojo:371-455` (BN backward training branch semantics), `any_tensor.mojo:1479` (sanctioned scalar read `load[dtype]`), `arithmetic.mojo:354` (`_reduce_broadcast_dims`, add-backward broadcast path), `tensor_creation.mojo:531` (`randn` seed kwarg). Trainable-param count grep against `examples/resnet18_cifar10/model.mojo` returned 81. Plan execution / CI still pending — this remains `verified-local`, not `verified-ci` |
+| An anonymized service repository | Three-round plan review, 2026-11 | `verified-local` — Pattern 8. Revision N stated two call-argument positions correctly. Revision N+1 changed them to a wrong pair while answering another finding, and the round that reviewed it approved. Revision N+2 restored the revision-N value while fixing a reported citation. The final round re-read the full artifact against the tree and found the restored value. Every finding in that round was resolved; the defect was in the text that the findings did not name |
