@@ -1,13 +1,13 @@
 ---
 name: plan-review-strict-rubric-iteration
 license: BSD-3-Clause
-description: "Improve implementation plans with relevant engineering principles and actionable review findings. Use for design tradeoffs, incomplete handoffs, revisions that need another review, and plan revisions whose amendment block or binding block carries a stale or superseded requirements identity."
+description: "Improve implementation plans with relevant engineering principles and actionable review findings. Use for design tradeoffs, incomplete handoffs, revisions that need another review, plan revisions whose amendment block or binding block carries a stale or superseded requirements identity, and plans whose file, symbol, or line locators must be proved against the tree before a verdict."
 category: architecture
 date: 2026-06-11
-version: "1.3.0"
+version: "1.4.0"
 user-invocable: false
 verification: verified-local
-tags: [plan-review, architecture, github-issues, design-docs, rubric, requirements-identity, amendment-rebinding, stale-binding, dependency-set-drift, issue-deduplication]
+tags: [plan-review, architecture, github-issues, design-docs, rubric, requirements-identity, amendment-rebinding, stale-binding, dependency-set-drift, issue-deduplication, locator-verification, citation-verification, claim-verification, false-completion]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/plan-review-strict-rubric-iteration.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -26,6 +26,10 @@ history-cleanup-date: "2026-09-20"
 | **Objective** | Add the amendment-rebinding check: decide whether a plan revision still binds the current issue requirements, and keep the issue body as the requirements authority. |
 | **Version** | 1.3.0, minor bump: a plan revision can rebind its requirements without reaching the decisions it dropped or added (carries the 1.2.0 rubric and artifact boundaries). |
 | **Verification** | verified-local: one plan-review round applied the check and found a plan written for a superseded scope. |
+| **Date** | 2026-11-07 |
+| **Objective** | Add the locator check: prove each cited file, symbol, and line range against the tree before any grade. |
+| **Version** | 1.4.0, minor bump: a specific plan can cite locations that are absent or moved, so phase 2 proves each locator before grading (carries the 1.3.0 rebinding check). |
+| **Verification** | verified-local: one round-0 review read every cited path and line range before grading, and it corrected an initial statement of an unproven count. |
 
 ## When to Use
 
@@ -36,6 +40,7 @@ history-cleanup-date: "2026-09-20"
 - You need iterative refinement: write plan → review → fix findings → re-review
 - You review a plan revision, and the plan carries an amendment block, a binding block with a requirements identity, or a changed validation policy
 - A plan names a dependency set, a scope list, or a requirement map, and the issue body changed since the previous revision
+- The plan cites files, symbols, or line ranges, or it claims that the current code already satisfies a requirement
 
 ## Verified Workflow
 
@@ -52,6 +57,11 @@ gh issue comment {issue_number} --repo {owner}/{repo} --body-file /tmp/review{is
 
 # Post revised plan as comment
 gh issue comment {issue_number} --repo {owner}/{repo} --body-file /tmp/plan{issue}v{n}.md
+
+# Prove cited locators in parallel (one read per family of evidence)
+rg -n '<cited symbol or text>' <cited path>
+sed -n '<start>,<end>p' <cited path>
+ls <cited path with a glob for uncertain names>
 ```
 
 ### Detailed Steps
@@ -91,13 +101,42 @@ Run this phase when the artifact declares an amendment, a requirements identity,
 3. Compare the plan revision with the previous revision. List each decision that the new revision changes, adds, or drops, and check that the new revision addresses each one. A policy change does not discharge a scope finding.
 4. Do not rebuild an asserted integrity hash. If a recomputation does not match, report the limit and base the finding on the text of the artifact.
 
-#### Phase 2: First Review Round
+#### Phase 2: Prove Cited Locators Before Grading
+
+A plan is often specific because it cites paths, symbols, and line ranges. A citation that
+is absent, moved, or says the opposite makes the plan look complete while it is not. Grade
+only after you prove each locator.
+
+1. **Classify each citation.** Read the cited range. Confirm that it exists and that it
+   supports the claim that the plan makes about it. Read the target range, not the whole
+   file. Do not accept a path, line number, or quoted text as proof by itself.
+2. **Resolve uncertain names with a search.** If an exact path is missing, search sibling
+   directories with an extension glob before you report a missing artifact. A similar name
+   in another directory can prove that the plan cited the wrong lane. A search that finds
+   the content elsewhere shows a location defect, not a missing artifact.
+3. **Prove "already exists" claims.** When the plan says that the current code already
+   meets a requirement, find the implementing code and its consumer. Read the caller to
+   confirm the behavior that the plan depends on.
+4. **Prove the line claim and the range claim separately.** A line number can be correct
+   while the cited range describes a different section. Report a range defect as a
+   concreteness finding.
+5. **Record each cited location as one result.** Use one of these results: present,
+   present at a different location, absent, or contradicts the plan. Bind each result to
+   the revision that you read. Do not claim a citation is stale when the review base moved.
+6. **Grade unproven claims as defects.** A citation that you cannot prove is a concreteness
+   finding, not a pass. If a key locator is absent or contradicted, the plan cannot get GO,
+   regardless of its other grades.
+7. **Keep the review bounded.** Read the cited ranges, a small glob or search result, and
+   the consumer when the claim needs it. Do not audit the repository.
+
+#### Phase 2a: First Review Round
 
 1. Fetch all issue bodies and titles via `gh issue view`
 2. When independent review is useful and available, provide the reviewer with:
    - The issue requirements (acceptance criteria)
    - The proposed plan
    - The strict rubric dimensions
+   - The revision that the locator check must use
    - A request for actionable findings, reasons, and verification limits
 3. Use a GO/NOGO format only if the consuming workflow requires it.
 4. Publish review comments when authorized; otherwise keep the review local.
@@ -111,6 +150,7 @@ Run this phase when the artifact declares an amendment, a requirements identity,
    - Update the canonical plan when publication is authorized
 2. Re-review ONLY the revised plans (not the GO plans)
 3. Re-review when revisions or unresolved material findings justify it. Continue authorized implementation once its decisions are sufficiently clear; avoid rounds that add no useful evidence.
+4. Run the Phase 2 locator check again on a revised plan. A revision can add new locators or move existing ones.
 
 #### Phase 4: Final Compilation
 
@@ -163,6 +203,7 @@ Round 4: Fix minor findings → post final task descriptions
 | Single round review | Reviewing plans once without iteration | Plans had major findings that needed revision | Re-review material revisions; choose rounds from unresolved findings |
 | Repeated code and review diffs | Reposted large snippets in the plan and then repeated them in review/amendment comments | The canonical handoff became hard to navigate and reviewers spent rounds comparing duplicate artifacts rather than the decision | Keep one canonical plan; use prose-first planning and reference corrections from reviews instead of reposting diffs |
 | Amendment that changes validation policy only | A revised plan added a policy amendment, a new requirements identity, and an inside-out design for a different subject | The revision did not reach the previous scope findings, kept a stale binding beside the new identity, and dropped most of the issue dependency set | Run the rebinding check in Phase 1a on each amendment: the policy change is not the scope fix, and the issue body stays the requirement authority |
+| Grading specificity by the number of citations | A plan cited many files, symbols, and line ranges, so the reviewer gave a high completeness and handoff grade and started the proof step for some citations only | Specific text reads as verified evidence, but a citation can be absent, moved, or say the opposite | Run the Phase 2 locator check on every cited range before any grade, and bind each result to the revision that you read |
 
 ## Results & Parameters
 
@@ -175,6 +216,9 @@ Round 4: Fix minor findings → post final task descriptions
 
 ### Requirements Alignment
 <mapping of each AC to plan steps>
+
+### Locator Check
+<cited path, symbol, or line range: present, moved, absent, or contradicted — bound to the read revision>
 
 ### Grade: A|B|C|D|F
 <critical/major/minor finding counts>
@@ -212,3 +256,4 @@ Verdict: NOGO — Plan needs changes before implementation (explain what in the 
 | example-org/inference-service | Epic #81 — 6 interrelated GitHub issues for CPU endpoint manager | Reviewed 6 plans across 4 rounds; 3 plans needed 1 revision cycle; all plans eventually passed |
 | example-org/release-system | A revised plan for a release-integration issue, reviewed at round 0 of 3 | The plan bound two different requirements identities, and its own binding text said the following section described a previous epoch. The Requirement map added three rows that the issue body never stated, and the plan named 4 of the 15 issue dependencies. Result: one no-go with the conflict as the primary finding, no graded verdict for the artifact, and the remedy named as replanning from the current issue body. |
 | isolated automation planning run | Oversized canonical plans and repeated review artifacts were compacted to one body-level plan before a clean NOGO re-review | Verified operational cleanup and plan-state reset |
+| private repository, snapshot-restore investigation | Round 0 of 3 on a plan that cited about thirty paths and ranges across scripts, a build tool, a cluster profile, and a cookbook | About ten batched reads proved every cited path, symbol, and line range before the grade. The reviewer first wrote an unproven count of verified citations and corrected it to a factual list. Result: GO with zero critical and zero major findings, and three minor findings. |
