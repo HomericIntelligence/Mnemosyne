@@ -1,9 +1,9 @@
 ---
 name: automation-review-authorization-ci-boundary
-description: "Keep automation-loop source-review authorization independent of CI, bind approval to an exact PR head, and conditionally merge only that reviewed head. Use for moving heads, unresolved threads, no-commit evidence replies, scope retractions, label transitions, external auto-merge, reruns after merge, or auditing review-to-merge event order."
+description: "Keep automation-loop source-review authorization independent of CI, bind approval to an exact PR head, and conditionally merge only that reviewed head. Use for moving heads, unresolved threads, no-commit evidence replies, scope retractions, label transitions, external auto-merge, reruns after merge, or auditing review-to-merge event order. Also use when a green required check may hide skipped jobs, when a PR splits one invariant across eager validation and a test assertion, or when a template rewrite drops a cited decision's identifiers."
 category: architecture
 date: 2026-08-08
-version: "4.1.0"
+version: "4.2.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-ci
@@ -35,6 +35,9 @@ The complete prior source is archived in
 - Native auto-merge may have been armed by another actor.
 - A rerun observes a merged PR or a local checkpoint disagrees with live state.
 - An audit must prove which head was reviewed, authorized, and merged.
+- A required check reports success while its real jobs were skipped by a gate condition.
+- A PR moves one behavior from an eager check to a later path, and a test assertion changes too.
+- A documentation rewrite must satisfy a structural prose rule and also keep cited identifiers.
 
 ## Verified Workflow
 
@@ -71,15 +74,74 @@ merge conflict. Resolve conflicts without dropping contracts already landed on t
 publish with a conditional lease. The new head invalidates the old authorization and must pass the
 checkout barrier and review again.
 
+### 2a. Prove a required check executed before you cite it
+
+A required context can report success while its real jobs never ran. A gate condition, such as a
+path filter, a label condition, or an `if:` expression, can skip the work and leave the required
+context green. Never write "the check passed" from a status row alone. Read the run and each job:
+
+```bash
+gh run view <run-id> --repo <owner>/<repo> --json status,conclusion,event,headSha,jobs \
+  --jq '{conclusion, headSha, jobs: [.jobs[] | {name, conclusion}]}'
+```
+
+Then apply these decision rules.
+
+1. Bind the run to the reviewed head. A run on another SHA is not evidence for this head.
+2. Compare the run duration against the work the check claims. A pass in seconds is a gate skip,
+   not a test run.
+3. Require `conclusion: success` on each job that does the work. A `skipped` lint, typecheck, or
+   test job means the check did not run.
+4. Report the result as "not run" when the work was skipped, even if the required context is green.
+   State the gate condition and its file location.
+5. Do not set an approving label on a check that did not run. Absence of execution is a missing
+   precondition, not a pass.
+
+Local runs at the same head are supporting evidence. They do not replace an executed CI job.
+Report them as separate evidence with their exact command and result.
+
 ### 3. Run strict source review inside the loop
 
 Review the checkout-derived diff without querying CI runs, artifacts, or deployments. Require an
 explicit GO; missing, ambiguous, or NOGO results do not advance. A reviewer may disclose inability
 to rerun tests without inventing results. Scanner-backed remediation requires a current-head source
 change and regression for the producer contract; documentation-only claims are insufficient.
-
 Unresolved relevant threads retain NOGO. Repeat review only after thread disposition or head change.
 Do not manufacture a commit to make evidence-only remediation look like progress.
+
+### 3a. Check two invariants before you accept a fix
+
+Two defects survive a green test run because each invariant was checked in only one place. Check
+both before you approve a change that moves or deletes validation.
+
+1. **The refusal still runs after the eager check is gone.** When a change removes an eager
+   validation, or weakens it, ask where each refused input now fails. A command that must refuse
+   before any effect needs at least one non-vacuous refusal path. If the only remaining check is at
+   the operation boundary, the refusal is late. Time to refusal, the effect already applied, and
+   the exit code can all change.
+2. **The test still asserts one behavior.** A diff that widens an assertion to accept both outcomes
+   (`{exit_code_1, exit_code_2}`, "any error", "in either case") stops testing behavior. Require
+   one asserted outcome per case. Split the case when the host state decides the outcome, and add a
+   case for the refused state. Two other patterns prove nothing: a monkeypatch of a name that does
+   not exist (`raising=False`) so the recorded calls stay empty, and a patch of a non-existent
+   attribute that makes the "must not run" guard vacuous.
+
+### 3b. Keep cited identifiers through a structural rewrite
+
+A documentation guard can mandate a section template or forbid paths and commands in prose. A
+rewrite that satisfies the guard can still delete a decision identifier that other text cites, such
+as a link rule, a path spelling, or a named error message. Before you accept the rewrite:
+
+1. List the identifiers the page cites from another record, such as an accepted decision, a
+   superseded section, or a named error.
+2. Compare the before and after text. An identifier that disappears is a regression, even if the
+   guard passes.
+3. Find a spelling that satisfies both. A two-token form of the same name often passes a denial
+   regex that rejects the slash form, and still matches the cited text.
+4. State behavior that the change adds. A rewrite must not omit a new precedence rule, a new
+   refusal, or a new exit code that the same change introduced.
+5. Run the guard test for the edited page. Separate a guard failure for an untouched page from a
+   failure on this page, and report the untouched page as pre-existing.
 
 ### 4. Handle no-commit and metadata-only replies
 
@@ -162,6 +224,9 @@ merge, so null on a merged PR is expected.
 | Partial auto-merge read | Treated missing field as null | Partial data permitted unsafe mutation | Require explicit present-and-null |
 | Evidence commit | Manufactured unrelated commit | Changed head without source need | Preserve head; reviewer owns disposition |
 | ADR rewrite | Edited accepted decision in place | Destroyed historical record | Add superseding ADR and index it |
+| Green status row | Cited a required context as passed from its status row | The gate skipped lint, typecheck, and test jobs; the context passed in seconds | Read the run jobs and report "not run" for skipped work |
+| Widened assertion | Changed a test to accept both possible exit codes | No outcome could fail, so the test asserted nothing | Assert one outcome and add a case for the other state |
+| Template rewrite | Rewrote a page to pass the section template | Cited link-rule identifiers disappeared and the new precedence was absent | Keep cited identifiers and state the new behavior |
 
 ## Results & Parameters
 
@@ -174,6 +239,11 @@ fresh OPEN/autoMergeRequest/head label precondition
 exclusive GO/NOGO label readback
 active reviewed-head proof and guard ownership
 required-check completion, conditional merge SHA, terminal event order
+run identifier, run event, run head SHA, run conclusion, per-job conclusion, run duration
+gate condition and its file location when any job was skipped
+local evidence command, tested tree head, result, and separated pre-existing failures
+refusal path after a removed eager check, and one asserted outcome per behavior case
+cited identifier list and the guard test result for each edited page
 ```
 
 ## Verified On
