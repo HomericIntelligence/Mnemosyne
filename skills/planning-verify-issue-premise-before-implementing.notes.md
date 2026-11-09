@@ -190,10 +190,12 @@ Findings, in a generic form:
 
 Checklist that produced the finding:
 
-    git log --oneline --all --grep='#<issue>' -5          # the issue id as a search key
-    git log --oneline --all --grep='#<cited>' -5          # each cited issue
-    gh issue view <issue> --json state,labels,comments    # deferral and planner comments
-    git show <sha> -- <files>                             # clause-by-clause discharge
+```bash
+git log --oneline --all --grep='#<issue>' -5          # the issue id as a search key
+git log --oneline --all --grep='#<cited>' -5          # each cited issue
+gh issue view <issue> --json state,labels,comments    # deferral and planner comments
+git show <sha> -- <files>                             # clause-by-clause discharge
+```
 
 Limit: no implementation outcome follows from this session. The lesson records the
 planning decision support only.
