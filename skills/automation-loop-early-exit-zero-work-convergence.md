@@ -4,10 +4,10 @@ license: BSD-3-Clause
 description: "Implement automation-loop convergence and summaries using the same work signal; distinguish finite explicit selections from repeatable discovery."
 category: tooling
 date: 2026-08-05
-version: "1.2.1"
+version: "1.3.0"
 user-invocable: false
 verification: verified-local
-tags: [automation, loop-runner, early-exit, convergence, testing, summary, work-units]
+tags: [automation, loop-runner, early-exit, convergence, testing, summary, work-units, zero-items, drain-crash, rate-limit]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-loop-early-exit-zero-work-convergence.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -33,6 +33,7 @@ history-cleanup-date: "2026-09-20"
 - **Auditing a human-facing per-loop / per-iteration summary** (e.g. `_summarize_loop`) that contradicts the early-exit / convergence message — grep for `+= 1` next to a phase-name check; it likely counts "phase ran" instead of "phase did work"
 - Deciding whether a fully-filtered issue set should warn or stay silent (explicit `--issues` vs auto-discovery)
 - Separating a finite, explicitly selected work set from a repository-discovery source that may admit newly found work on later passes
+- **Operating** a run that prints an empty summary (zero items, zero work) after a short wall time, and you must decide whether the queue was empty or the selection step crashed
 
 ## Verified Workflow
 
@@ -91,6 +92,23 @@ def test_early_exit_fires(tmp_path):
    pixi run ruff check hephaestus/automation/loop_runner.py
    pixi run pytest tests/unit/automation/ -q --no-cov
    ```
+
+### Zero-Item Summary From a Crashed Selection
+
+An operator sees `items: 0` (or an empty per-loop table) with a short wall time and may read it
+as a converged or empty queue. It can instead be a crash in the selection step that runs before
+any work item exists.
+
+1. Read the summary shape. A legitimate zero-work pass still lists the selected or filtered
+   entries; a crashed selection prints an empty table and zero agent jobs.
+2. Search the log for a traceback before the summary. A stack that ends in the issue or work
+   selection path proves the run never reached the queue.
+3. Classify the exception. An API or transport quota error is the common class; read the error's
+   reset or remaining values instead of guessing.
+4. Verify quota independently with a cheap read-only call. A recovered quota permits one retry;
+   a still-exhausted quota means wait, do not loop.
+5. Retry once the cause clears. A healthy retry proceeds past the selection step and prints work
+   claims; stop after that point and operate the run normally.
 
 ### Keep Reseeding Limited to Discovery Sources
 
@@ -185,6 +203,7 @@ NOT "phase did work". Any human-facing summary must read the same `work_units` /
 | Checking `review-prs` in convergence | Assumed `review-prs` should be a convergence phase | `review-prs` is not in `_CONVERGENCE_PHASES` — it is not instrumented with `write_work_report`; adding it would require also calling `write_work_report` in that phase | Only phases that actively call `write_work_report` belong in `_CONVERGENCE_PHASES` |
 | Summary counted "phase ran" not "work done" | `_summarize_loop` did `total_planned += 1` for any non-skipped plan phase | Diverged from the convergence predicate, which reads `work_units` — produced `planned=4` directly above `Early exit ... produced 0 new plans` | Any human-facing loop summary must read the SAME signal (`work_units`/`produced_work`) the early-exit predicate reads; grep for `+= 1` next to a phase check when auditing |
 | Trusting `work_units` for the `implement` phase | Considered counting `implement` by `work_units` too | `implement` writes no work-report, so its `work_units` is always `None`; counting it by `work_units` would always fall to the conservative `else 1` and tell you nothing | `work_units` reliability is per-phase: only `plan` reports it. Trust `work_units` only for instrumented phases; fall back conservatively otherwise |
+| Read `items: 0` as an empty queue | Treated the zero-item summary as proof that the explicit issue set had no eligible work | The log held a traceback from the selection step: a GitHub API rate-limit error aborted the drain before any item existed, so the summary could not describe the queue | Search the log for a traceback before concluding the queue was empty; verify the quota and retry after recovery |
 | Warning on every empty pass | Considered warning whenever `filter()` returns nothing | A converged repo under AUTO-discovery legitimately empties every pass → re-introduces loop spam | Warn only when an EXPLICIT `--issues` set fully filters out. Capture the explicit-vs-discovered distinction at the CLI boundary (`planner.main`, before discovery overwrites `args.issues`), since by `filter()` time `options.issues` is always populated either way |
 | Re-seed every drained input | Treated the loop budget as permission to recreate both discovery and explicitly selected input cursors | A finite operator selection was processed again outside its stage-local retry routes | Re-seed only a repository or organization discovery source; explicit selections drain once and queue transitions own rework |
 
@@ -200,6 +219,8 @@ NOT "phase did work". Any human-facing summary must read the same `work_units` /
 | `test_early_exit_skipped_on_final_loop` | loops=1, zero work | exactly 1 result; guard `loop_idx < cfg.loops` prevents exit on final |
 | `test_unknown_work_units_prevents_early_exit` | loops=3, work_units=None | all 3 loops run (conservative: None → True) |
 | `test_early_exit_multi_repo_requires_all_zero` | loops=5, r1 productive + r2 zero | all 5 loops run because r1 has work |
+
+| Zero-item summary | `items: 0` with a short wall time is a possible selection crash, not proof of an empty queue; grep the log for a traceback, verify the quota, retry after recovery |
 
 ### Helper Factories (copy-paste into test file)
 
