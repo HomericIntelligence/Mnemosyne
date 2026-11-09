@@ -215,6 +215,33 @@ is judged for execution, not only for premise truth; an edit that voids a cited
 range, a structural duplicate, an unowned required action, and an unnamed change
 each block use.
 
+## 2026-11: Per-ask triage then vehicle selection (v3.9.0 source case)
+
+Source: one planning session on an open bug issue in a fast-moving repository.
+The issue body listed six asks. The issue was still open after the primary defect
+was repaired.
+
+Discharge map measured against the default-branch tip:
+
+- A merged CI-repair change had already updated the five stale test assertions
+  (found by `git log --oneline <merge-commit>..origin/main -- <test files>`),
+  removed the dead selector write, and threaded an explicit selector into the
+  rendered calls that the issue cited.
+- One documentation example and one error-wrapper call site were still open; no
+  default-branch commit after the merge touched either file.
+- A merged CI repair also rewrote the selection page the issue flagged.
+
+Vehicle selection: the repository had an open PR whose body closed the same
+issue. Reading its diff (`git diff --stat origin/main...<branch>`) showed the
+code fix, the documentation fix, and the dead-write removal, but no test pinned
+the new precedence and no wrapper around the failing call. Reading its merge base
+(`git merge-base`) showed the branch was cut before the CI repair, and its test
+shards failed in the same modules that repair had touched. The plan therefore
+reused the open PR: rebase, add the missing test and the wrapper, rebind checks.
+
+Limitations: planning only. The disposition was not implemented or merged in this
+session, so the rule is recorded as unverified and the example is illustrative.
+
 ## Retrieval note
 
 This file is a companion and is not part of normal retrieval. Keep rules in the main
