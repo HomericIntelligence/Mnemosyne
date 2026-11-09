@@ -164,3 +164,38 @@ Rules the case supports:
 
 This file is a companion and is not part of normal retrieval. Keep rules in the main
 entry.
+
+## v3.9.0 evidence: clause ledger, authority conflict, paired commits (2026-11-07)
+
+Source: one planning session on an issue that was deferred and replanned. The issue cited
+four later issues. Two merged commits names its own issue id in the subject line, so the
+issue id itself was a valid search key.
+
+Findings, in a generic form:
+
+1. A commit that cites the issue id discharged two of six named clauses: one script that
+   called a CLI verb without its required positional argument, and one refusal message
+   that named only the accepted values and not the observed one. The other four clauses
+   stayed live, and the primary ask stayed open. A later, broadened design record kept
+   the issue as an input.
+2. A second commit in the same area relaxed one admission check and kept another refusal
+   fatal. Read alone, the pair looks inconsistent. Read as a classification, it is the
+   rule: one identity class is informational and one is enforced. The residual work is then
+   to apply that classification to the gates the first commit did not cover, not to pick
+   one of the two commit behaviors.
+3. The issue's own proposal said to replace an allowlist refusal with a warning. The live
+   decision record listed authentication and permissions as the classes that stay
+   enforced. The plan kept the refusal and adopted only the proposal's clause about the
+   message content.
+
+Checklist that produced the finding:
+
+```bash
+git log --oneline --all --grep='#<issue>' -5          # the issue id as a search key
+git log --oneline --all --grep='#<cited>' -5          # each cited issue
+gh issue view <issue> --json state,labels,comments    # deferral and planner comments
+git show <sha> -- <files>                             # clause-by-clause discharge
+```
+
+Limit: no implementation outcome follows from this session. The lesson records the
+planning decision support only.
