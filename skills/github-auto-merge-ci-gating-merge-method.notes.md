@@ -102,6 +102,30 @@ same evidence path for both problems:
 This case is `verified-local` for the two-lane timeline and `verified-ci` for the
 check conclusions and the pre-existing attribution.
 
+## Trigger label absent: zero check runs
+
+An automation campaign opened a pull request and armed auto-merge in the same turn. The
+repository gates CI with a state label: the workflows start only when that label is on the
+pull request. The campaign assigned no label. The request stayed open for more than a day.
+
+Readback at review time:
+
+- `state: OPEN`, auto-merge request armed with the squash method.
+- `mergeStateStatus: UNKNOWN`.
+- `gh pr checks <N>` answered "no checks reported on the branch" - not failures, not skipped
+  jobs, no runs at all.
+
+Applying the trigger label started the full check matrix within seconds, and the armed
+request stayed valid. A sibling pull request from the same campaign carried the label from
+creation and had check runs immediately, so the difference was the label, not the workflow
+definition. A third pull request carried a verdict label instead; its checks were skipped by
+the workflow gate.
+
+Decision rule captured from the trio: classify each label as policy-required, decorative, or
+trigger. An absent trigger label is a "no result exists" state. Waiting cannot change it, and
+no failing run exists to debug. Apply the label only within explicit authority, then verify a
+run starts on the current head.
+
 ## Verification boundaries
 
 Rows marked `verified-ci` observed merged PRs and remote checks. Shared-queue and Athena direct-review

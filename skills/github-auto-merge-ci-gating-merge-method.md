@@ -9,15 +9,17 @@ description: >-
   label may be mistaken for a merge gate, when a label-gated workflow keeps failing
   after the label changed, when every check is green but the merge state stays
   `BLOCKED` because a checkless rule such as `required_signatures` rejects an
-  unverified commit, or when a reviewer must decide whether to set the GO label
-  after a required check was claimed as a success before that check ran.
+  unverified commit, when a reviewer must decide whether to set the GO label
+  after a required check was claimed as a success before that check ran, or when
+  an armed request waits with zero check runs because a trigger label that starts
+  CI was never applied.
 category: ci-cd
 date: 2026-07-30
-version: "2.8.0"
+version: "2.9.0"
 user-invocable: false
 verification: verified-ci
 license: BSD-3-Clause
-tags: [auto-merge, github, ci-cd, merge-method, required-checks, rulesets, review-threads, current-head-checks, merge-queue, toctou, armed-merge-race, ceremony-ordering, label-gating, cancelled-leg, checkless-rule, required-signatures, commit-verification, claim-before-check, verdict-time-check-state, stale-check-claim]
+tags: [auto-merge, github, ci-cd, merge-method, required-checks, rulesets, review-threads, current-head-checks, merge-queue, toctou, armed-merge-race, ceremony-ordering, label-gating, cancelled-leg, checkless-rule, required-signatures, commit-verification, claim-before-check, verdict-time-check-state, stale-check-claim, trigger-label, zero-check-runs]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/github-auto-merge-ci-gating-merge-method.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -63,6 +65,7 @@ repository-specific policy transitions are `verified-local`; their boundaries ar
 - Auto-merge is already armed, protocol ceremonies (a final review record, thread resolution) remain, and you must order them.
 - A decorative state label shows a non-mergeable verdict while the armed merge stays pending, and you must decide whether that label gates the merge.
 - A verdict comment reports a required check as a success, but that run started after the comment, and the GO label decision depends on which result is real.
+- An armed request stays open with merge state `UNKNOWN` or `BLOCKED` and the head has no check runs at all because a trigger label that starts CI was never applied.
 
 ## Verified Workflow
 
@@ -114,6 +117,11 @@ authorized path, and read the repository and user instructions to learn what is 
 ### Merge-method and check rules
 
 - Detect allowed methods from repository settings; never hardcode a personal preference.
+- Classify each label into one of three classes before you reason about it: policy-required (blocks
+  merge), decorative/state (does not block), or trigger (starts CI). A missing trigger label means
+  the head has zero check runs; no result exists and none will appear while the label is absent.
+  Apply a trigger label only within explicit authority, then verify that a run starts on the
+  current head before you read any result.
 - A required check is identified by its exact posted name, not workflow filename or guessed job ID.
 - `strict_required_status_checks_policy=false` can allow a prior-SHA success; if current-head
   validation is intended, require the strict/current-head policy explicitly.
@@ -301,6 +309,7 @@ a check to turn green, because no check exists to turn green.
 | Read a decorative state label as a merge gate | Expected a non-mergeable state label to hold an armed merge | The label was not policy-required; the armed merge stayed pending and ignored it | Check the policy union for label requirements; gate on reviews, threads, and checks |
 | Re-run to clear a label gate | Applied the required label, then ran `gh run rerun <run-id> --failed` on the pre-label run | A re-run replays the original event payload, so the gate step read the superseded label set from `env` and failed again | Read the run whose `created_at` follows the label mutation; require its success and leave the re-run out of the evidence |
 | Accept a verdict's check claim of success | A reviewer comment reported `Required check: success` and a lane set the GO label. The check run started after the comment and concluded `failure` | The claim had no result behind it. Two lanes reviewed one head, so the GO decision rested on a claim, not on the check result | Read the check results at the head, compare their `created_at` with the comment `createdAt`, and state the real result. Report unmet label conditions to the owner |
+| Wait on an armed request with no check runs | Auto-merge was armed and left overnight; merge state stayed `UNKNOWN` for more than a day; the head had zero check runs | No workflow had started, because the trigger label that gates CI was never applied. Waiting could not produce a run, and no failing check existed to diagnose | Classify labels as policy, decorative, or trigger; when a trigger label is absent, apply it within authority and verify a run starts on the current head |
 
 ## Results & Parameters
 
@@ -319,6 +328,7 @@ a check to turn green, because no check exists to turn green.
 | Ceremony ordering | Deliver remaining records before the final gate clears, or disarm and re-arm |
 | Cancelled-leg recovery | Classify by leg ownership plus comparator timing; rerun failed jobs only; do not push or rebase |
 | Label gating | Only policy-required labels block; decorative state labels do not |
+| Trigger labels | Start CI. An absent trigger label yields zero check runs, not zero results; apply it within authority and verify a run starts on the current head |
 | Label-event evidence | Use the run created after the label mutation on the same head; a re-run replays the old payload |
 | Verdict check claim | Accept a required-check result only from a run whose `created_at` precedes the verdict comment; a later run cannot support the claim |
 | Label authority | Set the GO label only on a clean GO with passing required checks at the reviewed head; report an unmet condition instead of removing a foreign label |
