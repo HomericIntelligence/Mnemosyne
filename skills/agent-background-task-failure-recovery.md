@@ -1,13 +1,13 @@
 ---
 name: agent-background-task-failure-recovery
 license: BSD-3-Clause
-description: "Recover unfinished agent work when completion messages contain API failures or expected edits are missing. Also use when skill-bearing subagent spawns fail repeatedly with infrastructure errors while a minimal probe succeeds, and the failed lane carries a verdict that gates a merge. Also use when background-lane dispatches fail at admission near a measured concurrent-lane ceiling on a loaded host, and the lane queue needs a throttled, guarded readmission instead of a mass relaunch or inline degradation."
+description: "Recover unfinished agent work when completion messages contain API failures or expected edits are missing. Also use when skill-bearing subagent spawns fail repeatedly with infrastructure errors while a minimal probe succeeds, and the failed lane carries a verdict that gates a merge. Also use when background-lane dispatches fail at admission near a measured concurrent-lane ceiling on a loaded host, and the lane queue needs a throttled, guarded readmission instead of a mass relaunch or inline degradation. Also use when admission-slot timeouts persist after the concurrent-lane count falls well below the ceiling, because the bound resource is one model or deployment rather than the host."
 category: tooling
 date: 2026-04-17
-version: "1.4.0"
+version: "1.5.0"
 user-invocable: false
 verification: verified-local
-tags: [background-agent, run_in_background, api-error, connection-refused, recovery, foreground-agent, spawn-failure, inline-degradation, operator-escalation, admission-ceiling, readmission-throttle]
+tags: [background-agent, run_in_background, api-error, connection-refused, recovery, foreground-agent, spawn-failure, inline-degradation, operator-escalation, admission-ceiling, readmission-throttle, admission-model-keyed, model-capacity-isolation, resume-stopped-session]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/agent-background-task-failure-recovery.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -30,6 +30,7 @@ history-cleanup-date: "2026-09-20"
 - A background agent consumed many tokens (~12K–26K) and tool uses (~50–77) over 20–40 minutes before "completing"
 - Deciding whether a multi-file task should use `run_in_background: true` or run in the foreground
 - The user changes requirements while a background agent is already running
+- Admission-slot timeouts continue after the concurrent-lane count falls well below the measured ceiling, and you must decide whether the host or one model is the bound resource
 
 ## Verified Workflow
 
@@ -165,11 +166,52 @@ recovery adapts to it:
   on the recorded host) as the admission bound for waves of general
   background lanes on that host. The bound is a measured host property, not a
   constant: re-measure it for each host and each tooling generation.
+- **Test the bind: host count or one model.** The ceiling reading is wrong when
+  admission timeouts continue at a concurrent count well below the measured
+  bound. Then the bound resource is not the host. Decide between the two
+  readings with a model-keyed comparison, not with more throttling.
+
+**Fourth-signature branch — model-keyed admission (added 2026-11-07):**
+
+```text
+same host, same minutes, opposite results:
+admission-slot timeouts cluster on sessions bound to one model
+  (87 timeouts against 15 successes for that model id)
+sessions bound to another model id succeed
+  (117 successes, no timeouts)
+at a concurrent count near four, far below the measured host ceiling
+```
+
+A model-keyed admission failure is a capacity finding about one deployment,
+so the recovery decision differs from the host ceiling:
+
+- **Compare by bound model id, not by lane count.** Group the last idle
+  outcome of each session by its bound model id for the same time window. A
+  timeout rate that separates one model id from another identifies the bound
+  resource. Do not lower the concurrent count further: it is not the cause.
+- **Read the failure as backpressure on one deployment.** The request reached
+  the provider and waited for a slot on that model. It did not fail to
+  authenticate, and the lane did not die mid-work. Do not treat the lane as
+  broken and do not degrade its deliverable.
+- **Retry the same lane once behind the slimmed queue.** Confirm that the
+  concurrent count is low, then readmit. Readmit once, not in a mass wave, and
+  apply the duplicate-work guard from this signature.
+- **Move the work, not only the retry.** A model that keeps timing out does
+  not become available because the lane waits. Rebind the lane to a model that
+  shows successes in the same window, or schedule the lane for when the
+  deployment has capacity. Report a rebind, because it changes the evidence
+  that the lane produces.
+- **Distinguish the payload error from the capacity error.** An idle outcome
+  that fails on every retry with the same non-timeout error, including before
+  the readmission, is not an admission failure. Hold that lane and report it.
+  Do not count it as evidence for either reading.
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
 | Relaunching verdict-lane spawns without a bound | Re-dispatched a dead review spawn as soon as each failure arrived | Every replacement failed with the same infrastructure error while the gated merge decision waited | Probe with a matching profile, retry once, then degrade inline |
 | Mass relaunching admission-failed lanes | Relaunched every admission-failed lane at once after admission-slot and response-header timeouts | The mass relaunch kept the host at the same concurrent count that produced the failures; each new dispatch met the same ceiling | Fill freed slots one at a time and alternate the plan and implement queues; the stable measured count is the admission bound |
+| Throttling below the host ceiling after the queue was already slim | Waited for the concurrent count to fall to a few lanes, then readmitted | The timeouts repeated at a count far below the measured ceiling, because one model deployment was the bound resource | Compare by bound model id before you lower concurrency; a count that does not explain the failures is not the bound resource |
+| Reading a model-keyed timeout as a dead lane | Planned a replacement or an inline degradation for the timed-out lane | The lane had waited at admission, so its work and deliverable were intact and the retry succeeded once capacity returned | Separate backpressure from death: an admission timeout preserves the lane |
 | Treating a minimal probe as recovery proof | Read one trivial no-skill probe success as clearance to re-dispatch skill-bearing spawns | The probe exercised a different spawn profile; the skill-bearing spawns kept failing | Match the probe profile to the failing work before you trust the signal |
 | Relaunching replacements during the wave | Spawned new agents as soon as deaths were noticed | The credential failure was still active host-wide; each replacement died the same way | Probe first; re-dispatch only after a probe completes |
 | Assuming a dead agent left partial work | Searched for its edits and commits | The wave killed agents before their first tool call; the footprint was zero | Verify the footprint before reconciling; zero-footprint deaths need only a fresh dispatch after the wave |
