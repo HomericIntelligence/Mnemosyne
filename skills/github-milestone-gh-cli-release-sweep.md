@@ -1,10 +1,10 @@
 ---
 name: github-milestone-gh-cli-release-sweep
 license: BSD-3-Clause
-description: "Manage GitHub milestones and release-board sweeps with the gh CLI. The gh CLI has no milestone subcommand, so creation and due-date repair go through the REST API; set due_on at noon UTC, not midnight UTC, or the UI renders the date one day early. Use when creating milestones from a script, assigning a large mixed issue and pull-request backlog to milestones, or verifying that a release board has zero unassigned items."
+description: "Manage GitHub milestones and release-board sweeps with the gh CLI. The gh CLI has no milestone subcommand, so creation and due-date repair go through the REST API; set due_on at noon UTC, not midnight UTC, or the UI renders the date one day early. Use when creating milestones from a script, assigning a large mixed issue and pull-request backlog to milestones, or verifying that a release board has zero unassigned items. Use the REST PATCH path when the target milestone is CLOSED: the gh CLI resolves names through an OPEN-only query and reports a closed milestone as not found."
 category: tooling
 date: 2026-10-24
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [github-cli, gh-api, milestone, release-train, release-board, due-on-timezone, batch-assignment, issue-sweep, pr-sweep, tracker-epic]
@@ -68,8 +68,14 @@ gh api -X PATCH repos/{owner}/{repo}/milestones/{number} \
   -f due_on="2026-11-15T12:00:00Z"
 
 # 4. Assign matters: milestones apply to issues AND pull requests.
+#    These two commands resolve the milestone NAME through a GraphQL query that
+#    filters states:[OPEN]. They cannot reach a CLOSED milestone; they report
+#    "'<title>' not found". Use them only for an OPEN milestone.
 gh issue edit {n} --milestone "{title}"
 gh pr edit {n} --milestone "{title}"
+
+# 4b. Assign to a CLOSED milestone by number. This works for either state.
+gh api -X PATCH repos/{owner}/{repo}/issues/{n} -f milestone={number} --jq '.milestone.title'
 
 # 5. Batch sweep with an explicit failure log (tolerate individual errors,
 #    never trust the loop's final exit code).
@@ -121,7 +127,15 @@ gh pr list --state open --limit 500 --json milestone \
    error and the fallback's success output interleave, so the log cannot show
    which path ran. Select the REST path directly; it is the only supported
    path for milestone mutation.
-6. **Re-sweeps are normal operation.** New issues and pull requests arrive
+6. **Decide open or closed from the intent, then select the command.** A sweep
+   of *future* work assigns to an OPEN milestone and `gh issue edit` is
+   correct. A sweep that records *already shipped* work assigns to a CLOSED
+   milestone and must use the REST PATCH by number. A retroactive sweep that
+   first closes the milestones it just created will fail on the second pass,
+   because the command silently degrades to "not found" for every item. The
+   failure looks item-specific; it is not. Test one item against a known
+   closed milestone before you trust the loop.
+7. **Re-sweeps are normal operation.** New issues and pull requests arrive
    between sweeps with no milestone. Run the two unassigned queries first,
    classify only the unassigned set, assign, and re-verify. A sweep is done
    only when both queries return zero and the failure log is empty.
@@ -134,6 +148,7 @@ gh pr list --state open --limit 500 --json milestone \
 | Midnight-UTC due dates | `due_on="2026-10-30T00:00:00Z"` on all new milestones | Every milestone rendered one day early in the web UI (viewing account behind UTC). | Use `T12:00:00Z` for date-only intents; repair existing milestones with a PATCH. |
 | Fallback-chained creation | `gh milestone create ... || gh api ...` | The usage error and fallback output interleaved, making the creation log ambiguous. | Call the supported command directly; a `||` chain hides which branch executed. |
 | Issue-only sweep | Assigned all open issues and verified zero unassigned issues | The release board still showed unassigned pull requests; milestone state spans both kinds. | Sweep and verify `gh pr list` separately from `gh issue list`; both counts must be zero. |
+| Retroactive sweep by name | Closed the new milestones, then ran `gh issue edit {n} --milestone "<closed title>"` over the backlog | Every item after the first few reported `'<title>' not found`, which reads as a per-item defect. `gh issue edit` and `gh pr edit` resolve names through `milestones(states:[OPEN])` only. Items already placed before the milestones were closed stayed correct, so the failure boundary looked arbitrary. | Assign to a closed milestone with `gh api -X PATCH repos/{owner}/{repo}/issues/{n} -f milestone={number}`. Probe one item against a known closed milestone before running the full loop. |
 
 ## Results & Parameters
 
@@ -144,6 +159,7 @@ gh pr list --state open --limit 500 --json milestone \
 | `due_on` | `YYYY-MM-DDT12:00:00Z` | Noon UTC for every date-only milestone due date. |
 | `gh issue list --limit` | 1000 | Default page size truncates large backlogs silently. |
 | `gh pr list --limit` | 500 | Same reason as above. |
+| Closed-milestone assignment | `PATCH repos/{owner}/{repo}/issues/{n}` with `milestone={number}` | The only reachable path; the CLI name lookup filters to OPEN milestones. |
 | Failure log | one `kind#number -> milestone` line per failed edit | Inspect before any verification claim. |
 
 ### Expected Output
@@ -159,6 +175,7 @@ gh pr list --state open --limit 500 --json milestone \
 | Project | Context | Details |
 | --------- | --------- | --------- |
 | Private multi-service monorepo | 2026-10 release-train setup: 13 milestones, approximately 700 open issues, all open pull requests | Full mechanics and the midnight-UTC observation are in [github-milestone-gh-cli-release-sweep.notes.md](../skills/github-milestone-gh-cli-release-sweep.notes.md). |
+| Release-history reconstruction | 2026-11 retroactive sweep: closed shipped-release milestones, then placed ~3,700 closed issues and pull requests by closing commit | Closed-milestone resolution failure and the REST recovery are in [github-milestone-gh-cli-release-sweep.notes.md](../skills/github-milestone-gh-cli-release-sweep.notes.md). |
 
 ## References
 
