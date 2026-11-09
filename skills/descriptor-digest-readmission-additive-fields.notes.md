@@ -94,3 +94,39 @@ decision rule is the artifact.
 - The same model's other family (always-serialized per-stage timeouts)
   stayed on the re-admission rule from v1.0.0; the two conventions coexist
   because each is applied per family, never averaged.
+
+## Digest-projection exclusion across multiple owners (v1.2.0)
+
+Supporting evidence for the multi-owner projection branch. Identifiers, paths,
+digest values, and issue references are generalized; the decision rule is the
+artifact.
+
+- A deployment policy model gained a defaulted, non-optional operational timing
+  field. The field must stay in the schema and in the public status projection,
+  so the exclude-when-unset branch did not apply.
+- The model feeds three independent identity families:
+  - a recipe and checkpoint binding digest over the full model dump;
+  - a runtime-contract digest over the resolved model and the nested policy
+    model;
+  - a launch-identity digest with an existing top-level exclude set.
+- The full dump put the field in two positions: the top level and every entry
+  of a nested per-scope override map. The override entries serialized the
+  field as `null` when the operator did not set it. A top-level pop alone left
+  the nested copies in the digest.
+- The recipe and runtime-contract owners shared one strip helper. The launch
+  identity kept its existing exclude set because that set already drops the
+  whole nested override map.
+- The helper builds new nested override mappings. A caller that passes a
+  shallow mapping copy keeps its own nested dictionaries; an in-place nested
+  pop would mutate the caller.
+- The first invariance test for the runtime contract changed the target
+  override but replaced the whole override map. The sibling override
+  disappeared, so the digest changed for an unrelated reason and the test
+  failed as a false positive. Preserving every sibling override and changing
+  only the target key fixed the test.
+- Per-owner invariance tests changed the top-level field and one nested
+  override and asserted an unchanged digest. A mapping-mutation test asserted
+  that the caller keeps its nested override value.
+- Verification: the focused identity and policy suites passed, the generated
+  schema showed only the new field, and the full repository checks passed in
+  CI.
