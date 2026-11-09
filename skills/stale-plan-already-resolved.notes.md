@@ -301,3 +301,63 @@ recorded option. No machine receipt bound it.
   duplicate review round, and a possible revert of the delivered behavior.
 - Decision rule kept in the main entry: run step 0a at the delivery boundary. The
   `merge-base --is-ancestor` result for the plan base is not evidence that the work is unfinished.
+
+## Case: multi-item downgrade issue with a mixed delivered/residual state (v1.9.0)
+
+- Trigger: a planning task for an issue that named four checks to move from a failing required
+  gate to a warn-only release-acceptance step, with one named check to keep failing. The issue
+  also carried a note that an earlier, related removal was already merged.
+- Measurement: the plan-mode checkout was already at the fetched default tip, so no rebase bias.
+  Per named item:
+  - Two items were delivered by one merged change. Site reads showed the warn helper and the
+    retained warning record, and the accompanying page described the warning outcome.
+  - One item was partially delivered. The severity downgrade existed at one comparison group,
+    but a second comparison group in the same record path still used a hard-require helper, and
+    the surrounding gate still exited non-zero.
+  - One item was fully residual. A single function still raised a dedicated rejection error that
+    the gate step reported as a hard failure.
+  - The keep-failing item was unchanged, as the issue requires.
+- Attribution: `git log -S '<decision wording>' --oneline <default> -- <path>` named the single
+  merged commit that carried the delivered downgrade. A search for open pull requests that
+  mentioned the issue number found no competing lane.
+- Outcome: the plan was written per item. Delivered items appeared only as guard assertions in
+  the validation plan. Residual items appeared as source changes. Each named item carried its
+  own file, line anchor, and behavior-first verification command.
+- Failure avoided: a plan that trusted the issue title and applied the whole body would have
+  re-applied a delivered downgrade. A plan that stopped after the title-level delivery search
+  would have skipped the two live items.
+- Decision rule kept in the main entry: split the issue into one row per named item, read
+  severity at each site, attribute every delivered row, and plan only the residual rows.
+
+## Copy-ready command table (v1.9.0; moved from the main entry to keep it concise)
+
+These per-gate commands were listed in the main entry of version 1.8.0. The main entry now
+keeps the rules. Use these commands for each gate.
+
+| Gate | Command |
+| --- | --- |
+| Resume / durable-label | `git rev-parse origin/main`, `git grep -l '<symbol>' origin/main -- <scopes>`, `gh pr list --state merged --search <ref>`, `gh pr checks <merged delivery PR>` |
+| Plan eclipsed | Create-targets exist, modify-sites deleted, and terminal gates green ⇒ stop with the authorized disposition and zero writes |
+| Mutation-boundary re-anchor | `git fetch && git log --oneline <analysis-base>..origin/<default> -- <touched-paths>` plus a commit-subject and issue/PR search for the failing node IDs; any match retires that cluster |
+| Decayed-premise recovery | Close obsolete records with the resolving commit/PR reference, revert tracker edits, and salvage only unmatched clusters |
+| Open-PR premise | `git merge-base --is-ancestor origin/<default> <pr-head>` + `git rev-list --count <pr-head>..origin/<default>` (0), `gh pr view --json mergeable,mergeStateStatus` plus local `git merge-tree --write-tree`, PR `head_ref_force_pushed` timeline events, and sibling completion comments |
+| Review-finding re-verify | `git log --oneline -S "<snippet>" -- <path>` on the PR head and `sed -n '<start>,<end>p' <path>` for the current lines; run the covering tests as evidence |
+| No readable defect | No edit, no commit, head unchanged. Resolve with proof or leave open with the blocker. Report `commits: none` |
+| Post-push duplicate | `git log --oneline <plan-base>..origin/<default>` and `git log --oneline --grep '<issue>' origin/<default>` |
+| Multi-item issue split | `git grep -n '<item>' origin/<default> -- <paths>` per named item |
+| Severity re-check per site | `git grep -n -A3 'raise\|return 1\|SystemExit\|require(' origin/<default> -- <path>` and `grep -n 'WARNING' <path>` |
+| Severity attribution | `git log -S '<decision wording>' --oneline origin/<default> -- <path>` |
+| Historical project values | `python3 scripts/validate_test_coverage.py` and PR label `cleanup` came from one earlier project; apply them only when the active repository uses them |
+
+## Editorial note for v1.9.0
+
+The main entry reached the 30,000-byte limit. To keep the new rule and stay within the limit,
+v1.9.0 did these edits:
+
+- Moved the copy-ready per-gate command table into this notes file.
+- Compressed long project-specific narrations in the Failed Attempts table to the general
+  pattern. The original wording stays in Git history at the parent of the v1.9.0 commit.
+- Replaced two inline examples that repeated the same rule with one generic command.
+- Fixed the duplicated `15.` item number in "When to Use".
+
+No decision branch was removed.
