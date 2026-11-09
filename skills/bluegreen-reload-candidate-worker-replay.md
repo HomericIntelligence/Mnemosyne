@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Reload a front-end gateway by blue/green handoff while workers are live, and read the real rejection reason. Use when: (1) an in-place gateway restart times out or reports a release mismatch, (2) the front-end log says the candidate worker readiness timed out and the active generation remains serving, (3) you must load a front-end change without a cold restart, (4) a dashboard shows no entries for the new generation."
 category: debugging
 date: 2026-10-29
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [blue-green, gateway-reload, candidate-readiness, worker-registration, handoff, dashboard-lag]
@@ -41,6 +41,12 @@ timeout and prints a message that looks like a release-name mismatch.
 # Real reason is in the gateway lifecycle log, not in the CLI timeout text:
 grep -n "candidate rejected\|reload rejected\|phase=candidate" <gateway log>
 # Handoff with workers: start the candidate without waiting, replay workers, then wait.
+# Refusal is safe when it happens before any signal.
+# Before the restart, prove:
+# - one context-owned live job in RUNNING,
+# - a supported reload marker (or a documented legacy support probe),
+# - the active control pointer resolves to the selected release tree, and
+# - that release tree has its readiness marker.
 <admin> gateway restart --no-wait
 <replay active workers to the candidate slot>      # same records, same labels
 # done when the discovery record has a new started_at and the same allocation id
@@ -48,8 +54,12 @@ grep -n "candidate rejected\|reload rejected\|phase=candidate" <gateway log>
 
 ### Suggested Approach
 
-1. Check the reload marker of the live job first. A job that lacks it cannot
-   reload in place.
+1. Prove that the restart verb can start. Require one context-owned live job
+   in `RUNNING`, a supported reload marker or a documented legacy support probe,
+   an active control pointer that resolves exactly to the selected release tree,
+   and a readiness marker in that tree. A failed check can refuse the restart
+   before it sends a signal. Use the supported cold path in that case, only
+   after you accept its outage.
 2. Start the candidate with a no-wait restart. Read the active slot and the
    candidate slot from the discovery record; the slot ports come from the
    deployment context.
@@ -80,6 +90,12 @@ grep -n "candidate rejected\|reload rejected\|phase=candidate" <gateway log>
 
 ```yaml
 slots: "blue = base port + stride, green = base port + 2 * stride (from the context)"
+preflight:
+  jobs: "exactly one context-owned live job; state RUNNING"
+  reload_support: "supported reload marker, or documented legacy support probe"
+  active_control_pointer: "resolves exactly to the selected release tree"
+  readiness_marker: "present in that release tree"
+  refusal_before_signal: "safe; use the supported cold path only after accepting its outage"
 replay_window_s: 170
 handoff_wait_s: 240
 success: "new started_at in the discovery record, same allocation id, model list not empty"
@@ -95,6 +111,7 @@ retired generation drains empty and is reaped.
 | Project | Context | Details |
 | --------- | --------- | --------- |
 | A scheduler-managed model-serving deployment | Production, 2026-10 | One worker replayed; the handoff completed in about one minute. |
+| A scheduler-managed model-serving deployment | Release lifecycle source inspection, 2026-11 | The restart refuses before any signal without one RUNNING job, supported reload support, an exact active-control-pointer match, or a readiness marker. |
 
 ## References
 
