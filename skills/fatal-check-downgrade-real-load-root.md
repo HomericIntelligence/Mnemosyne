@@ -3,8 +3,8 @@ name: fatal-check-downgrade-real-load-root
 license: BSD-3-Clause
 description: "Downgrade a fatal consistency check to a logged warning on the load path where its model is actually constructed. Use when a change converts blocking validation to informational drift, moves a model validator into a post-load pass, or lists validators that no production loader reaches."
 category: architecture
-date: 2026-11-01
-version: "1.0.0"
+date: 2026-11-08
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -64,6 +64,7 @@ Assign one of these dispositions to each check:
 | Model reachable only through another model that a second loader constructs | Move the check into that second loader's pass. |
 | Model has no production construction path | Keep the validator fatal and record why. |
 | Model is constructed only in tests | Keep the validator fatal and record why. |
+| A later guard compares live authenticated data against a value from the model | Keep the integrity check at the load boundary; convert only the comparisons at the consumer call sites. |
 
 ### Suggested Approach
 
@@ -75,6 +76,8 @@ Assign one of these dispositions to each check:
 6. Split a validator that mixes check classes. Keep the format, range, and permission sub-checks in the validator. Move only the cross-field consistency sub-checks.
 7. Test on the real path. Each converted check needs one test that calls the same loader that production calls, with an input that breaks the check. The test asserts that the load succeeds and that one event names the compared fields. A test that constructs the model directly proves nothing about the loader.
 8. When a plan review finds one pass point for checks from two load roots, treat it as a removal defect. The checks become an accidental removal: no stop and no event.
+9. For every converted digest or signature check, name the later code that trusts a field from the model. If that code makes a security decision, keep the check enforced on the load path and move only the comparison to the call sites that have a context and a resolution.
+10. Search the test tree for the old error text before you open the pull request. A passing new test proves the converted path. It does not prove that an existing test which asserts the old stop still passes, and that test is often the security assertion.
 
 ### Failure modes to prevent
 
@@ -82,6 +85,7 @@ Assign one of these dispositions to each check:
 - **Group conversion.** A plan says "convert the config validators" and lists them from one file. The plan does not make the split, and the implementer must rediscover the load roots.
 - **Dead conversion.** A validator runs on a model with no production construction path. A converted version of it can never fire. The conversion adds code and no behavior.
 - **Test at the wrong level.** A test builds the model with the constructor and passes. Production uses the loader and does not run the pass.
+- **Removed authentication, disguised as drift.** The converted check was also the proof that the record was not altered. When the record still loads after an edit, every later guard that compares live data against a field of that record is now a comparison against a value the attacker chose. The call sites then "continue" on an unauthenticated record. Convert the digest comparison only where the record has already been authenticated at its load boundary, for example by comparing the file content to the digest in its content-addressed filename.
 
 ### Parameters
 
