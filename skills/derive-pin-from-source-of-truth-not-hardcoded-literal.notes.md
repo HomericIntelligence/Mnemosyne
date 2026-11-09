@@ -255,3 +255,102 @@ The fix was verified by syntax checks and direct exercises of the
 argument-passing forms. The full image build that consumes the script had
 not completed when these notes were written, so the end-to-end build path
 remains unconfirmed.
+
+## Evidence: policy literal promoted to a required configuration field
+
+A planning session examined a request to move a policy literal into required
+configuration. The literal was an identity and role value that a check site
+compared with the name in a policy file. The requester wanted the value to
+become a declared field, not a constant. The session produced the decision
+rules in step 11 of the main entry.
+
+### Evidence boundary
+
+- The source survey was read-only.
+- The output was a plan.
+- No implementation was written.
+- No test run confirmed any branch of the rule.
+- The missing-field message probes were proposed, not executed.
+
+Treat each branch as a hypothesis until an implementation and a test run
+confirm it.
+
+### Decision branches
+
+1. **Authority.** The policy value moves to a declared field on the
+   configuration record that the loader validates. The constant stays only as
+   the schema default. A check site must refuse when no declaration exists,
+   and it must never fall back to the constant. A fallback makes the constant
+   the true authority again, and the drift returns.
+2. **Key names.** When code compares two records field to field, reuse the key
+   name that the other record already uses for the same concept. Do not reuse
+   a similar key with a different contract. One example is a key that the
+   system supplies only when it differs from the default. One name then has
+   two rules, and a reader must know which record they hold.
+3. **Failure shape.** A required field in a permissive schema breaks existing
+   callers and test fixtures. Probe the missing-field message before you
+   select the shape. The message must name the missing field. A cross-field
+   validator that reports only "the model is invalid" does not satisfy this
+   condition. Prefer a local per-field validator, or a modelled optional field
+   with a validator that names the key.
+4. **YAML comments.** Do not put a trailing inline comment after the first
+   `key: value` line of a YAML file. The comment corrupts later parsing
+   expectations in that file's readers. Put the prose in the plan or the
+   documentation page instead.
+5. **Enforcement scope.** Leave provenance literals unchanged, and list each
+   one as an exception with its reason:
+
+   - a `Literal`-typed default that records history
+   - SQL text
+   - a grant table that a database migration also encodes
+
+   File a separate follow-up record for an external fixture that must also
+   change. One example is a bootstrap verifier that cannot import the
+   application package by design.
+6. **Finish check.** Sweep every remaining literal with a targeted search, and
+   map each hit to a stated reason:
+
+   ```bash
+   grep -rn "POLICY_NAME\|POLICY_ROLE" src scripts tests
+   ```
+
+   For a policy literal, the reason must name the declared field that
+   replaced it, or the exception that keeps it.
+
+### Known boundary: silent-default resolver entry
+
+The entry `pola-consolidate-duplicated-silent-default-resolver.md` shares the
+theme of this entry but has a different trigger. It handles a silent default
+in a duplicated leaf expression, where a missing value selects an unrelated
+resource. This entry handles a policy value that must become a declared
+field. The two triggers overlap when a leaf expression holds a policy
+literal. Use this entry for the authority and the failure message, and use
+the resolver entry for the consolidation and the fail-loud choice. The
+resolver entry is out of scope for this amendment.
+
+### Evidence: a plan review found the constant re-introduced
+
+A later review loop examined a plan for the same promotion. Four review
+rounds changed the failure shape of the plan, not the code.
+
+- The first plan set the new fields with `Field(default=<constant>)` and also
+  required that an absent key fail validation. Both rules cannot hold.
+- The next plans used strict fields with no default and added a source-scan
+  invariant for the trust sites. Residue remained: an allowlist did not match
+  the measured population, and the constructor census was incomplete.
+- The last plan removed the documentation gap but added a classmethod that
+  merged the constants into the payload when a key was absent. The plan then
+  stated that the check path and the test fixtures call that classmethod. The
+  enforcement path stopped reading the declaration, and the constant was
+  again the effective authority.
+
+Measurements from that loop, kept as a method rather than a fixed count:
+
+- An `ast` walk that collects exact string constants found several hundred
+  matches in one data module. A raw token search found more files and more
+  hits, because it also counts imports and substrings. Match an exact string
+  constant when you measure the enforcement population.
+- A layer map listed the identity module below the configuration module in
+  the dependency order. The plan claimed the opposite direction. Read the
+  layer list and the current importers before you use a direction to justify
+  a re-export.
