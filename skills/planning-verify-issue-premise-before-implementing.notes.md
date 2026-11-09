@@ -166,7 +166,7 @@ page or decision record that the store retirement removed, name the owning page
 that absorbed the content and plan against it. Then dispose per ask, not per
 issue.
 
-## 3.9.0 — a local load-path patch is not durable (source case)
+## 3.10.0 — a local load-path patch is not durable (source case)
 
 Source evidence: a planning hand-off for a consumer issue whose code lives in a
 separate repository. Before the plan, three premises were re-checked:
@@ -269,10 +269,33 @@ Result: the plan kept the issue as the work record, named the owning page, and s
 the relocation gap as residual scope. No page was re-created, and no issue was closed
 as subsumed.
 
-## Retrieval note
+## 3.18.0 — plan-citation freshness at review time
 
-This file is a companion and is not part of normal retrieval. Keep rules in the main
-entry.
+Source evidence: a plan review of a release close-out issue in a fast-moving
+repository. The plan carried a premise table with one check per issue row, and a
+proposed verdict of GO.
+
+What the review checked and found (generalized):
+
+- Every change target held. Each cited file, line range, and missing-artifact claim
+  matched the tracked tree, and the merge-state claims matched the forge.
+- Two claims in the plan's own premise table were wrong. The table said a residue
+  pattern matched 34 lines across a file of a stated length; a re-run returned 32
+  lines in a longer file. The table also called one tag "the only remote tag" when
+  the remote carried many tags. The conclusion the plan drew from both claims still
+  held.
+- Neither error changed the edit list or the disposition. Both were recorded as
+  non-blocking blemishes with the correct values, and the verdict stayed GO.
+
+Decision value that this case adds:
+
+- The failing branch is not "the plan is wrong". It is "the review re-ran the
+  author's commands". A count claim and a "the only such value" claim are cheap to
+  re-run and cheap to get wrong.
+- A wrong non-scoping claim must not be silently dropped: an implementer who anchors
+  an edit on a wrong count edits an incomplete surface.
+- A wrong non-scoping claim must not be upgraded to a blocker either: that turns a
+  disclosure into a re-plan round for a plan whose selected change is sound.
 
 ## v3.9.0 evidence: clause ledger, authority conflict, paired commits (2026-11-07)
 
@@ -309,7 +332,7 @@ git show <sha> -- <files>                             # clause-by-clause dischar
 Limit: no implementation outcome follows from this session. The lesson records the
 planning decision support only.
 
-## 3.9.0 — a claimed installed-tree apply does not survive a re-provision
+## 3.15.0 — a claimed installed-tree apply does not survive a re-provision
 
 Source evidence: a planning pass for an issue whose body still described four pull requests as
 blocked on a delivery helper. The helper is not source in the planning repository; it is a script
@@ -346,3 +369,8 @@ dependency and the installed-tree re-verify as the acceptance check.
 
 Limit: the apply and the re-provision were observed only through file state, not through an install
 log, so the re-provision is dated by modification time.
+
+## Retrieval note
+
+This file is a companion and is not part of normal retrieval. Keep rules in the main
+entry.
