@@ -1,10 +1,10 @@
 ---
 name: ci-transient-flake-and-environment-failures
 license: BSD-3-Clause
-description: "Use when: (1) a CI job fails non-deterministically and re-running resolves it, (2) a provider-side 5xx makes a supported rerun unavailable, (3) CI passes locally but fails in GitHub Actions, (4) a CI health check wrongly requires developer-local resources, (5) dependency installation hangs before tests start, or a stuck run ignores a normal cancel, or (6) a test that asserts rendered CLI help flips between green and red on the same commit because it inherits the terminal width."
+description: "Use when: (1) a CI job fails non-deterministically and re-running resolves it, (2) a provider-side 5xx makes a supported rerun unavailable, (3) CI passes locally but fails in GitHub Actions, (4) a CI health check wrongly requires developer-local resources, (5) dependency installation hangs before tests start, or a stuck run ignores a normal cancel, (6) a test that asserts rendered CLI help flips between green and red on the same commit because it inherits the terminal width, or (7) a test fixture reads a real host path or host record as input, so the result changes between hosts, between runs, or when unrelated work changes that path."
 category: ci-cd
 date: 2026-06-17
-version: "1.5.0"
+version: "1.6.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -65,6 +65,10 @@ history-cleanup-date: "2026-09-20"
 - The same commit fails one node in one run and passes the same node in the next run,
   and the node asserts on rendered CLI help or any other text a renderer wraps to the
   terminal width.
+- The same head passes on a developer machine and fails on a runner, and a rerun
+  fails again with the same message. A test fixture likely reads a path or a record
+  that only that host has, so the input is host state instead of test state. Use
+  **C3** below.
 
 ## Verified Workflow
 
@@ -256,6 +260,40 @@ differs between a developer shell and a CI runner.
    command object instead of the rendered text. Those hide a genuine help-output
    regression, which is the behaviour the test exists to protect.
 
+#### C3. Fixture that reads real host state as an input
+
+A fixture can build its subject, then read a path outside the test root. The
+result then depends on what that host holds at that moment, so a rerun cannot
+fix it. This is a wrong input, not a flake.
+
+1. **Confirm the head first.** A checkout behind the head produces false passes:
+   `git rev-parse HEAD` must equal the head that failed.
+2. **Print what the fixture writes, instead of reading the helper source:**
+
+   ```python
+   path = make_context(...).artifact(...).weights_path   # field under test
+   print("input:", path, "inside test root:", path.is_relative_to(tmp_path))
+   ```
+
+   A path outside the test root is host state. Do not accept it as input.
+3. **Stage the input under the test root**, and assert that precondition in the
+   fixture so a drift to a host path fails loudly:
+
+   ```python
+   staged = tmp_path / "weights"          # test-owned, mode 0700
+   staged.mkdir(mode=0o700)
+   write_fixture_record(staged / "manifest.json")
+   ctx = replace_artifact(ctx, weights_path=staged)
+   ```
+
+4. **Fix the input, not the assertion.** Filtering the unexpected event kind or
+   rerunning the job hides the host dependency; the next release run reports a
+   different count from the same input.
+5. **Prove the fix with the host path absent or unreadable**, then run the node
+   again.
+
+> **C2** is the same rule for terminal width: pin the input in the test.
+
 #### D. Doctor/health-check script CI guard
 
 1. **Identify the failing `check_*()` function** referencing developer-local artifacts (`.git/hooks/`, `~/.ssh/`, pre-commit install state).
@@ -364,6 +402,7 @@ differs between a developer shell and a CI runner.
 | Cancel a hung run once and wait | Ran `gh run cancel` and waited for the run to end | The runner was not answering, so the run stayed `in_progress` for hours and a rerun was refused | Poll for about a minute, then use the force-cancel endpoint, then `gh run rerun --failed` |
 | Rely on the default job timeout for an install step | Left the step and the job without a timeout | A stuck package install held the job for hours and blocked required checks | Add a step timeout, a bounded retry loop, and a job timeout from the run history |
 | Create an empty commit when a provider-managed job cannot rerun | Tried to force a new analysis without a source change | It changes implementation-branch history without fixing the provider outage, and some provider-managed scans reject reruns entirely | Preserve the SHA; use only supported reruns, then wait for recovery or a legitimate update |
+| Filter an unexpected event in the assertion when a fixture reads host state | Kept the host path and ignored the event kind it produced | The next release run failed the same node, because the host record changed again | Fix the input, not the assertion: stage the record under the test root (C3) |
 
 ## Results & Parameters
 
@@ -440,3 +479,4 @@ if [[ "${CI:-}" == "true" ]]; then ...  # skip developer-local checks
 | ProjectOdyssey | Reproducing `fortify_fail_abort` crash declared non-reproducible in `jit-fortify-buffer-overflow.md` | Cold cache + UID 1001 + `-T` flag combined triggered the crash 100% deterministically |
 | ProjectMyrmidons | PR #350 | `scripts/doctor.sh` Check 4 failed `just doctor --skip-connectivity` in CI; `${CI:-}` guard fixed it |
 | Metrics Service | PRs #897/#904, 2026-06-17 | Playwright `--with-deps` install hang resolved by browser-only install; Python dependency-install hangs cleared by cancel/rerun after API step-state polling showed tests had not started |
+| Comet | Two consecutive release runs, 2026-10-28 and 2026-10-29, same node | A warns-once render test read an artifact path in the real production data tree. The record there loaded on the author host and raised on the runner, so the node failed with an unexpected extra event (`assert 2 == 1`). A first fix filtered the unexpected event kind in the assertion; the next release run failed the same node again. Local proof: the fixture path resolved outside the test root and its record loaded correctly at that moment. Fix: stage a sealed tree under the test root. |
