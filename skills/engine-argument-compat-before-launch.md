@@ -1,9 +1,9 @@
 ---
 name: engine-argument-compat-before-launch
-description: "Mirror a serving engine's cross-flag and flag-to-dtype compatibility rules at config validation and again at the launch-render pre-flight, so an incompatible combination fails before the engine's minutes-long startup instead of after it. Use when: (1) a recipe or manifest pins engine command-line flags that the engine validates only at startup, (2) replicas die after a long startup phase with the engine's own argument error, (3) the config model can be built or updated programmatically around its constructor validator, or (4) an omitted flag silently inherits an engine default that constrains other fields."
+description: "Mirror a serving engine's cross-flag and flag-to-dtype compatibility rules at config validation and again at the launch-render pre-flight, so an incompatible combination fails before the engine's minutes-long startup instead of after it, and name each flag family that can go inert so an image change cannot silently return the launch to an engine default. Use when: (1) a recipe or manifest pins engine command-line flags that the engine validates only at startup, (2) replicas die after a long startup phase with the engine's own argument error, (3) the config model can be built or updated programmatically around its constructor validator, (4) an omitted flag silently inherits an engine default that constrains other fields, or (5) a pinned recipe must stay correct across an engine image, source, or runtime change."
 category: tooling
 date: 2026-11-09
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 tags:
   - serving
@@ -40,6 +40,10 @@ tags:
 - The engine fills an omitted flag with a default, and that default carries
   its own constraint (for example, a default attention backend that needs a
   specific cache data type).
+- A pinned recipe stays bound while the engine image, source revision, or
+  runtime changes under it. A flag that a previous revision acted on can
+  become inert in a later revision without an error, because the engine
+  gates that flag family on a model-profile predicate that no longer matches.
 
 ## Verified Workflow
 
@@ -99,10 +103,29 @@ so the operator corrects the recipe in one edit.
 5. Scope the refusal. Skip the check when the recipe sets no relevant flags
    and selects no pinned cache data type: in that case the engine picks a
    matching default pair and the recipe stays valid.
-6. Prove the check with behavior tests: refuse every combination the engine
+6. Classify each pinned flag as rejected or inert when the engine disagrees.
+   A flag family that the engine gates on a model-profile predicate is
+   rejected only when the predicate matches, and inert when it does not. An
+   inert family produces no error, no warning, and no drift record, so the
+   engine silently serves with the flag's default. Check the predicate
+   against the exact source revision that the image was built from, not the
+   current default branch: a profile that exists in one revision can be
+   absent from a later release branch.
+7. Make the outcome explicit for each flag family that can go inert. Name the
+   flag that selects the behavior, so the launch states the choice instead of
+   inheriting a default that a future image can change. Where the family
+   cannot be named, add a pre-flight refusal that names the image and the
+   missing profile. A drift warning is not sufficient for a profile that a
+   deployment serves.
+8. Re-measure the pinned path after any image, source, or runtime change, and
+   record the result next to the values. A recipe that served correctly is
+   evidence for one image, not for the next.
+9. Prove the check with behavior tests: refuse every combination the engine
    refused (including both flag spellings and the default-fill case), accept
    one measured-working combination, and accept the no-flags case. Add one
-   render-level test showing no launch script is produced.
+   render-level test showing no launch script is produced. Add one test that
+   asserts every flag family that can go inert is named explicitly, so a
+   deletion that re-exposes the inherited default fails the suite.
 
 ## Failed Attempts
 
@@ -111,6 +134,7 @@ so the operator corrects the recipe in one edit.
 | Attempt 1 | Changed one flag per launch trial, letting the engine's own startup error find each conflict. | Several flags were constrained jointly, so each trial exposed only the next conflict after a minutes-long checkpoint verification; three trials revealed three distinct refusals. | Enumerate the engine's full constraint set from its errors once, encode all of it, and let one launch carry the correct combination. |
 | Attempt 2 | Enforced the compatibility check in the config model validator only. | A model produced by an update-copy path skipped construction validation yet still reached the launch renderer. | Repeat the same check at the launch-render pre-flight; the renderer is the only path every launch traverses. |
 | Attempt 3 | Matched the flag as a bare token. | The `--flag=value` spelling bypassed the lookup while remaining valid input to the engine. | One lookup covers both spellings. |
+| Attempt 4 | Recorded one measured-working flag pair and removed the flag that named the kernel, on the reasoning that the surviving flags select it. | The surviving flags were inert on a later image whose engine did not match the model profile, so the launch silently used the engine's generic default. A drift warning let rendering continue, and the profile served in production. | Name the flag that selects the behavior. A flag family can be valid and inert at the same time, and only the image's own source revision tells you which. |
 
 ## Results & Parameters
 
@@ -125,6 +149,10 @@ engine_argument_compat:
   message: names the conflicting fields and observed values
   render_failed_check_result: no launch script created
   skip_condition: neither relevant flags nor a pinned dtype is set
+  flag_family_state: [rejected-with-error, inert-without-error]
+  inert_detection: check the engine's model-profile predicate at the image source revision
+  inert_mitigation: name the flag that selects the behavior
+  revalidation: re-measure the pinned path after every image, source, or runtime change
 ```
 
 ### Expected Output
