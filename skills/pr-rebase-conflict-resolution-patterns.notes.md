@@ -28,6 +28,7 @@ version 1.15.0. The complete v1.15.0 retrievable content is archived once in the
 | Content-derived test pins in a conflict | Anonymized monorepo PR train, 2026-10 (see below) | verified-local | Recompute pins from merged content; mirror assertions to computed truth, never guess invariants |
 | Target merged at the delivery gate | Anonymized hosted monorepo PR, 2026-10 (see below) | verified-local | Re-read artifact state immediately before the mutation; a merged target gets content-equivalence proof and a stand-down, not a replay push |
 | Stale import found only by lint after the rebase | Anonymized hosted monorepo PR, 2026-10 (see below) | verified-local | Restore or delete the import in the commit that uses it; amend `HEAD` only when `HEAD` is that commit |
+| Scripted resolver dropped adjacent numbered steps | Mnemosyne merge-wave stack integration, 2026-11 (see below) | verified-local | Preserve each whole conflict side or a verified union, then diff the heading and step inventory against both stages before every push in a stack |
 
 ## Stale Import Found Only by Lint
 
@@ -216,3 +217,28 @@ shipped first, where the trunk's split of the compared fields was kept and only
 the branch's unique entry points were added. Both cases share one rule: prove
 which copy is the superset, then keep it. Which artifact to write in depends on
 whether the trunk copy is the reviewed model.
+
+## v2.7.0 — a scripted resolver kept only the first line of one side
+
+A dependency-ordered stack of ten amendments targeted one consolidated skill.
+Each branch was rebased onto the previous branch and its conflicts were resolved
+with a small script. The script read the conflict block, took the chosen side,
+and appended only its first list element. One resolution dropped three adjacent
+numbered workflow steps that were present on both sides.
+
+The result was a valid file. It parsed, passed the repository validator, and
+passed the focused tests. No test pinned the step inventory, so CI reported
+success. The loss was visible only when the numbered-step list was compared with
+the predecessor: the sequence jumped from 6a to 11. The same stack later
+restored the steps while resolving a different conflict, so the trunk had a
+temporary regression between the two merges.
+
+The durable rules from the case:
+
+1. A programmatic resolver must preserve each whole side, or a union it can
+   justify. Never index a single element of a multi-line side.
+2. Compare the result's heading list, numbered-step sequence, and table-row
+   count with both conflict stages. A missing element needs an intentional
+   deletion reason.
+3. Run that comparison before every push in a stack. A later branch's repair
+   does not undo an earlier branch's merge.
