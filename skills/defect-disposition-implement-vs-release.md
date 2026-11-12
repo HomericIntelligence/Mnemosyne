@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Disposition a symptom-driven fix request as new implementation, an open change to land, a release to deliver, or an already-aligned system, before designing any correction. Use when: (1) a user report or live symptom triggers a fix, repair, or realignment request for running software, (2) the same defect may already be diagnosed or fixed in the tracker or main history, (3) the deployed release may be older than the fix, so the gap is delivery, not implementation, and (4) continuing symptoms on an unfixed release must not trigger re-implementation."
 category: debugging
 date: 2026-10-26
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags: [defect-disposition, release-lag, symptom-search, deployed-version, ancestry-check, duplicate-fix, delivery-vs-implementation, tracker-search, live-symptom]
@@ -87,6 +87,15 @@ Select exactly one disposition from the table in Results & Parameters.
    reports. Then resolve it to a tag or commit. Code read in a checkout —
    including the checkout the symptom investigator happens to have — is not
    evidence of deployed behavior.
+   Bind **one ref per component**. A lane runs several processes (gateway,
+   operator, worker, proxy), and each reports its own revision from its own
+   runtime record — a heartbeat, a log header, or a manifest. Take the
+   binding from the record of the component that owns the failing code
+   path, not from the most visible job or the component that shares its
+   name. When the runtime is an installed copy rather than a checkout,
+   confirm the installed module itself: search the installed source for a
+   symbol the candidate fix introduces, and pair that observation with the
+   ancestry check.
 4. **Test ancestry in both directions.** A fix "on `main`" that the deployed
    ref does not contain produces exactly the observed symptom, indefinitely.
    `merge-base --is-ancestor` settles each direction. When several commits
@@ -118,6 +127,7 @@ whose duplicate status is unknown.
 | Design a correction from the symptom evidence alone | Derived a threshold policy for a noise-driven autoscaler from live logs and code, and recommended it as the fix | A tracker search after the design found the identical defect already filed, diagnosed, and fixed upstream with the same mechanism; the design was a duplicate before it was written | Search the tracker for the symptom signature first; fix design comes after the duplicate check, not before |
 | Treat the implementation at the symptom investigator's checkout as production behavior | Read module code in the local checkout and attributed its behavior to the running service | The running service carried a release that predated both the checkout state and the upstream fix; checkout content overstated and understated different parts of deployed behavior | Bind the deployed ref from runtime-recorded identity first; rank all code reads against it |
 | Count a continuing live symptom as proof the implementation is still broken | Initial framing: "autoscaling is broken; align the implementation" | The fix had merged the previous day; the release simply did not carry it yet, so the symptom was scheduled noise, not new evidence | Date the symptom against release contents; an old-release symptom after a merged fix updates the delivery plan, not the implementation plan |
+| Bound one revision for a whole multi-component lane | Took the revision and node of the most visible scheduler job and applied them to a second component | The failing component's own runtime record named a different host and an older revision that predated the merged fix; the ancestry verdict for the visible job said nothing about the component that failed | One binding per component, taken from that component's own runtime record; a lane has as many deployed refs as it has processes |
 | Move the delivery item to the next milestone because it is labeled a blocker | A bulk retag treated "release-blocking" as "next release" and moved the client-publish issue forward, while the open release tracker still named the republish as acceptance | The release lost its only open delivery item and could close green while the artifact stayed broken | Keep the delivery item with the release that needs the artifact; read the open tracker before a sweep |
 
 ## Results & Parameters
@@ -139,6 +149,7 @@ Record these fields with the disposition:
 symptom_signature: <distinctive mechanism text used for the search>
 tracker_hits: <issue or PR numbers examined, with mechanism match notes>
 deployed_ref: <exact tag or commit the runtime reports>
+component_bindings: <one deployed ref per component, each from that component's own runtime record>
 carrying_change: <commit or PR that covers the mechanism>
 ancestry_main: <contains | not-contained>
 ancestry_deployed: <contains | not-contained>
@@ -156,6 +167,7 @@ disposition: <one of the four rows above>
 | Project | Context | Details |
 | --------- | --------- | --------- |
 | LLM360/comet | Production autoscaling symptom; upstream fix PR #3006 (issue #2858) merged to `main` while deployed v0.2.3 predated it; disposition selected: `deliver-release` | [notes.md](./defect-disposition-implement-vs-release.notes.md) |
+| A multi-process development lane | Component restart decision after a merged fix: the failing component's runtime record named an older revision than the visible job's, so the disposition was delivery (restart on a revision that carries the fix) | [notes.md](./defect-disposition-implement-vs-release.notes.md) |
 
 ## References
 

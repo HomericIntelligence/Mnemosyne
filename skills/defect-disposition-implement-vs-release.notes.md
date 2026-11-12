@@ -95,3 +95,35 @@ review cycle.
   upstream/downstream release model. No contradictions were observed.
 - CI validation of the corpus repository is the merge-level gate; this entry
   was validated locally only.
+
+## Amendment: one deployed ref per component (v1.2.0)
+
+Second case, generalized. Session-specific identifiers are removed.
+
+- **Trigger.** After a merged fix, a component on a multi-process
+  development lane kept failing with the pre-fix behavior. The most visible
+  scheduler job on the lane had already been restarted and ran a revision
+  containing the fix.
+- **Wrong binding.** That visible job's revision and node were taken as the
+  lane's deployed state, so the disposition looked like "already-aligned;
+  new diagnosis needed".
+- **The record that settled it.** The failing component's own runtime
+  record (a heartbeat naming its host and running source revision) named a
+  different host and an older revision that predated the fix. The ancestry
+  check (`merge-base --is-ancestor <fix> <running-revision>` → exit 1) and
+  a search for the fix's introduced symbol in the installed copy of that
+  component both agreed: the running revision did not contain the change.
+- **Disposition.** `deliver-release` for that component: restage it from a
+  revision that contains the fix. The symptom after the restart belonged to
+  the pre-fix revision and carried no new evidence about implementation
+  quality.
+- **Corrections made along the way.** A session record initially attributed
+  the failure to the wrong component; it was corrected after the heartbeat
+  was read. A check for an unrelated component permission ("am I already
+  the service principal?") was skipped when the node and uid binding showed
+  the session already ran as that principal on that node.
+- **Why the main entry gained a rule.** The workflow bound a single
+  deployed ref per disposition. A lane runs several components, each with
+  its own runtime record; the binding must come from the component that
+  owns the failing code path, and an installed-copy runtime needs the
+  symbol-level check paired with ancestry.
