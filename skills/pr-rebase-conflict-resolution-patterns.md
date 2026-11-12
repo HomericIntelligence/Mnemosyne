@@ -1,9 +1,9 @@
 ---
 name: pr-rebase-conflict-resolution-patterns
-description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift, or the resolution keeps both sides' guards for one failure mode, or a delete-side commit conflicts with trunk entries added inside the deleted block, or the conflict carries test-pinned values derived from source content that neither side can supply correctly, or the target pull request merged, closed, or lost its source ref between resolution work and the delivery mutation, or two lanes independently created the same file for one issue and the second to merge sees it as `AA` while either copy may be the narrower one, or every conflict resolves to the current target side because a sibling pull request already delivered the same intent and the reviewed head carries a delivered approval state, or an already-armed auto-merge on the same pull request can fire on the new head as soon as your rebase push turns its checks green, or a scripted resolution keeps only part of one conflict side and silently drops adjacent numbered steps."
+description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift, or the resolution keeps both sides' guards for one failure mode, or a delete-side commit conflicts with trunk entries added inside the deleted block, or the conflict carries test-pinned values derived from source content that neither side can supply correctly, or the target pull request merged, closed, or lost its source ref between resolution work and the delivery mutation, or two lanes independently created the same file for one issue and the second to merge sees it as `AA` while either copy may be the narrower one, or every conflict resolves to the current target side because a sibling pull request already delivered the same intent and the reviewed head carries a delivered approval state, or an already-armed auto-merge on the same pull request can fire on the new head as soon as your rebase push turns its checks green, or a scripted resolution keeps only part of one conflict side and silently drops adjacent numbered steps, or a conflict was resolved by copying one side's whole file and the replayed commit's planned hunks are missing while its message still claims them."
 category: ci-cd
 date: 2026-07-12
-version: "2.7.0"
+version: "2.8.0"
 license: BSD-3-Clause
 user-invocable: false
 tags: [git, rebase, merge-conflict, pull-request, worktree, force-with-lease, semantic-conflict, stacked-pr, ci]
@@ -51,6 +51,9 @@ runtime behavior, tests, policy prose, generated state, and inventories.
 - A script or a side-selection rule resolves conflicts in a document with ordered
   structure: headings, numbered steps, or table rows. A resolver that keeps only
   part of one side can drop adjacent entries while the file stays valid.
+- A conflict was resolved by copying one side's whole file. The copy can silently
+  drop the replayed commit's planned hunks while its commit message and PR body
+  still claim them.
 
 ## Verified Workflow
 
@@ -147,6 +150,27 @@ Resolve according to intent:
 | Every hunk resolves to the target side | Stop before you resolve or push. Prove the sibling delivery and the empty residual, then close the pull request | Sibling merge commit reachable from the target, plus an empty residual diff against the target |
 | `AA` on a file that two lanes created independently for the same issue, where the target copy is smaller than the replayed copy | Do not take the target side on size alone. Diff the two copies in both directions and prove which is the superset. Take the superset; if the replayed copy is the superset, re-land it as one commit on the target model | One direction of the diff shows only target additions, the other shows only replayed-only removals, and the surviving copy keeps every capability the issue names |
 | Already-upstream commit | Skip only after proving no unique delta remains | Empty/trivial trunk diff |
+
+A wholesale side copy — `git show <side>:<path> > <path>` or
+`git checkout --ours/--theirs <path>` — resolves the conflict and looks correct,
+because the file is exactly one valid side. When trunk moved under a reviewed
+commit, the copy takes trunk's whole file and silently drops the replayed
+commit's planned hunks in that file. The commit message, PR body, and plan
+still claim them, and no check that does not pin those hunks can fail. A real
+delivery lost the scheduled-trigger and wrapper changes for a CI workflow this
+way; a read-only simplify review found the gap against the plan.
+
+Verify each replayed commit by hunk identity, not by file validity:
+
+```bash
+git diff "$trunk"...<original-head> -- <path>   # every planned hunk
+git diff "$trunk"...HEAD            -- <path>   # replayed result
+```
+
+Every planned hunk must still appear in the replayed diff. A missing hunk needs
+a new explicit resolution that restores it on top of the moved trunk content;
+re-apply planned edits to the taken side instead of trusting the copy. Record
+the hunk comparison in the resolution evidence.
 
 Stage paths explicitly. Do not use `git add .` or `git add -A` in a conflict loop.
 If a safety policy blocks checkout/restore shortcuts, reconstruct from read-only
@@ -499,6 +523,7 @@ rebase again.
 | Pushing the rebase head without reading the arm state | Pushed a rebase of a conflicted PR that already carried an armed auto-merge request from an earlier operator action | The push turned the new head's checks green and the forge merged it before a re-review ran at that head | Read `autoMergeRequest` before the push; an armed request is not head-pinned, so the delivery push is a merge trigger |
 | Reading the self-merge as trunk movement | Saw a new trunk commit and prepared a second rebase against it | The commit subject named the same pull request, so trunk already held the exact prepared content | Read the `(#<N>)` suffix before a second rebase; a self-merge needs the close-out, not a replay |
 | Programmatic side selection kept one line of a multi-line conflict side | Wrote a resolver that read only the first element of each side and joined the chosen lines | Adjacent numbered steps inside the same conflict block disappeared; the file parsed, linted, and passed every test because no test pinned the step inventory | Preserve each whole side or a verified union, then diff the heading and step inventory against both stages before every push in a stack |
+| Wholesale side copy dropped the replayed commit's planned hunks | Resolved a workflow-file conflict by taking the trunk side's whole file, then re-applying planned edits from memory | Two planned hunks were silently lost; the commit message and PR body still claimed them, and a review found the gap against the plan | After each replayed commit, diff each resolved path against the original head (`git diff "$trunk"...<original-head> -- <path>` versus `HEAD`); every planned hunk must still appear |
 
 ## Results & Parameters
 

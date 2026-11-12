@@ -29,6 +29,7 @@ version 1.15.0. The complete v1.15.0 retrievable content is archived once in the
 | Target merged at the delivery gate | Anonymized hosted monorepo PR, 2026-10 (see below) | verified-local | Re-read artifact state immediately before the mutation; a merged target gets content-equivalence proof and a stand-down, not a replay push |
 | Stale import found only by lint after the rebase | Anonymized hosted monorepo PR, 2026-10 (see below) | verified-local | Restore or delete the import in the commit that uses it; amend `HEAD` only when `HEAD` is that commit |
 | Scripted resolver dropped adjacent numbered steps | Mnemosyne merge-wave stack integration, 2026-11 (see below) | verified-local | Preserve each whole conflict side or a verified union, then diff the heading and step inventory against both stages before every push in a stack |
+| Wholesale side copy dropped planned hunks | Anonymized hosted monorepo CI-workflow PR rebase, 2026-11 (see below) | verified-local | Diff each resolved path against the original head; every planned hunk must survive, or restore it explicitly |
 
 ## Stale Import Found Only by Lint
 
@@ -242,3 +243,34 @@ The durable rules from the case:
    deletion reason.
 3. Run that comparison before every push in a stack. A later branch's repair
    does not undo an earlier branch's merge.
+
+## v2.8.0 — a wholesale side copy dropped planned hunks from a replayed commit
+
+A CI-workflow pull request in an anonymized hosted monorepo rebased onto a
+trunk that had since restructured the same workflow file (a test-plan job and a
+PostgreSQL selection rewrite). The conflict resolution copied the trunk side's
+whole file back into the worktree and re-applied the planned edits by hand. Two
+planned hunks — an event-condition change and a wrapper change — were not
+re-applied. The replayed commit's message and the PR body still claimed them.
+
+The file was valid, all checks passed, and the merged PR looked complete. A
+read-only simplify review compared the change against the approved plan and
+reported the gap: the schedule never selected PostgreSQL and the stated wrapper
+requirement was absent. The repair re-applied the two hunks on top of the
+moved trunk structure, corrected the commit message and PR body, and recorded
+the decision that the dropped behavior stayed out (documented in the linked
+issue) rather than restoring it.
+
+The durable rule: a whole-file copy resolves the text conflict but erases the
+replayed commit's identity in that path. After each replayed commit, compare
+the path diff against the original head:
+
+```bash
+git diff "$trunk"...<original-head> -- <path>
+git diff "$trunk"...HEAD            -- <path>
+```
+
+Every planned hunk must appear in the replayed diff. A missing hunk needs an
+explicit re-application on top of the moved trunk content, not trust in the
+copy. Re-deriving planned edits from memory during a rebase is the failure
+mode; keep the planned-hunk list from the original head, not from the message.
