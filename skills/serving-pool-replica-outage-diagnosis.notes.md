@@ -103,3 +103,53 @@ Each case had a deterministic cause that repeated on every submission.
   one failed attempt (one flag change per resubmission).
 - Duplicate search: no open pull request changed this entry; the corpus has no other entry for
   container mount sources or engine argument conflicts.
+
+## Distributed-startup and validator-parity evidence (2026-11-12)
+
+A later multi-node validation effort moved several maintained recipe variants to one engine
+image. The active recipe contained an explicit opt-in for checkpoint-supplied custom loader
+code. Three inactive qualification recipes for the same loader omitted the corresponding recipe
+field and engine argument. Their inactive routing status did not remove that launch requirement.
+
+The shared canary log ended with a distributed rendezvous timeout of about ten minutes. That
+timeout initially hid the useful ordering evidence. Per-node logs showed an earlier model-loader
+refusal to execute checkpoint-supplied custom code without the opt-in. The affected rank exited
+before it opened its rendezvous endpoint; its peers then waited until the timeout. Parallelism
+differences were not the primary cause.
+
+The validation scripts also constructed a launch command from only part of each recipe. They
+omitted some per-cluster arguments and environment values, so a canary could test a configuration
+that differed from production. The repair derived global and per-cluster arguments, environment,
+served name, port, and topology from the recipe and wrote one engine log per node. The loader
+opt-in repair covered every maintained variant with the same requirement.
+
+Focused recipe, rendering, validation, and image-capability test suites passed after the repair.
+Complete live revalidation of the final scripts had not run when this lesson was captured: the
+jobs waited for shared scheduler capacity. The evidence therefore supports the causal diagnosis,
+the recipe corrections, and the validator-contract correction. It does not claim a successful
+final boot matrix.
+
+Decision value beyond the earlier startup branch:
+
+- A distributed rendezvous timeout is not a root-cause classification. Search all node or rank
+  logs for an earlier initialization failure before investigating topology or fabric.
+- The lowest-numbered rank is not necessarily the first failing rank. Per-node logs and causal
+  ordering replace that shortcut.
+- A canary must consume the same complete declarative launch contract as production. Do not
+  infer production behavior from a hand-copied subset of its arguments and environment.
+- Audit maintained inactive qualification variants when a loader requirement changes. Routing
+  status does not change what the engine needs to load the checkpoint.
+
+## Amendment record (1.2.0)
+
+- Disposition `amend`, version 1.1.0 to 1.2.0, on the same canonical entry.
+- New decision value: earliest-error causality across distributed ranks, custom-loader opt-in
+  classification, recipe-derived canary parity, and coverage of maintained inactive variants.
+- Delivery base: `ae987be0b6739bf340e2080dcf7e183895d355d1` of the knowledge repository.
+- Duplicate search: no open pull request changed this canonical entry. Open candidates covered
+  inert engine flag families and service-down triage; neither covers distributed rank causality
+  or recipe-derived validator inputs.
+- Privacy review: model and project identifiers, issue and job identifiers, infrastructure
+  paths, hostnames, and exact operational identifiers are omitted. No secret, credential,
+  regulated record, or erasure-requested material appears in the selected current or prior
+  content inspected at the delivery base.
