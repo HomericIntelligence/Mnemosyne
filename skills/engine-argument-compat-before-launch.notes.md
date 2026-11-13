@@ -64,6 +64,42 @@ expensive startup. Nearest entries and the boundary where they stop short:
 - An open pull request at the delivery base adds the diagnosis branch above;
   no open pull request changes the same file set as this entry.
 
+## Inert flag family across an image change
+
+A recipe pinned an engine's sparse-attention flag family (a prefill and a
+decode backend pair), plus the flag naming the decode kernel. One image
+served those flags. A review asked for the kernel flag to be removed on the
+reasoning that the surviving pair selects it.
+
+That reasoning held only on an engine whose source applies the model-profile
+predicate for that architecture. The image's engine gated the whole flag
+family on a family-membership predicate. A later release branch did not list
+the architecture in that predicate, and it also carried no implementation
+class for it. On such an image both flags are accepted, produce no error and
+no warning, and the engine serves through its generic default kernel instead
+of the measured one.
+
+What made this hard to see:
+
+- The configuration validated. The flags are syntactically valid on every
+  revision.
+- The render pre-flight recorded a drift warning and continued, which is the
+  documented behavior for an engine-argument difference.
+- The profile served in production with a floor that keeps a warm replica.
+- The measurement that justified the flags came from the older image, so the
+  evidence was real and no longer applied.
+
+The durable checks that catch it:
+
+- Classify each flag family as rejected-with-error or inert-without-error for
+  the exact image source revision, not the current default branch.
+- Name the flag that selects the behavior, so a deletion cannot re-expose an
+  inherited default.
+- Assert in a test that the naming flag is present, so a future edit that
+  removes it fails in CI rather than in production.
+- Record which rows are measured and which are open, including any row where
+  the chosen path differs from the reference numerics.
+
 ## Verification record
 
 - All platform required checks passed for the merged change that this entry
