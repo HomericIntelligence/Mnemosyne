@@ -1,9 +1,9 @@
 ---
 name: architecture-github-labels-as-state-vocabulary
-description: "Use mutually exclusive state:* labels as a durable pipeline state machine. Use when comments are an unreliable gate, several components must read one signal, label swaps must be atomic, or unavailable and malformed reads must fail closed."
+description: "Use mutually exclusive state:* labels as a durable pipeline state machine. Use when comments are an unreliable gate, several components must read one signal, label swaps must be atomic, unavailable and malformed reads must fail closed, or a request from another actor cites a label as authorization that may have changed since it was written."
 category: architecture
 date: 2026-08-07
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
@@ -45,6 +45,7 @@ The complete prior version is in
 - Duplicate, missing, malformed, contradictory, or unavailable labels must never authorize work.
 - A transition is emitted as separate add and remove calls, leaving a zero-or-two-state window.
 - A batch GraphQL read needs per-item unavailable semantics and a strict REST fallback.
+- A request from another actor cites a state label to authorize your action, and the label may have changed after the request was written.
 - Retry or post-mutation confirmation must be idempotent and fail closed.
 
 Do not use labels as the only audit record. Keep human rationale in comments or artifacts and use
@@ -199,7 +200,20 @@ def may_implement(state: str | None) -> bool:
     return state == "state:plan-go"
 ```
 
-### 6. Audit every edge and writer
+### 6. Bind a request's citation to the marker's event timeline
+
+A request from another actor that cites a state label is evidence of the
+state when the request was written, not of the state when you act. A
+citation can expire minutes after it is written: a verdict lands, the
+writer reverts the label, and the request still reads as authorized.
+Before acting on such a request, fetch the marker's events (applied and
+unlabeled, with timestamps) and compare them with the request's writing
+time; then perform the fresh strict read from section 5. Refuse a stale
+request and reply with the event that invalidated it and the work that
+restores authorization. The fresh read gives the go/no-go; the timeline
+makes the refusal actionable.
+
+### 7. Audit every edge and writer
 
 List all state transitions, then locate the component that executes each one. A diagrammed edge
 without a writer is a stuck-closed gate. Search for raw literals and direct label mutations so
@@ -213,6 +227,7 @@ ambient, standalone, and repository-scoped implementations cannot drift from the
 - Transport failure is distinct from a successful empty label set.
 - Batch failures fall back per item; fallback failure stays unavailable.
 - Mutation success is not enough: fresh readback must prove the target state.
+- A request's label citation is not currency: bind it against the marker's event history, re-verify at action time, and name the superseding event in the refusal.
 - Re-plan restores `needs-plan`; it never bypasses the state gate by parsing plan comments.
 - Backfill is one-time, bounded, and idempotent; normal execution never reparses history.
 
@@ -227,6 +242,7 @@ ambient, standalone, and repository-scoped implementations cannot drift from the
 | 5 | Accept one valid label while ignoring malformed siblings | Partial payload corruption can authorize work | Validate the whole payload |
 | 6 | Draw the re-plan edge without assigning a writer | Rejection label remains and verification retries forever | Execute the swap in the re-planning owner |
 | 7 | Trust a successful mutation without readback | Retries or races can leave a different state | Re-read strictly and compare with the target |
+| 8 | Act on a request that cited the label as open, written minutes earlier | A verdict landed between the request and the action and the label had reverted; the current-value read refused, but only the event timeline showed the request expired after it was written | Bind the citation to the marker's event timeline and re-verify at action time; reply with the invalidating event |
 
 ## Verification Checklist
 
@@ -249,4 +265,5 @@ ambient, standalone, and repository-scoped implementations cannot drift from the
 
 The three-label core and initial automation are `verified-local` from PR #707. The re-plan and
 strict distributed-read refinements from issue #1857 are unverified design guidance until their
-implementation and CI evidence are recorded. See the notes companion for case-level provenance.
+implementation and CI evidence are recorded. The request-citation currency rule (v2.1.0) is
+`verified-local` from one live cross-actor case; see the notes companion for case-level provenance.
