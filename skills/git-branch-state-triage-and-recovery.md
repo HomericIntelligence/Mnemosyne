@@ -8,7 +8,7 @@ description: >-
   bulk local-branch inventory cleanup.
 category: tooling
 date: 2026-10-13
-version: "2.7.0"
+version: "2.8.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
@@ -53,6 +53,8 @@ The complete superseded source is archived in
   fetched.
 - A rebase conflict places side-by-side rewrites of the same lines for the same upstream change,
   or per-hunk resolution that always takes the trunk side trends toward an empty final diff.
+- An instruction asks to rebase an open PR, or to keep it open, while a replacement PR may already
+  have landed the same patch, so the rebase could leave nothing to push.
 - A published tip claim, a rebase base, or a mergeability or dependency check must name the
   current remote branch state, and the last fetch used a refspec without a destination mapping
   (for example `git fetch origin <branch>`).
@@ -122,6 +124,7 @@ git log --oneline "$mb"..refs/remotes/origin/<branch>
 | --- | --- | --- |
 | Superseded | PR merged or patch/content already on trunk | Stop; do not rebase or duplicate |
 | Superseded at task start | The task asks for a rebase, but the PR is already merged before any local work | Stop before the rebase; the merged-PR case in this entry applies, not the rebase playbook |
+| Open PR superseded by a different merged PR | A replacement PR landed the same patch; the old PR is still open, often with a stale label or armed auto-merge | Rebase locally only to prove equivalence. If the rebased tree equals trunk, do not push: the forge closes a PR whose head has an empty diff. Report the per-file evidence and let the owner decide |
 | Partially superseded | Trunk absorbed the delta in a parallel rewrite; the per-intent-unit proof finds surviving units | Re-propose only the surviving units as minimized commits on current trunk |
 | Orphan | No common ancestor | Export the intended patch, recreate from trunk |
 | Diverged | Common base exists; local/remote tips differ | Reset/rebuild from the chosen tip, cherry-pick intended commits |
