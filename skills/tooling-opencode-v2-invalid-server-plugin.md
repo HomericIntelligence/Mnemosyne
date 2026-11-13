@@ -3,7 +3,7 @@ name: tooling-opencode-v2-invalid-server-plugin
 description: "Diagnose and resolve the OpenCode V2 server plugin error `Plugin must export a default definition with an id and an effect or setup function`. Use when: (1) a plugin shows `Server plugin error` with `Runtime: server` and a reference `err_*`, (2) a V1-era server plugin must work in OpenCode V2, (3) you must choose between removal, an upstream V2 port, or a replacement, (4) the newest published npm package has a V1 shape but the upstream repository can have an unreleased V2 port, (5) a Git-installed plugin loads without an error but has no effect."
 category: tooling
 date: 2026-10-13
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 tags: [opencode, plugin, server, api-migration, package-compatibility]
 ---
@@ -29,6 +29,9 @@ tags: [opencode, plugin, server, api-migration, package-compatibility]
 - The newest published npm release has a V1 shape. You must find whether the upstream
   repository has a newer V2-compatible module, for example on the default branch or at
   a newer tag.
+- The cached package is older than the newest published npm release, and that release
+  already contains a V2-compatible module shape. The cache can pin an incompatible
+  older release.
 - A plugin that a Git package specification installed loads with no
   `failed to load plugin` entry in the log, but its documented effect is absent.
 - The plugin function is static payload delivery, for example a copy of a skill corpus
@@ -46,6 +49,13 @@ grep "err_<reference>" ~/.local/share/opencode/log/opencode.log   # role=server
 PKG=~/.cache/opencode/npm/<name>@latest/*/node_modules/<name>
 grep -n '"version"' "$PKG/package.json" | head -1
 tail -c 800 "$PKG"/dist/*.js          # last export block shows the default definition
+
+# 2a. If the newest published release has a V2-compatible shape but the cache
+#     holds an older release, refresh the cache instead of removing the plugin
+npm view <name> version                # newest published release
+opencode plugin list                   # installed state before the update
+opencode plugin update <name>          # refreshes the cached package
+opencode plugin list                   # confirm the current version is cached
 
 # 3. Look for an unreleased V2 port in the upstream repository
 git ls-remote --tags <repo-url> | sort -V | tail -3   # newest release tags
@@ -83,7 +93,16 @@ error-free load has no effect.
    current. A V1 shape in the newest published release means no published V2 port.
    Before you conclude that no V2 port exists, check the upstream default branch and
    the newest release tag. The repository can contain an unreleased V2 port.
+   When the newest published release already has a V2-compatible shape and the cache
+   holds an older release, an upgrade can fix the failure. Use `opencode plugin
+   update <name>` and verify with `opencode plugin list` before you remove the
+   plugin.
 4. Select the remediation:
+   - When the cache holds an older incompatible release but the newest published
+     release has a V2-compatible shape, run `opencode plugin update <name>` to refresh
+     the cache. The update can report the load check as failed while still installing
+     the current version, so confirm the installed version with `opencode plugin
+     list` before you rely on the update or remove the plugin.
    - Remove the plugin from `plugins` in the applicable `opencode.json(c)` when the
      function is not required.
    - Use a V2-compatible replacement plugin when one provides the function.
@@ -130,6 +149,7 @@ error-free load has no effect.
 | --------- | --------- | --------- |
 | OpenCode v2.0.26 (public release) | Load failure of the public `oh-my-openagent` server plugin (5.1.29 cached, 5.1.30 newest published at the time); diagnosis and removal | [notes.md](../skills/tooling-opencode-v2-invalid-server-plugin.notes.md) |
 | OpenCode v2.0.27 (public release) | V1-only published npm release 0.5.3 of a skills-delivery plugin; V2-compatible module at unreleased upstream tag v0.6.0; payload absent from the Git installation route; direct corpus installation from the tag | [notes.md](../skills/tooling-opencode-v2-invalid-server-plugin.notes.md) |
+| OpenCode v2.2.5 (public release) | Cached npm release 0.5.3 was incompatible with the V2 module schema; published release 0.6.0 had the V2 shape; `opencode plugin update` refreshed the cache and the plugin loaded | [notes.md](../skills/tooling-opencode-v2-invalid-server-plugin.notes.md) |
 
 ## References
 
