@@ -91,3 +91,25 @@ supplies the evidence.
   V2 module without its payload, and direct payload installation from the immutable
   tag was the only working route. When the plugin gains a published V2 release, the
   package route restores automatic payload synchronization at startup.
+
+## Session evidence: stale cache refreshed by plugin update (2026-11)
+
+Public software: the public skills-delivery npm package and its public repository.
+One session on OpenCode v2.2.5 (log entries dated 2026-11-04) supplies the evidence.
+
+- The server log recorded `failed to load plugin` with the same `SchemaError(Expected
+  object at ["default"])` cause for the plugin.
+- The cache under `~/.cache/opencode/npm/<name>@latest/*/` held release 0.5.3, whose
+  module default-exported a function. The newest published release at the time was
+  0.6.0, whose module default-exports `{ id, setup }`.
+- `opencode plugin check` reported the package as failed at the old cached revision.
+- `opencode plugin update <name>` reported the load check as failed and also updated
+  the Server plugin. A fresh cache directory appeared with the 0.6.0 package.
+- `opencode plugin list` showed the plugin at 0.6.0.
+- A standalone server run loaded the plugin from the new cache directory without a
+  `failed to load plugin` entry.
+- The stale 0.5.3 cache directory was removed after the update.
+- Decision detail: when the published release already contains the V2 module shape,
+  the package route restores payload delivery without a manual install. Verify the
+  installed version with `opencode plugin list` after the update, then restart the
+  service (or start a standalone server) to load the refreshed plugin.
