@@ -1,11 +1,11 @@
 ---
 name: peer-rewrote-pr-head-orphaned-push
-description: "Recover when concurrent agents share one pull-request branch and a peer force-pushes over or merges from an older commit than your reviewed head. Use when your pushed fix is missing from the remote branch, the remote head is not a descendant of your commit, a PR label changed to a blocking state after your review, or another agent claimed the same PR before your push."
+description: "Recover when concurrent agents share one pull-request branch and a peer force-pushes over or merges from an older commit than your reviewed head. Use when your pushed fix is missing from the remote branch, the remote head is not a descendant of your commit, a PR label changed to a blocking state after your review, or another agent claimed the same PR before your push. Also use before a coordinator assigns a second background agent to a branch that a first agent may still write."
 category: tooling
-date: 2026-11-02
-version: "1.0.0"
+date: 2026-11-10
+version: "1.1.0"
 user-invocable: false
-tags: [parallel-agents, shared-branch, force-push, head-orphaned, push-rejected, stale-lease, merge-from-older-head, claimed-pr, pr-stack, follow-up-pr]
+tags: [single-writer, task-stop, coordinator, parallel-agents, shared-branch, force-push, head-orphaned, push-rejected, stale-lease, merge-from-older-head, claimed-pr, pr-stack, follow-up-pr]
 ---
 
 # Peer Rewrote the PR Head: Keep the Work, Do Not Reprint the Push
@@ -25,6 +25,7 @@ tags: [parallel-agents, shared-branch, force-push, head-orphaned, push-rejected,
 - A leased push fails with `stale info` or a "cannot fast-forward" hint after you fetched only minutes before.
 - A merge landed from an older head of your own branch, so the merged tree lacks a fix that your local work contains.
 - Another agent posted a claim on the pull request or set a blocking state label after your review, before your push.
+- You are a coordinator and will hand the same branch or pull request to a second background agent, or you told an agent by message to stop pushing.
 - You must decide between a force push to restore your commit, a rebase, or a separate pull request.
 
 ## Verified Workflow
@@ -54,6 +55,18 @@ Rule: **a missing commit is evidence, not a failure to retry.** If the remote he
 
 Rule: **a claim or a blocking label ends your write authority on that branch.** Publish the remaining delta where the owner can read it: a review comment with a patch, or a follow-up pull request against the default branch.
 
+### Prevent It: One Writer per Branch
+
+A message does not cancel a command that is already running. A first agent told to stop can still land a queued push, which overwrites the second agent's head. Two heads then exist and one agent's work is lost. Before you assign a second writer:
+
+1. Stop the first agent process itself with the task-stop control. Do not rely on a stop message.
+2. Confirm its worktree has no running git process (check the process table for that worktree path).
+3. Re-read the remote head and confirm it did not change after the stop.
+4. Record that head object ID. The second agent starts from it.
+5. Give the second agent a pinned push: `git push --force-with-lease=<ref>:<expected-oid>`.
+
+Allow one writer per branch at a time. All other agents on that branch are read-only. Read-only reviewers can run in parallel with the writer.
+
 ### Suggested Approach
 
 1. **Check ancestry, not just the branch name.** A push that reports success once does not stay published. Re-read the remote before every later write, including a push to the same branch that you pushed one commit earlier. `git merge-base --is-ancestor <your-commit> origin/<branch>` is the authority.
@@ -74,6 +87,7 @@ Rule: **a claim or a blocking label ends your write authority on that branch.** 
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
+| Tell the first agent by message to stop, then start a second writer | Delegated fixes for one pull request to a second background agent while the first might still run | The message did not cancel a running command; the first agent's queued push landed and overwrote the second agent's head | Stop the process, verify no git process and an unchanged remote head, then pin the second writer's lease |
 | Push the reviewed commit to the branch that received it before | Re-ran the same branch push after more review fixes | The peer had rewritten the branch, and the remote reported the branch as deleted or advanced | A prior successful push to a branch does not grant later write access; re-read the remote first |
 | Merge from the newest head of your own branch | Merged a feature-branch pull request and expected the merge to carry the newest commits | The merge used an older head, so the reviewed fix was absent from the merged tree | The merge picks a head; verify the merged commit contains your commit before you clean up |
 | Force-push to restore the orphaned commit | Rebased locally and pushed with a lease | The lease was stale, and the peer had claimed the same branch with a review round | A stale lease after a claim is a stop signal, not a retry signal |
@@ -91,6 +105,10 @@ merged_head_audit:
   compare: git diff --stat <your-commit> <merged-commit>
   empty: content landed; identity moved
   non-empty: recover the delta
+single_writer:
+  before_second_writer: [task-stop-first-agent, no-git-process-in-its-worktree, remote-head-unchanged, record-head-oid]
+  second_writer_push: --force-with-lease=<ref>:<expected-oid>
+  parallel_ok: read-only-reviewers
 write_authority:
   cleared_by: [peer-claim-comment, blocking-state-label, branch-deleted]
   then: review-comment-with-patch, or follow-up-pr-against-default
