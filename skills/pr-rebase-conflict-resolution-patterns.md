@@ -1,9 +1,9 @@
 ---
 name: pr-rebase-conflict-resolution-patterns
-description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift, or the resolution keeps both sides' guards for one failure mode, or a delete-side commit conflicts with trunk entries added inside the deleted block, or the conflict carries test-pinned values derived from source content that neither side can supply correctly, or the target pull request merged, closed, or lost its source ref between resolution work and the delivery mutation, or two lanes independently created the same file for one issue and the second to merge sees it as `AA` while either copy may be the narrower one, or every conflict resolves to the current target side because a sibling pull request already delivered the same intent and the reviewed head carries a delivered approval state, or an already-armed auto-merge on the same pull request can fire on the new head as soon as your rebase push turns its checks green, or a scripted resolution keeps only part of one conflict side and silently drops adjacent numbered steps, or a conflict was resolved by copying one side's whole file and the replayed commit's planned hunks are missing while its message still claims them."
+description: "Use when a pull request reports DIRTY or CONFLICTING, an active task needs a main artifact to continue, a permitted stacked or same-file rebase needs serialization, conflict status is ambiguous (AA/UU/modify-delete), or a textually clean rebase may hide semantic, test, lint, policy, or inventory drift, or the resolution keeps both sides' guards for one failure mode, or a delete-side commit conflicts with trunk entries added inside the deleted block, or the conflict carries test-pinned values derived from source content that neither side can supply correctly, or the target pull request merged, closed, or lost its source ref between resolution work and the delivery mutation, or two lanes independently created the same file for one issue and the second to merge sees it as `AA` while either copy may be the narrower one, or every conflict resolves to the current target side because a sibling pull request already delivered the same intent and the reviewed head carries a delivered approval state, or an already-armed auto-merge on the same pull request can fire on the new head as soon as your rebase push turns its checks green, or a scripted resolution keeps only part of one conflict side and silently drops adjacent numbered steps, or a conflict was resolved by copying one side's whole file and the replayed commit's planned hunks are missing while its message still claims them, or a conflicted merge or rebase on a shared or slow filesystem produced a result that misses plain upstream files because the checkout had not finished when the paths were staged."
 category: ci-cd
 date: 2026-07-12
-version: "2.8.0"
+version: "2.9.0"
 license: BSD-3-Clause
 user-invocable: false
 tags: [git, rebase, merge-conflict, pull-request, worktree, force-with-lease, semantic-conflict, stacked-pr, ci]
@@ -54,6 +54,10 @@ runtime behavior, tests, policy prose, generated state, and inventories.
 - A conflict was resolved by copying one side's whole file. The copy can silently
   drop the replayed commit's planned hunks while its commit message and PR body
   still claim them.
+- A conflicted merge or rebase ran on a shared or slow filesystem, and the result
+  is about to be staged or pushed. Upstream-added files can be absent from the
+  working tree while the merge reports success, and a broad stage records them
+  as deletions.
 
 ## Verified Workflow
 
@@ -176,6 +180,28 @@ Stage paths explicitly. Do not use `git add .` or `git add -A` in a conflict loo
 If a safety policy blocks checkout/restore shortcuts, reconstruct from read-only
 objects and apply the desired content through an approved editor; do not bypass
 the policy or use destructive reset commands.
+
+A conflicted merge or rebase on a shared or slow filesystem can report success
+while the working tree is still incomplete. Upstream-added files then have no
+checkout, and a broad stage records them as deletions; the index looks staged
+and the commit can succeed. After every conflicted merge or rebase, prove the
+result against the trunk before the commit and the push. Before the commit, the
+index holds the merge result, so compare the index; after the commit, compare
+`HEAD`:
+
+```bash
+git diff --cached --stat "$trunk"                    # before the commit: only the PR's intended paths
+git diff --name-status --cached "$trunk" | grep '^D' # before the commit: unexpected upstream "deletions"
+git diff --stat HEAD "$trunk"                        # after the commit: the same check
+```
+
+A plain upstream file that the PR never touched must not appear. When it does,
+abort (`git merge --abort`, `git rebase --abort`) and redo the merge. Confirm
+the checkout completed — `git status --short` shows only the resolved conflict
+paths — then stage explicit paths and re-verify. Do not repair the gap with
+`git checkout "$trunk" -- <path>` inside the same merge: the missing tree
+proves the checkout is incomplete, and a second operation can lose the same
+objects again.
 
 Some conflicts carry test-pinned values that are pure functions of source
 content, such as a digest map over configuration files or a computed context
@@ -524,6 +550,7 @@ rebase again.
 | Reading the self-merge as trunk movement | Saw a new trunk commit and prepared a second rebase against it | The commit subject named the same pull request, so trunk already held the exact prepared content | Read the `(#<N>)` suffix before a second rebase; a self-merge needs the close-out, not a replay |
 | Programmatic side selection kept one line of a multi-line conflict side | Wrote a resolver that read only the first element of each side and joined the chosen lines | Adjacent numbered steps inside the same conflict block disappeared; the file parsed, linted, and passed every test because no test pinned the step inventory | Preserve each whole side or a verified union, then diff the heading and step inventory against both stages before every push in a stack |
 | Wholesale side copy dropped the replayed commit's planned hunks | Resolved a workflow-file conflict by taking the trunk side's whole file, then re-applying planned edits from memory | Two planned hunks were silently lost; the commit message and PR body still claimed them, and a review found the gap against the plan | After each replayed commit, diff each resolved path against the original head (`git diff "$trunk"...<original-head> -- <path>` versus `HEAD`); every planned hunk must still appear |
+| Broad stage after a conflicted merge on shared storage | Merged the trunk into a PR branch in a worktree, resolved conflicts, and staged everything with `git add -A` | The conflicted merge's working-tree checkout was still incomplete, so upstream-added files (a vendored patch stack and CI workflows) had no checkout; the stage recorded them as deletions and the result looked clean | Before the commit, compare the index against the trunk (`git diff --cached --stat "$trunk"` shows only the PR's paths) after every conflicted merge or rebase; on a mismatch, abort and redo the merge instead of repairing individual paths |
 
 ## Results & Parameters
 
