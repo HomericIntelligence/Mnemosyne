@@ -1,9 +1,9 @@
 ---
 name: review-author-reviewer-role-separation
-description: "Keep the reviewer role and the author role separate in an automated pull-request review-and-fix workflow that uses several subagents. Use when: (1) a reviewer agent has findings that need author answers, (2) a terminal GO must stay valid after a rebase or base merge, (3) a clean review is refused at delivery for a digest drift or a forked reviewer-state chain, (4) a chained publish command can reuse a stale payload, or (5) a force push, rebase, or sequence-number collision must be handled."
+description: "Keep the reviewer role and the author role separate in an automated pull-request review-and-fix workflow that uses several subagents. Use when: (1) a reviewer agent has findings that need author answers, (2) a terminal GO must stay valid after a rebase or base merge, (3) a clean review is refused at delivery for a digest drift or a forked reviewer-state chain, (4) a chained publish command can reuse a stale payload, (5) a force push, rebase, or sequence-number collision must be handled, or (6) the GO mechanism is a merge-platform review object and the fresh-context reviewer shares the author's account."
 category: tooling
 date: 2026-10-27
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 tags:
   - pr-review
@@ -31,6 +31,7 @@ tags:
 - The head of a reviewed PR moved after a terminal GO.
 - A clean source review is refused at delivery.
 - You must publish several reviews with a chained command, or you must rebase or force push.
+- The GO mechanism is a merge-platform review object, and the only available independent reviewer shares the author's account.
 
 ## Verified Workflow
 
@@ -49,6 +50,7 @@ new reviewer (fresh)      -> reviews the NEW head -> delivers verdict
    - If the dispatch fails again, run a readiness check first: read the pull request state and confirm the exact head. Then run independent discovery checks only: factors such as the change size, a source read-only check of every documented claim (for example, a grep of the exact head tree that the document describes), and the verdict of a prior non-review gate such as a simplification pass. Do not publish a terminal state yourself.
    - Split any verdict into two parts: (a) author-side evidence, which the author may publish when it is labeled as author evidence and is not an independent verdict, and (b) an independent verdict, which requires a separate execution context.
    - Then dispatch a fresh-context reviewer subagent with an explicit statement that the platform permits an independent context to deliver a GO. The author may dispatch this reviewer; the independence property comes from the fresh context, not from a different account.
+   - Know the boundary of that independence when the GO mechanism is a merge-platform review object. The platform binds an approving review to the account, not to the execution context. A fresh-context reviewer that shares the author's account cannot publish an approving review on the author's own pull request; the platform refuses the publication with an approve-own-pull-request error. Record the fresh-context verdict as independent review evidence in the exchange record. Let the merge ride the repository merge contract, such as required checks plus a workflow state label. Treat the refusal as an expected refusal, not a wedge. Do not seek a gate circumvention.
 2. **Never mix roles.** The reviewer agent must not write or publish the author response, the author-event carrier, or answers to findings on the author's behalf. This applies even when the answers come from the author's own PR comment. A fresh-context reviewer that publishes the author answers and the verdict is flagged as self-approval by permission classifiers, and it loses independence. Return a blocked result "needs author response" instead. A separate fixer fixes the findings and publishes the author response through the sanctioned path. A new reviewer in a fresh context then reviews the new head and delivers the verdict.
    A reviewer-written author response also forks the exchange: published carriers are immutable, so no GO can deliver on that history. Do not repair it in place. Replace the pull request.
 3. **Bind a terminal GO to one head.** A rebase, a merge of the base branch, or any push moves the head. The earlier GO is then invalid, and auto-merge pinned to the old head is cancelled. Re-review the new head after such a change. Do not re-review a PR whose terminal GO already covers its current head. After a merge of the base branch moves the head, branch on the history. A clean terminal history allows a new exchange at round 1 on the new head. A forked history does not: use a replacement pull request.
@@ -68,6 +70,7 @@ new reviewer (fresh)      -> reviews the NEW head -> delivers verdict
 | Reuse of a payload file | A chained command reused a payload file in a shared temporary directory. | A stale duplicate review was published twice. Published reviews cannot be deleted. | Use a fresh per-run directory and stop on the first failed check. |
 | Fake exchange event | A human-decision event was considered to supersede an older exchange. | The event cannot express supersession. | Use owner authority and the reducer-rendered carrier. |
 | Author reviews inline after two dispatch failures | The author's own session ran the full review protocol and prepared a terminal carrier for the head it wrote. | The review was not independent, so it could not stand as the merge gate. A second dispatch then started and its independent GO had to be reconciled as a sibling terminal carrier. | After bounded re-dispatch, dispatch a fresh-context reviewer with explicit independence wording. Do not run the terminal review in the author session. |
+| Platform approval from a fresh context | A fresh-context reviewer subagent was asked to publish an approving review on the author's own pull request. | The platform binds the approval to the account: the publication was refused even though the review context was independent. | Record the fresh-context verdict as review evidence. Merge through required checks plus the workflow state label. Do not publish a platform approval from the author's account. |
 | Plain rebase | A rebase of a branch with merge commits. | Changes made inside the merges were lost. | Rebuild the net diff as clean commits. |
 
 ## Results & Parameters
@@ -82,6 +85,8 @@ re_review_when_head_moves: true
 re_review_when_go_covers_head: false
 force_push: owner_permission_and_lease_pinned_to_expected_commit
 independent_reviewer: fresh_context_dispatched_by_author_allowed
+platform_review_object: account_bound_not_context_bound
+fresh_context_review_on_own_pr: evidence_only_never_platform_approval
 author_inline_review: author_evidence_only_never_merge_gate
 review_dispatch_failures_before_fresh_context_escalation: 2
 ```
