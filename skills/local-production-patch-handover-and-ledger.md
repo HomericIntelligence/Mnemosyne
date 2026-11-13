@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Hand a denied production change to the owner as a ready script, keep a ledger of every local patch, and retire each patch at a release cut with a revert record. Use when: (1) the owner authorizes local modifications to a live system and the permission layer still denies an agent write to the installed tree, the public client tree or the database, (2) several local patches and manual database writes exist and each needs a main-branch fix, (3) an owner runs a command with the shell prefix and the result shows the wrong account or path, (4) a release cut replaces a patched deployed tree, so each active patch needs a revert record or a recorded keep decision."
 category: tooling
 date: 2026-10-29
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags: [local-patch, handover, permission-denied, ledger, evidence, idempotent-script, shell-prefix, release-cut, revert-record]
@@ -59,7 +59,12 @@ Cut: one revert record per active patch, each with the bypass, its evidence patc
    "patch locally, fix on main" needs an issue per patch.
 2. Write the patch as a script under a working directory with evidence output.
    The script checks that each anchor text occurs exactly once, skips a file that
-   is already patched, and writes the checksums before and after.
+   is already patched, and writes the checksums before and after. When the script
+   patches several sibling files, check each file on its own and patch only the
+   files that still need it. Do not start with one "already patched" guard on a
+   single file: if another person fixed that file, the guard skips the siblings
+   that still have the defect. Keep one backup per file, run a dry run before the
+   write, and end with a check that no file still has the bad text.
 3. For files with mode 444, make the file writable for the in-place write and
    restore the mode in a `finally` block. A failed first run must write nothing.
 4. For database writes, add a dry-run flag that opens a transaction, prints the
@@ -96,6 +101,7 @@ Cut: one revert record per active patch, each with the bypass, its evidence patc
 | First patch run on a read-only tree | Wrote the file in place | The tree was mode 444 and the run stopped with a permission error | Make the file writable for the write and restore the mode |
 | Owner ran the repair through the shell prefix | `mv` of a file in a user's home | The command ran as the agent account | State which account must run each command |
 | Close the ledger when each main fix merged | Treated the merged fix as the end of the patch | The deployed tree kept the local change, and a later cut would drop it without a record | Close the ledger only when the release that contains the fix is installed, and write the revert record at that cut |
+| One guard for sibling files | The script began with an "already patched" check on one file | Another person had fixed that file; the script exited with "already patched" while four siblings kept the defect | Guard and patch each file on its own, and finish with a no-bad-text check on all files |
 
 ## Results & Parameters
 
