@@ -1,12 +1,12 @@
 ---
 name: serving-pool-replica-outage-diagnosis
 license: BSD-3-Clause
-description: "Classify serving-pool replica loss from scheduler and engine evidence before incident response, and audit recovery placement and startup validators. Use when: (1) replicas fail together, (2) replacement jobs do not register, (3) you are about to attribute outage to hardware, or (4) a multi-node launch reports a rendezvous timeout or a validator uses a hand-copied subset of the production launch recipe."
+description: "Classify serving-pool replica loss from scheduler and engine evidence before incident response, and audit recovery placement and startup validators. Use when: (1) replicas fail together, (2) replacement jobs do not register, (3) you are about to attribute outage to hardware, (4) a multi-node launch reports a rendezvous timeout or a validator uses a hand-copied subset of the production launch recipe, or (5) a startup failure names a flag that the source repository already fixed."
 category: debugging
 date: 2026-10-26
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
-tags: [serving, outage-diagnosis, replica, poison-request, preemption, slurm, sacct, recovery-placement, gateway-registration, startup-failure, distributed-startup, rendezvous-timeout, canary-parity, container-mount, engine-arguments, failure-breaker]
+tags: [stale-deployed-recipe, serving, outage-diagnosis, replica, poison-request, preemption, slurm, sacct, recovery-placement, gateway-registration, startup-failure, distributed-startup, rendezvous-timeout, canary-parity, container-mount, engine-arguments, failure-breaker]
 ---
 
 # Serving-Pool Simultaneous Replica Outage Diagnosis
@@ -51,6 +51,9 @@ sacct -j <job-id-1>[,<job-id-2>,...] \
 # A follower rendezvous timeout is secondary until those logs exclude an
 # earlier failure on another rank. Derive canary arguments, environment, and
 # topology from the production recipe, not a hand-copied subset.
+# An error that names a flag the source repository already fixed
+#   -> compare the engine's own logged effective arguments with the source
+#      recipe, then read the recipe copy inside the deployed release.
 
 # The launch spec of a job that still waits shows the rendered flags and mounts.
 scontrol write batch_script <job-id> -
@@ -68,6 +71,7 @@ scontrol write batch_script <job-id> -
    - A container start failure that names a bind-mount source ("mount source ... No such file or directory"). It appears within seconds to minutes and repeats on every submission. Check each mount source of the launch spec on the compute-node view of the filesystem. A directory that a new root never created, or that an older release kept elsewhere, is the usual cause. Restore the files from the copy that the older release used, verify them by checksum, and check that the launch spec names the restored path.
    - A model-initialization configuration refusal, such as a checkpoint that declares custom loader code without the required explicit opt-in. Compare the failing recipe with a working recipe for the same loader and with the checkpoint's declared loading requirements. Apply the required recipe field and engine argument to every maintained variant that needs them. Do not infer a distributed-topology defect from the later rendezvous timeout.
    - An engine argument conflict: a `ValueError` or `NotImplementedError` from backend setup that names two flags, such as a cache data type that the chosen attention backend does not accept. The engine checks these flags after it verifies the checkpoint, so each trial costs minutes. A fix for one conflict can expose the next. Collect every constraint from the messages, write the table of allowed combinations, and choose one combination that has a measurement before you submit again. Do not change one flag per resubmission.
+   - A stale deployed recipe: the error names a flag or value that the source repository fixed earlier, yet each new job fails the same way. The deployed release holds its own copy of the recipe, and a release cut before the fix still carries the old value. Compare the effective arguments that the engine logs at startup with the source recipe. A difference means the launcher read the deployed copy. Read that copy, and do not trust the source tree. The durable fix is a release that contains the source fix. For an owner-approved local patch, copy the deployed file aside first, change only the named values, and check that it still parses. Prove the patch from the next job's logged arguments, not from the file edit. A running supervisor can hold older code in memory. Reload it in place before you count on a patched module, and keep the backup list for the later restore.
    - The same first error on every replica of the pool means configuration, not hardware. Stop the resubmission loop. The pool failure breaker can trip after a small number of identical failures and stop all relaunches, so reset it after the fix and not before.
 8. Keep a canary or reproduction harness equivalent to production. Generate global and per-cluster engine arguments, environment, served name, port, and topology from the same declarative recipe and cluster block that production uses. A hand-copied subset runs a different experiment and can omit the field or environment value required during initialization. Include each maintained recipe variant that selects the changed engine image, including inactive qualification artifacts; their inactive routing status does not change their launch requirements.
 9. Prove a startup fix with one replica: the job stays RUNNING past the earlier failure time, the replica registers with the gateway, and a real request returns a completion. Then scale the pool. When scheduler capacity prevents this proof, record the diagnosis and the static or render checks separately from the pending live validation.
@@ -82,6 +86,7 @@ scontrol write batch_script <job-id> -
 | Attempt 4 | Changed one engine flag at a time and resubmitted after each failure. | The engine checks flag combinations after checkpoint verification. Three different conflicts appeared in turn, and each run cost four to thirteen minutes. | Read every constraint in the error text, tabulate the allowed combinations, and pick one measured combination before the next run. Check the rendered launch spec of a waiting job first. |
 | Attempt 5 | Diagnosed a multi-node canary from its final distributed rendezvous timeout. | Per-node logs showed that another rank had already refused the checkpoint's custom loader code and exited; the surviving ranks only reported the later wait timeout. | Collect per-node or per-rank logs and diagnose the earliest initialization error. Treat the rendezvous timeout as secondary until that search excludes an earlier failure. |
 | Attempt 6 | Built canary launch commands from a hand-copied subset of the active recipe's arguments and environment. | The canary omitted required model-initialization inputs, and maintained inactive variants did not receive the same repair as the active recipe. | Derive the complete launch contract from each production recipe variant and apply loader repairs across every maintained variant that shares the requirement. |
+| Attempt 7 | Treated a startup crash as an open defect because the source recipe already had the fix. | The launcher read the recipe copy in an older deployed release. The engine log showed the old argument values, and every new job repeated the crash. | Compare the engine's logged effective arguments with the source recipe before you write a fix. When they differ, the deployed copy is the defect. |
 
 ## Results & Parameters
 
@@ -100,6 +105,7 @@ outage_diagnosis:
     container_mount: mount source path must exist on the compute node view; restore from the older release copy and verify checksums
     model_initialization: compare recipe and checkpoint loading requirements; apply required opt-ins to every maintained variant
     engine_arguments: collect all flag constraints, choose one measured combination, one trial per combination
+    stale_deployed_recipe: compare logged effective engine arguments with the source recipe; patch the deployed copy only with owner approval and a backup; prove the patch from the next job's logged arguments
     validator_contract: derive full arguments, environment, served name, port, and topology from the production recipe
     breaker: reset after the fix; proof is registration plus one real completion
   recovery_audit:
@@ -114,7 +120,7 @@ outage_diagnosis:
 - The poison request class, when one exists, and the sibling pools that load the same engine model code and share the exposure.
 - A recovery-placement verdict: replacement tier compared with the protected floor, plus the correction when they disagree.
 - A recovery declaration bound to gateway registration and health answers, not to job submission.
-- For a startup failure: the earliest per-node or per-rank error, its class (missing mount source, model-initialization refusal, or engine argument conflict), the allowed flag combinations, and the single replica that proves the fix.
+- For a startup failure: the earliest per-node or per-rank error, its class (missing mount source, model-initialization refusal, or engine argument conflict), the allowed flag combinations, and the single replica that proves the fix, and whether the effective arguments came from the source recipe or from an older deployed copy.
 - For distributed validation: per-node logs, a validator derived from each maintained production recipe variant, and a separate record of pending live proof when the scheduler cannot supply an allocation.
 
 ## Verified On
