@@ -276,3 +276,40 @@ Process notes:
   assuming that any step ran.
 - A long inline shell script is a poor vehicle for this repair. Prepare a small
   script, rehearse it on a copy, and run it as one step with its own report.
+
+## Swap-in run on OpenCode v2.2.7 (no fresh install)
+
+Symptom: the server log repeated `Schema validation failed` on session reads
+and `Failed query` on `session_message` selects. `PRAGMA quick_check` on the
+1.1 GB file reported `Rowid out of order`, `Child page depth differs`,
+`btreeInitPage() returns error code 11`, and `2nd reference to page`. The file
+lived on shared network storage, with more than one process using it in WAL
+mode.
+
+Sequence of the repair and the two false failures:
+
+1. Stopped the server, copied the file once (byte-identical by `cmp`), and ran
+   `.recover` into a new file in the background. The rebuild took about 1 minute
+   and passed `quick_check` (1,377 of 1,388 sessions; 156,322 messages;
+   `lost_and_found` held 761 index-shaped rows, not reattached).
+2. Swapped the rebuild in. A supervisor had already respawned the server, so it
+   opened the old file and logged the old errors in one burst. That burst was
+   not a failure of the rebuild.
+3. Killed the server with `pkill -f 'opencode serve'`. The pattern matched the
+   caller's own shell and ended it (exit 144). Use `pgrep -x` and `kill <pid>`.
+4. The next start failed with `PRAGMA wal_checkpoint(PASSIVE)` -> `malformed`.
+   `quick_check` with the leftover `-wal` showed new corruption; with `-wal` and
+   `-shm` moved aside, the same file printed `ok`. The leftover WAL came from
+   the server that ran against the old file.
+5. After a clean start, a resumed session failed an insert with
+   `UNIQUE constraint failed: session_message.session_id, session_message.seq`.
+   Its counter was 22 against a stored maximum of 16,065. The audit found 99
+   sessions with a missing or low counter. Raising low counters to the stored
+   maximum in one transaction (service stopped) cleared the error; the log had
+   no new errors after the restart. Rows for sessions with no counter were also
+   inserted at the stored maximum; this run did not show that those rows were
+   necessary.
+
+Unrelated, but easy to confuse with the same log: `no worker available for
+model ...; retry when a replica is ready` means the model backend has no ready
+replica. It is not a database fault.
