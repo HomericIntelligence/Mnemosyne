@@ -15,7 +15,7 @@ description: >-
   CI was never applied.
 category: ci-cd
 date: 2026-07-30
-version: "2.9.0"
+version: "2.10.0"
 user-invocable: false
 verification: verified-ci
 license: BSD-3-Clause
@@ -216,6 +216,56 @@ message is the queue signal for the direct form too. Do not read the non-zero ex
 failure, and do not try another method flag. Repeat the command with `--auto`. The second call
 prints `already queued to merge` when the first call changed nothing, and the PR state stays
 `OPEN` until the queue merges it.
+
+### Queue-admission wedge during a GitHub-side degradation
+
+The admission flow above assumes a healthy queue back-end. During a forge-side incident it is
+not, and the failure is silent. The signature: every required check reports `SUCCESS`,
+`mergeable` is `MERGEABLE`, auto-merge is armed, and yet no `gh-readonly-queue/...` branch is ever
+created. The `mergeQueueEntry` stays `null` for hours, and a freshly triggered required-checks run
+sits `queued` with zero jobs, or dies at startup, for hours.
+
+Check the enrollment directly before you touch anything else:
+
+```bash
+gh api graphql -f query='
+query($n:Int!){repository(owner:"<OWNER>",name:"<REPO>"){
+  pullRequest(number:$n){mergeQueueEntry{state position}}}}' -F n=<N>
+gh api graphql -f query='
+query{repository(owner:"<OWNER>",name:"<REPO>"){
+  mergeQueue(branch:"<BASE>"){entries{totalCount}}}}'
+```
+
+A `null` entry with `totalCount: 0` on the base queue, with a green rollup, is an admission
+failure. It is not a repository misconfiguration and not a race you can win. Corroborate it with
+the incident's job-level symptoms before you classify it: jobs created with zero attempts, dynamic
+scan workflows failing at startup, or artifact upload/finalize requests answered with HTML instead
+of JSON.
+
+Remediations that do not create admission — do not cycle them repeatedly:
+
+- Closing and reopening the pull request to retrigger events.
+- Disabling and re-enabling auto-merge.
+- Dispatching the affected workflow manually and expecting the arm to pick it up.
+- Cancelling or re-running the zombie required-checks run. The rerun, cancel, and force-cancel
+  endpoints return mutually contradictory errors ("already running", "completed", "not been queued
+  yet") for the same run. Treat the run as unmanaged, not fixable.
+- Direct merge. The ruleset rejects it, and there is no bypass actor to appeal to.
+
+The required gate passing tells you nothing about admission. The queue admits the pull request
+when the back-end recovers. Gate your next action on `mergeQueueEntry` becoming non-null (position
+1), not on the auto-merge request alone. If the stall is incident-linked and urgent, hand an
+evidence packet (zero-attempt jobs, incident timestamps, the read APIs) to a maintainer for a
+provider support ticket; otherwise wait for the back-end.
+
+The same family appears on tag-triggered release runs: every required job passes and the run sits
+at `waiting` while the release and publish jobs never start. Their blocker is the release
+environment's named required reviewer. The run clears only when that person approves the deployment
+in the UI. It is not a failed gate, and it must not be "fixed" by re-running, editing the workflow,
+or re-cutting the tag.
+
+Non-obvious boundary: a green rollup never implies enrollment. The enrollment evidence is the queue
+entry itself, not any check conclusion.
 
 ### Ordering against an armed merge
 
