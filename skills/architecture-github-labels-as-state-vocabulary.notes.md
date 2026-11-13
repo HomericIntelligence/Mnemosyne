@@ -40,3 +40,28 @@
 Only the initial PR #707 implementation carries local execution evidence. Issue #1857 material is
 valuable architecture guidance but remains unverified until a linked implementation and CI run
 exercise those refinements.
+
+## Amendment: request-citation currency (v2.1.0)
+
+One live cross-actor case, generalized. Session-specific identifiers are removed.
+
+- **Trigger.** A peer actor submitted a written request to execute a staging action against one
+  head, citing the gate label as open. The request was correct when written.
+- **What changed between writing and acting.** A review verdict landed on the cited head minutes
+  after the request, with one required finding; the writer reverted the label in the same minute as
+  the verdict. The request was valid for roughly two minutes.
+- **What each signal contributed.** A fresh strict read at action time returned the reverted state
+  and gave the correct refusal. The event timeline (applied and unlabeled events with timestamps)
+  established *when* the request expired and *why* — the current-value read alone cannot
+  distinguish "never valid" from "expired after writing".
+- **Outcome.** The refusal named the superseding verdict, the blocking finding, and the label
+  timeline. The requester repaired the finding on a new head and re-granted the gate; the follow-up
+  request was re-verified against the new head and the finding's fix before the action ran.
+- **Why the entry gained a rule.** Sections 1–5 govern first-party reads and writes of the state
+  machine. They did not govern interpreting another actor's citation of the marker, and a bare
+  refusal without the timeline gives the requester nothing to repair.
+- **Limits.** One case, no contradictions observed. The rule assumes the writer maintains an
+  auditable event history for the marker; where labels are mutated without history, the citation
+  must be treated as unverifiable and refused.
+
+Privacy screen applied per the learning policy before this section was written.
