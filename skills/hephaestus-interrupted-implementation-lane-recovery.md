@@ -1,10 +1,10 @@
 ---
 name: hephaestus-interrupted-implementation-lane-recovery
 license: BSD-3-Clause
-description: "Recover a Hephaestus automation-loop item whose implementation stopped before first publication (job timeout, external signal, operator stop, a fail-closed host error at the writer boundary, or a commit-claim failure that leaves the worktree dirty). Use when: (1) the summary says RESUMABLE at implementation but the issue has no PR, (2) a relaunch dies at intake with `repository-intake requires a clean tracked tree`, (3) a relaunch dies with `BLOCKED:first_publication_discovery_failed`, (4) the implementation lane keeps changing after the loop exits, (5) an implementer job reached its timeout with forward progress, (6) a run fails closed with `host signing configuration unavailable`, `dirty_direct_claim_failed`, or an `initial implementation` record error after a relaunch, or (7) a run reports `FAIL:dirty_direct_claim_failed` after a long productive implement job and you must decide whether to adopt the preserved lane."
+description: "Recover a Hephaestus automation-loop item whose implementation stopped before first publication (job timeout, external signal, operator stop, a fail-closed host error at the writer boundary, or a commit-claim failure that leaves the worktree dirty). Use when: (1) the summary says RESUMABLE at implementation but the issue has no PR, (2) a relaunch dies at intake with `repository-intake requires a clean tracked tree`, (3) a relaunch dies with `BLOCKED:first_publication_discovery_failed`, (4) the implementation lane keeps changing after the loop exits, (5) an implementer job reached its timeout with forward progress, (6) a run fails closed with `host signing configuration unavailable`, `dirty_direct_claim_failed`, or an `initial implementation` record error after a relaunch, or (7) a run reports `FAIL:dirty_direct_claim_failed` after a long productive implement job and you must decide whether to adopt the preserved lane, or (8) a relaunch fails at the source-workspace writer with `source_workspace_recovery_receipt_invalid`, `source_workspace_legacy_unproven`, or `source_workspace_terminal` and the fail-closed chain ends in `creation_failure=writer_transition` after intake reconciliation, and operator source-workspace ownership evidence is required before relaunch."
 category: tooling
-date: 2026-10-18
-version: "1.2.0"
+date: 2026-11-13
+version: "1.3.0"
 user-invocable: false
 verification: verified-live
 tags:
@@ -31,7 +31,7 @@ tags:
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-10-18 |
+| **Date** | 2026-11-13 |
 | **Objective** | Recover an issue item that the automation loop interrupted during implementation, before any PR existed, so a fresh run converges instead of dying in intake, discovery, or at the rebase-writer boundary. |
 | **Outcome** | Operational. With the lane work preserved, the zombie agent session interrupted, and the durable records disposed in the correct order, each fresh run re-entered implementation and ran to its next budget decision. A fail-closed host-error chain (signing, claim, record, history) also recovered in five runs, ending in a claimed implement job. |
 | **Verification** | verified-live: five interrupted implementer jobs on one issue recovered across ~10 loop runs, plus a five-run fail-closed writer-boundary chain on a second issue; every signature below reproduced against the live intake. See [notes](hephaestus-interrupted-implementation-lane-recovery.notes.md). |
@@ -103,6 +103,7 @@ is also where the host signing gate applies, before any writer work runs.
 | 7 | Relaunch dies in seconds with `FAIL:dirty_direct_claim_failed` at `claim_dirty_direct_continuation` | The previous FAIL was handled with only the summary's discard instruction (`git worktree remove --force` on the preserved lane); the lane receipt still records the path, and the claim probe's `git status` on the missing path raises | Restore a clean worktree at the exact receipt path, on the receipt branch, at the receipt revision; the probe then reports not-applicable and a fresh lane forms. Otherwise dispose the worktree AND its records together. Never remove the worktree alone |
 | 8 | Writer fails with `initial implementation record does not match`; after the stale pending record is archived, it fails with `initial implementation history is unknown; use --rebase to continue` | The fresh run cut a new nonce branch and advanced the receipt generation, while `*-implementation-start.pending.json` still names the previous run's branch and base revision; the writer compares identity fields fail-closed | Archive only the stale start records that still bind the old nonce (`<issue>-implementation-start.pending.json` and, if present, `<issue>-implementation-start.reservation.json`); keep the fresh-generation `<issue>-impl.json` receipt; relaunch with `--rebase` — the flag the error names — so the writer records a start on the current generation |
 | 9 | The summary reports `FAIL:dirty_direct_claim_failed` with `dirty direct pending scope changed`, after the implementer ran far longer than the default budget and left a dirty lane | The consume step re-validates the plan's pending scope against the dirty lane; a writer edit outside the plan's allowed paths changes that scope, so the claim fails closed and no commit is made | Do not relaunch to re-earn the same work. Review the dirty diff against the plan, confirm the files match it, commit the preserved work as a signed checkpoint, and continue the remaining plan steps yourself. Record each out-of-scope file as a deviation in the PR body |
+| 10 | Relaunch fails at the source-workspace writer after intake reconciliation with `source_workspace_recovery_receipt_invalid`, `source_workspace_legacy_unproven`, or `source_workspace_terminal`, ending in `creation_failure=writer_transition` | Intake was reconciled (for example, a missing detached intake worktree was restored at the recorded receipt revision) but the source-workspace state still fails closed before writer work | Preserve the intake worktree, the source-workspace records, and operator source-workspace ownership evidence; complete source-workspace ownership recovery before relaunch. Do not delete receipts or force state past a fail-closed source-workspace gate |
 
 ## Verified Workflow
 
@@ -189,6 +190,8 @@ gh label list --limit 1 --json name --jq '.[0].name' -R <owner>/<repo>
     receipt must be owner-only (`0700`/`0600`). Blanket normalization in one direction fails the
     other class. Read the gate condition in the package source before each `chmod`.
 
+11. When the writer fails at the source-workspace layer after intake reconciliation, treat the source-workspace ledger and the intake path as the recovery boundary: preserve both, restore a missing detached intake worktree at the recorded receipt revision when intact, and obtain operator source-workspace ownership evidence for the transition before relaunch. Relaunch only after the source-workspace writer transition completes; never delete receipts or force state past a fail-closed source-workspace gate.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -203,6 +206,7 @@ gh label list --limit 1 --json name --jq '.[0].name' -R <owner>/<repo>
 | Rerun without the named flag after archiving records | Archived the stale pending start record and relaunched unchanged | The writer failed with `initial implementation history is unknown; use --rebase to continue` (signature 8) | The error text names the recovery flag; rerun with `--rebase` instead of further record surgery |
 
 | Treated a goal-bound writer as a zombie by process name | Searched the process list for the writer by name and session id; found nothing, concluded the writer was dead, and adopted the lane by writing files into it | The writer was alive under goal auto-continuation and kept editing the same files; my drafts were overwritten mid-step and the interfaces diverged | Sample lane mtimes and session records instead of searching processes; adopt only after the writer stops committing (signature 1b) |
+| Recreated a missing intake worktree after a source-workspace writer FAIL | Restored the detached intake worktree at the recorded receipt revision after intake reconciliation, then relaunched | The run still failed at the source-workspace writer with `source_workspace_recovery_receipt_invalid` / `source_workspace_legacy_unproven` / `source_workspace_terminal` and `creation_failure=writer_transition` | Intake restore is necessary but not sufficient; source-workspace ownership recovery is required before the writer can proceed |
 | Normalized every intake directory to one mode | Applied a blanket `chmod 755` to make the group-writable gate pass | The next gate required an owner-only private state dir and receipt, so the run failed again in seconds | Read each gate's condition and set the mode per object class (step 10) |
 
 ## Results & Parameters
