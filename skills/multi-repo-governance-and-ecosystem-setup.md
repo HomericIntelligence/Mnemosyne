@@ -81,7 +81,7 @@ bash scripts/shell/install.sh --role worker --install
 bash scripts/shell/install.sh --role control --install
 
 # --- SSH fan-out to all Tailnet hosts ---
-FLEET="<fleet-host-1> <fleet-host-2> <fleet-host-3>"   # set once for your fleet
+FLEET="aeolus apollo artemis athena hephaestus hermes titan"   # the fleet this ran on
 ssh-keyscan -H $FLEET >> ~/.ssh/known_hosts
 for host in $FLEET; do
   ssh -o ConnectTimeout=6 -o BatchMode=yes "$host" \
@@ -277,7 +277,7 @@ run([
 | SSH without ssh-keyscan first | Probed new hosts over SSH without adding host key | Host key verification failed | Run `ssh-keyscan -H <host> >> ~/.ssh/known_hosts` before any batch SSH operation |
 | sudo apt-get in BatchMode SSH | `ssh -o BatchMode=yes host 'sudo apt-get install -y git'` | sudo requires a terminal for password | Check `sudo -n true` first; escalate to user if NEEDS-PASSWORD |
 | Cloning main before PR merged | Dispatched agents to clone main before install.sh PR merged | install.sh missing from main | Merge the PR first, or clone the feature branch |
-| Python 3.7 on <homelab-host> | Dispatched installer agent to <homelab-host> (Python 3.7.3) | 3.10+ required | Check `python3 --version` before dispatching |
+| Python 3.7 on apollo | Dispatched installer agent to apollo (Python 3.7.3) | 3.10+ required | Check `python3 --version` before dispatching |
 | git not pre-installed on two fleet hosts | Tried to clone ProjectHephaestus on those hosts | Neither had git installed; clone fails silently in BatchMode | Check `which git` during probe step; give user a manual command if missing |
 | Using `replace_all: true` on compose anchor | Replace all occurrences of hardcoded path at once | YAML anchor line and service volume lines had different surrounding context | Use `replace_all: true` only when all occurrences have identical surrounding context |
 | Delegating file reads to a subagent | Asked Explore agent to read files and return exact contents | Agent returned summaries, not exact file content | For files that will be edited, always use the Read tool directly |
@@ -359,8 +359,8 @@ gh api -X PATCH repos/HomericIntelligence/{repo} --field allow_auto_merge=true
 | Project | Context | Details |
 | --------- | --------- | --------- |
 | HomericIntelligence org | 15 repos governance rollout, 11 PRs created | verified-local — PRs pushed, auto-merge enabled |
-| ProjectHephaestus | install.sh PR #309 (2026-04-28) | bash -n check passed; ran on <fleet-node> |
-| Tailnet fan-out | 7-host parallel SSH deploy (2026-04-28) | 2 fully done (<worker-host>, <fleet-node>); 3 partial; 2 failed |
+| ProjectHephaestus | install.sh PR #309 (2026-04-28) | bash -n check passed; ran on epimetheus |
+| Tailnet fan-out | 7-host parallel SSH deploy (2026-04-28) | 2 fully done (aeolus, hephaestus); 3 partial; 2 failed |
 | AchaeanFleet | Post-scaffold flesh-out — Docker image infrastructure | 7 files created, 11 modified |
 | Myrmidons | Post-scaffold flesh-out — GitOps agent provisioning | Committed and pushed to GitHub |
 | ProjectScylla | Centralized repo clones (2024-02-13) | 2100 tests pass; 37.3% savings on integration test |

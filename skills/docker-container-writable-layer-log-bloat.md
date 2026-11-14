@@ -28,7 +28,7 @@ tags:
 |-------|-------|
 | **Date** | 2026-06-20 |
 | **Objective** | Identify and recover disk space consumed by log files accumulating inside Docker container writable layers |
-| **Outcome** | Successful — freed 72 GB on <homelab-host> by bind-mounting Traefik log dir and recreating container |
+| **Outcome** | Successful — freed 72 GB on apollo by bind-mounting Traefik log dir and recreating container |
 | **Verification** | verified-local |
 
 ## When to Use
@@ -136,7 +136,7 @@ Restart Docker after: `systemctl restart docker`. This caps stdout/stderr logs b
 
 | Parameter | Value |
 |-----------|-------|
-| Host | <homelab-host> (<homelab-os> server) |
+| Host | apollo (<homelab-os> server) |
 | Container | <homelab-os> (Traefik v2.2 reverse proxy) |
 | Runtime duration | ~5 years without recreation |
 | Writable layer size before fix | 76.3 GB |
@@ -191,4 +191,4 @@ done | sort -rn | head -20
 
 | Project | Context | Details |
 |---------|---------|---------|
-| <homelab-os> (<homelab-host>) | Traefik v2.2 running 5 years, 76.3 GB writable layer | Freed 72 GB by bind-mounting log dir and recreating container |
+| <homelab-os> (apollo) | Traefik v2.2 running 5 years, 76.3 GB writable layer | Freed 72 GB by bind-mounting log dir and recreating container |

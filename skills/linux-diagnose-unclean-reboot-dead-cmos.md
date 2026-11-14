@@ -257,4 +257,4 @@ highly likely but not 100% physically confirmed until the battery is tested or s
 
 | Project | Context | Details |
 | --------- | --------- | --------- |
-| <homelab-host> homelab | 2026-07-13 crash recovery investigation — unexpected overnight reboot, journald non-persistent, resolved via rsyslog archaeology and RTC stale-date signature | verified-local |
+| apollo homelab | 2026-07-13 crash recovery investigation — unexpected overnight reboot, journald non-persistent, resolved via rsyslog archaeology and RTC stale-date signature | verified-local |

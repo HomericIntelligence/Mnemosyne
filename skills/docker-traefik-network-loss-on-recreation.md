@@ -185,5 +185,5 @@ attributable to this failure mode.
 
 | Project | Context | Details |
 |---------|---------|---------|
-| HomeLab (<homelab-host>) | Traefik v2.2 with Nextcloud and Gitea backends on separate Docker network | Immediate fix + permanent compose fix both verified locally |
-| HomeLab (<homelab-host>) | Traefik v2.2 -> v3.7.6 major upgrade; same external-network attachment | Proactive detection (step 0) run before recreating; permanent fix confirmed to survive a major-version recreate, not just a same-version restart |
+| HomeLab (apollo) | Traefik v2.2 with Nextcloud and Gitea backends on separate Docker network | Immediate fix + permanent compose fix both verified locally |
+| HomeLab (apollo) | Traefik v2.2 -> v3.7.6 major upgrade; same external-network attachment | Proactive detection (step 0) run before recreating; permanent fix confirmed to survive a major-version recreate, not just a same-version restart |

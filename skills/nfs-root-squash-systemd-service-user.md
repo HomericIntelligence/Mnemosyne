@@ -130,4 +130,4 @@ WantedBy=multi-user.target
 
 | Project | Context | Details |
 |---------|---------|---------|
-| <homelab-host> homelab | unison two-way NAS\|USB sync via systemd oneshot timer | Service user changed from root to <user> (uid 1000); all NFS writes succeeded |
+| apollo homelab | unison two-way NAS\|USB sync via systemd oneshot timer | Service user changed from root to <user> (uid 1000); all NFS writes succeeded |

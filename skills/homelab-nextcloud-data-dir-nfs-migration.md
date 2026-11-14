@@ -376,5 +376,5 @@ Notes:
 
 | Project | Context | Details |
 |---------|---------|---------|
-| <homelab-os> Nextcloud | <homelab-host> homelab server, NVMe to TrueNAS NFS (v1.0.0, 2026-06-23) | End-to-end migration; Nextcloud serving from NAS confirmed |
+| <homelab-os> Nextcloud | apollo homelab server, NVMe to TrueNAS NFS (v1.0.0, 2026-06-23) | End-to-end migration; Nextcloud serving from NAS confirmed |
 | <homelab-os> Nextcloud | live <homelab-os> v1.0 host, slow NFS to fast local disk (v1.1.0, 2026-06) | End-to-end live cutover; `docker inspect` confirmed `/data` on the new disk; 8 -> 214 MB/s write, real upload test passed |

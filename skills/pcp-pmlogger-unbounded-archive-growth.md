@@ -27,9 +27,9 @@ tags:
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-06-20 |
-| **Objective** | Recover root disk space consumed by PCP pmlogger archives on <homelab-host> (PureOS/Debian <homelab-os> server) |
+| **Objective** | Recover root disk space consumed by PCP pmlogger archives on apollo (PureOS/Debian <homelab-os> server) |
 | **Outcome** | Successful — 36 GB freed; pmlogger and pmcd disabled at boot |
-| **Verification** | verified-local — executed on <homelab-host>, confirmed via `du -sh /var/log/pcp` |
+| **Verification** | verified-local — executed on apollo, confirmed via `du -sh /var/log/pcp` |
 
 ## When to Use
 
@@ -41,7 +41,7 @@ tags:
 
 ## Verified Workflow
 
-Verified locally on <homelab-host> (PureOS/Debian). CI validation pending.
+Verified locally on apollo (PureOS/Debian). CI validation pending.
 
 ### Quick Reference
 
@@ -126,7 +126,7 @@ sudo pmlogger_daily -k 3 -x 3
 
 ## Results & Parameters
 
-**Environment:** <homelab-host>, PureOS/Debian, <homelab-os>, busy server (containers, many processes, network traffic)
+**Environment:** apollo, PureOS/Debian, <homelab-os>, busy server (containers, many processes, network traffic)
 
 **Growth rate observed:** ~1.9 GB/day per archive file
 
@@ -159,4 +159,4 @@ No retention policy is configured by default. The only symptom is disk exhaustio
 
 | Project | Context | Details |
 |---------|---------|---------|
-| <homelab-os>/<homelab-host> | PureOS/Debian server, 2026-06-20 | 36 GB freed; both services disabled |
+| <homelab-os>/apollo | PureOS/Debian server, 2026-06-20 | 36 GB freed; both services disabled |

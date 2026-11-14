@@ -176,4 +176,4 @@ point-release publish on the distro/repo side, not a local misconfiguration.
 
 | Project | Context | Details |
 |---------|---------|---------|
-| <homelab-host> (homelab) | PureOS/Debian server, 2026-07-04 | Confirmed via live `apt-cache policy`/`dpkg -l`/`apt-mark showhold`; no fix applied — left to self-resolve on next point release |
+| apollo (homelab) | PureOS/Debian server, 2026-07-04 | Confirmed via live `apt-cache policy`/`dpkg -l`/`apt-mark showhold`; no fix applied — left to self-resolve on next point release |
