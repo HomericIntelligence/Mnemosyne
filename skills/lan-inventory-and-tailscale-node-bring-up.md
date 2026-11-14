@@ -144,7 +144,7 @@ owned CIDR and the owner account that holds the group-B nodes' keys.
 
 | Project | Context | Details |
 | --------- | --------- | --------- |
-| Single-owner LAN with a tailnet mesh | Local host session, 2026-11-14 | Inventory of 19+ addresses, 3 passwordless-key SSH hosts, 2 logged-out nodes identified; one host-key mismatch left unresolved pending owner confirmation |
+| Single-owner LAN with a tailnet mesh | Local host session, 2026-11-14 | Discovery passes converged on the same SSH-capable set; tailnet-eligible nodes identified; no bring-up was claimed without owner authorization; one host-key mismatch left for owner decision |
 
 ## References
 
