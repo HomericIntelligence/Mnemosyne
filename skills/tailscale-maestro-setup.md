@@ -59,8 +59,8 @@ The `sudo tailscale up` command will output a login URL. Open it in a browser, a
 tailscale status
 
 # Example output:
-# <node-a-tailnet-ip>  epimetheus  <user>@  linux  -
-# <node-c-tailnet-ip>   hermes      <user>@  linux  idle, tx 404 rx 252
+# <node-a-tailnet-ip>  <hostname>  <user>@  linux  -
+# <node-c-tailnet-ip>   <hostname>      <user>@  linux  idle, tx 404 rx 252
 ```
 
 Record the Tailscale IPs of all machines you plan to connect.
@@ -109,18 +109,18 @@ All three should succeed. If any fail, see "Failed Attempts" section.
 
 ### Step 5: Link AI Maestro Instances
 
-On the first machine (epimetheus), access:
+On the first machine (<hostname>), access:
 ```
 http://localhost:23000
 ```
 
-During setup, enter the Tailscale IP of the second machine (hermes):
+During setup, enter the Tailscale IP of the second machine (<hostname>):
 ```
 http://<node-c-tailnet-ip>:23000
 ```
 
 This will:
-1. Connect to hermes
+1. Connect to <hostname>
 2. Fetch the organization name
 3. Add both machines to the same organization
 4. Enable cross-host communication
@@ -131,9 +131,9 @@ Both machines should now appear in the same AI Maestro network.
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
-| Accessed via localhost from remote machine | Used `http://localhost:23000` to connect from hermes to epimetheus | localhost on machine A doesn't resolve to machine B — each machine has its own localhost | Always use Tailscale IP addresses (100.x.x.x) for cross-host communication, never localhost |
+| Accessed via localhost from remote machine | Used `http://localhost:23000` to connect from <hostname> to <hostname> | localhost on machine A doesn't resolve to machine B — each machine has its own localhost | Always use Tailscale IP addresses (100.x.x.x) for cross-host communication, never localhost |
 | Accessed via HTTPS | Tried `https://<node-c-tailnet-ip>:23000` | Browser auto-upgraded HTTP to HTTPS, but AI Maestro serves plain HTTP; SSL layer rejected raw HTTP traffic with SSL_ERROR_RX_RECORD_TOO_LONG | Always use `http://` (not `https://`) for cross-host AI Maestro connectivity; localhost-only app doesn't use TLS |
-| SSH to remote host | Ran `ssh hermes "curl ..."` to verify server binding | SSH was not configured on the target machine (WSL2 environment) | Not all machines will have SSH available; use network diagnostics (ping, nc) to test connectivity instead |
+| SSH to remote host | Ran `ssh <hostname> "curl ..."` to verify server binding | SSH was not configured on the target machine (WSL2 environment) | Not all machines will have SSH available; use network diagnostics (ping, nc) to test connectivity instead |
 | Assumed AI Maestro was listening on all interfaces | Didn't verify server.mjs binding | Server was bound to localhost only, rejecting cross-host connections; nc showed port was "open" but actually couldn't reach it from another machine | Always verify server binding with `grep listen server.mjs` or `netstat -tuln \| grep 23000`; localhost binding is the most common cause of "Unable to connect" errors |
 
 ## Results & Parameters
@@ -141,14 +141,14 @@ Both machines should now appear in the same AI Maestro network.
 ### Successful Cross-Host Setup Parameters
 
 **Environment:**
-- Machine 1 (epimetheus): Linux 5.10.0-37-amd64 (Debian)
-- Machine 2 (hermes): Linux 6.6.87.2-microsoft-standard-WSL2 (Windows Subsystem for Linux)
+- Machine 1 (<hostname>): Linux 5.10.0-37-amd64 (Debian)
+- Machine 2 (<hostname>): Linux 6.6.87.2-microsoft-standard-WSL2 (Windows Subsystem for Linux)
 - Network: Tailscale VPN (no internet relay needed for local network)
 - Tailscale version: 1.94.2
 
 **Tailscale IPs (from `tailscale status`):**
-- epimetheus: `<node-a-tailnet-ip>`
-- hermes: `<node-c-tailnet-ip>`
+- <hostname>: `<node-a-tailnet-ip>`
+- <hostname>: `<node-c-tailnet-ip>`
 
 **AI Maestro Configuration:**
 - Port: 23000 (default)
@@ -158,7 +158,7 @@ Both machines should now appear in the same AI Maestro network.
 
 **Connectivity Verification Commands:**
 ```bash
-# From epimetheus to hermes
+# From <hostname> to <hostname>
 ping -c 2 <node-c-tailnet-ip>           # ✅ 2 packets, 0% loss, ~12ms RTT
 nc -zv <node-c-tailnet-ip> 23000         # ✅ Connection succeeded
 curl http://<node-c-tailnet-ip>:23000/api/v1/health  # ✅ HTTP 200

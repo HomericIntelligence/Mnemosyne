@@ -127,11 +127,11 @@ gh pr view <N> --json headRefOid --jq .headRefOid   # must match before trusting
 
 9. **A conflicting PR gets no CI; a rebase must be re-signed and leased.** When sibling PRs merge first and a PR now conflicts with its base, GitHub builds no merge commit, so the `pull_request` workflows never start. The symptom is CI silence after a push, not a red check. Read `gh pr view N --json mergeable,mergeStateStatus`; `CONFLICTING` or `DIRTY` means rebase before you expect any result. Rules for the rebase:
    - Keep both behaviors when you resolve: the merged change and your own.
-   - A rebase drops commit signatures. Re-sign every commit (`git rebase --exec 'git commit --amend --no-edit -S -s' <base>`), then verify each one on the host (`gh api repos/<owner>/<repo>/commits/<sha> --jq .commit.verification.verified` must print `true`).
+   - A rebase drops commit signatures. Re-sign every commit (`git rebase --exec 'git commit --amend --no-edit -S -s' <base>`), then verify each one on the host (`gh api repos/<user>/<repo>/commits/<sha> --jq .commit.verification.verified` must print `true`).
    - Push only your own branch, with `--force-with-lease` bound to the old head. For a stacked PR, rebase the base first, then each dependent onto the new base head, and retarget a dependent to the default branch after its base merges.
    - A test double that wraps a function whose signature changed on the base (an extra keyword argument, for example) raises a `TypeError` after the rebase. A catch-all `except` that counts unexpected errors shows it as a counter such as `unexpected_error=2`. Read that counter first.
    - A required aggregate job that fails with "required job did not succeed" is a summary of the real failing jobs. A label-gate failure from a run that started before the label was added is expected: only the run after the label counts.
-   - When the CPU queue blocks local tests, open the PR with validation pending, let CI be the first run, extract the failing test names from the job logs (`gh api --allow-escape-sequences repos/<owner>/<repo>/actions/jobs/<id>/logs`, strip ANSI), and send the exact failure to the author.
+   - When the CPU queue blocks local tests, open the PR with validation pending, let CI be the first run, extract the failing test names from the job logs (`gh api --allow-escape-sequences repos/<user>/<repo>/actions/jobs/<id>/logs`, strip ANSI), and send the exact failure to the author.
 
 ## Failed Attempts
 
@@ -150,7 +150,7 @@ gh pr view <N> --json headRefOid --jq .headRefOid   # must match before trusting
 ## Results & Parameters
 
 - **Session outcome:** 6 PRs merged into a rebase-merge-only repo, all with real CI passes; multi-agent parallel worktrees throughout.
-- **Repo merge settings that trigger this skill:** `allow_merge_commit: false`, `allow_squash_merge: false`, `allow_rebase_merge: true` (check with `gh api repos/<owner>/<repo> --jq '{merge: .allow_merge_commit, squash: .allow_squash_merge, rebase: .allow_rebase_merge}'`).
+- **Repo merge settings that trigger this skill:** `allow_merge_commit: false`, `allow_squash_merge: false`, `allow_rebase_merge: true` (check with `gh api repos/<user>/<repo> --jq '{merge: .allow_merge_commit, squash: .allow_squash_merge, rebase: .allow_rebase_merge}'`).
 - **Mandatory merge-ordering invariant:** number of open PRs based on a branch must be 0 before that branch's PR merges.
 - **Pre-`--continue` gate (both must be empty):**
 

@@ -44,7 +44,7 @@ project-specific incidents are indexed in
 
 ```bash
 # Exhaustive REST enumeration; follow Link headers and choose fields locally.
-gh api --paginate 'repos/<owner>/<repo>/pulls?state=open&per_page=100' \
+gh api --paginate 'repos/<user>/<repo>/pulls?state=open&per_page=100' \
   --jq '.[] | {number,title,user:.user.login,user_type:.user.type,head:.head.ref}'
 
 # Lightweight bulk identity list, then query expensive status per PR.

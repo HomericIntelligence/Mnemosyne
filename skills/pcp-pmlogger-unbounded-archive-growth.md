@@ -1,7 +1,7 @@
 ---
 name: pcp-pmlogger-unbounded-archive-growth
 license: BSD-3-Clause
-description: "Documents how PCP (Performance Co-Pilot) pmlogger silently accumulates unbounded archives on Debian/PureOS systems, consuming gigabytes of root disk with no warnings. Use when: (1) root disk is unexpectedly full on a Debian/PureOS/<homelab-os> server, (2) /var/log/pcp is large and growing, (3) pmlogger or pmcd are running and you don't use PCP dashboards."
+description: "Documents how PCP (Performance Co-Pilot) pmlogger silently accumulates unbounded archives on Debian/PureOS systems, consuming gigabytes of root disk with no warnings. Use when: (1) root disk is unexpectedly full on a Debian/PureOS/<HomelabOS> server, (2) /var/log/pcp is large and growing, (3) pmlogger or pmcd are running and you don't use PCP dashboards."
 category: tooling
 date: 2026-06-20
 version: "1.0.0"
@@ -27,13 +27,13 @@ tags:
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-06-20 |
-| **Objective** | Recover root disk space consumed by PCP pmlogger archives on apollo (PureOS/Debian <homelab-os> server) |
+| **Objective** | Recover root disk space consumed by PCP pmlogger archives on <hostname> (PureOS/Debian <HomelabOS> server) |
 | **Outcome** | Successful — 36 GB freed; pmlogger and pmcd disabled at boot |
-| **Verification** | verified-local — executed on apollo, confirmed via `du -sh /var/log/pcp` |
+| **Verification** | verified-local — executed on <hostname>, confirmed via `du -sh /var/log/pcp` |
 
 ## When to Use
 
-- Root disk on a Debian, PureOS, or <homelab-os> server is unexpectedly full
+- Root disk on a Debian, PureOS, or <HomelabOS> server is unexpectedly full
 - `du -sh /var/log/pcp` shows multiple gigabytes
 - `/var/log/pcp/pmlogger/<hostname>/` contains many daily `.0` archive files
 - `pmlogger` and/or `pmcd` are running (`ps aux | grep pmlogger`) but PCP dashboards are not in use
@@ -41,7 +41,7 @@ tags:
 
 ## Verified Workflow
 
-Verified locally on apollo (PureOS/Debian). CI validation pending.
+Verified locally on <hostname> (PureOS/Debian). CI validation pending.
 
 ### Quick Reference
 
@@ -126,7 +126,7 @@ sudo pmlogger_daily -k 3 -x 3
 
 ## Results & Parameters
 
-**Environment:** apollo, PureOS/Debian, <homelab-os>, busy server (containers, many processes, network traffic)
+**Environment:** <hostname>, PureOS/Debian, <HomelabOS>, busy server (containers, many processes, network traffic)
 
 **Growth rate observed:** ~1.9 GB/day per archive file
 
@@ -159,4 +159,4 @@ No retention policy is configured by default. The only symptom is disk exhaustio
 
 | Project | Context | Details |
 |---------|---------|---------|
-| <homelab-os>/apollo | PureOS/Debian server, 2026-06-20 | 36 GB freed; both services disabled |
+| <HomelabOS>/<hostname> | PureOS/Debian server, 2026-06-20 | 36 GB freed; both services disabled |

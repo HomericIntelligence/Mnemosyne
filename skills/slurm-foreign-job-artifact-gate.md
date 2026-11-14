@@ -51,7 +51,7 @@ sacct -j <id> -o JobID,State,ExitCode,Elapsed,NodeList -X
 # 3. Classify a terminal job without logs.
 sacct -j <id> -o JobID,State,ExitCode,Elapsed,MaxRSS,ReqMem
 # 4. Understand every attempt before you attribute a cause.
-sacct -S <date> -u <owner> -o JobID,JobName,State,ExitCode,Elapsed -X | grep <job-name>
+sacct -S <date> -u <user> -o JobID,JobName,State,ExitCode,Elapsed -X | grep <job-name>
 # 5. Gate the pin on storage evidence, never on a message.
 ls -l <publish-path>; head -c4 <publish-path> | od -c   # squashfs: hsqs
 sha256sum <publish-path>
@@ -127,7 +127,7 @@ poll:
 sacct:
   poll: "-o JobID,State,ExitCode,Elapsed,NodeList -X"
   classify: "-o JobID,State,ExitCode,Elapsed,MaxRSS,ReqMem"
-  history: "-S <date> -u <owner> -o JobID,JobName,State,ExitCode,Elapsed -X"
+  history: "-S <date> -u <user> -o JobID,JobName,State,ExitCode,Elapsed -X"
 artifact_gate:
   require_job_state: COMPLETED
   magic_bytes: "first 4 bytes; squashfs = 'hsqs'"

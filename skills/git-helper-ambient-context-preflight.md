@@ -59,7 +59,7 @@ git cat-file -e <base-oid>^{commit} && git cat-file -e <head-oid>^{commit}
 # 3. Forge: only when the helper must authenticate, replicate its isolated
 #    read to expose the hidden inner error.
 env GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0 \
-  git ls-remote https://<host>/<owner>/<repo>.git HEAD
+  git ls-remote https://<host>/<user>/<repo>.git HEAD
 # 4. Re-run the helper only after you record the first cause.
 ```
 

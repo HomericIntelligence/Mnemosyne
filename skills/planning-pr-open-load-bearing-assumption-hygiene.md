@@ -50,7 +50,7 @@ local to the affected step. A missing optional delivery capability need not stop
 ### Quick Reference
 
 ```bash
-gh repo view <owner>/<repo> --json autoMergeAllowed,rebaseMergeAllowed,squashMergeAllowed,mergeCommitAllowed
+gh repo view <user>/<repo> --json autoMergeAllowed,rebaseMergeAllowed,squashMergeAllowed,mergeCommitAllowed
 ```
 
 ### Detailed Steps

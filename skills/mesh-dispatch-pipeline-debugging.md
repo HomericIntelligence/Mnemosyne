@@ -215,7 +215,7 @@ gh pr merge --auto --rebase <PR_NUMBER> --repo <OWNER/REPO>
 GitHub blocks pushes from `<private-email>`. Use the noreply address:
 
 ```bash
-git config user.email "<owner>@users.noreply.github.com"
+git config user.email "<user>@users.noreply.github.com"
 ```
 
 ### Unsticking Stalled GitHub Actions Runners
@@ -299,7 +299,7 @@ pre-commit suite before force-pushing a CI-fix rebase, so it never pushes a red 
 | 5 | IMPLEMENT stage writing files without `--userns=keep-id` | Workspace bind-mount owned by host user appears as root without uid mapping; permission denied | Add `--userns=keep-id` to every `podman run` invocation |
 | 6 | Pipeline REVIEW stage with failed session resume | Empty output defaults to NOGO, pipeline loops up to MAX_ITERATIONS | Disable session resumption; empty output then fails fast instead of looping |
 | 7 | SHIPPER committed to existing branch instead of task-specific one | Incorrect branch targeting logic in shipper stage | Workaround: update PR body with `Closes #N`; fix branch logic in shipper |
-| 8 | `git push` with `<private-email>` | GitHub email privacy blocks push from this address | Use `<owner>@users.noreply.github.com` for all git operations |
+| 8 | `git push` with `<private-email>` | GitHub email privacy blocks push from this address | Use `<user>@users.noreply.github.com` for all git operations |
 | 9 | Waiting for stalled GitHub Actions runners | Runs queued 2+ hours, never picked up | Push empty retrigger commit; if still stuck, create fresh branch from main tip |
 | 10 | Long-lived PR branch diverged from main | PR enters CONFLICTING state; CI won't run, auto-merge stalls | Create fresh branch from main tip, cherry-pick only the needed diff |
 | 11 | `.markdownlint.yaml` with 200-char line limit on main | New PRs fail lint because docs exceed 80-char limit | Replace with `.markdownlint.json` using 80-char limit with table/code/heading exemptions |
@@ -323,7 +323,7 @@ pre-commit suite before force-pushing a CI-fix rebase, so it never pushes a red 
 | Mounted binary path in container | `/usr/local/bin/claude-host` |
 | Required Podman flag | `--userns=keep-id` |
 | Session resumption | DISABLED — each stage gets full context in prompt |
-| Git push email | `<owner>@users.noreply.github.com` |
+| Git push email | `<user>@users.noreply.github.com` |
 | markdownlint config file | `.markdownlint.json` (not `.markdownlint.yaml`) |
 | markdownlint line length | 80 (tables/code_blocks/headings exempt) |
 | Auto-merge command | `gh pr merge --auto --rebase <N> --repo <OWNER/REPO>` |

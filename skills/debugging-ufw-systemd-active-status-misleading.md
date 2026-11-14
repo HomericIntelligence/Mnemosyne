@@ -115,4 +115,4 @@ Default: deny (incoming), allow (outgoing), deny (routed)
 
 | Project | Context | Details |
 |---------|---------|---------|
-| apollo homelab | Firewall/security checklist audit | `systemctl is-active ufw` reported active for weeks with `ENABLED=no`; all ports (Samba, NFS, Cockpit 9090) exposed. Fixed via `sudo ufw enable`, re-verified with `sudo ufw status verbose` |
+| <hostname> homelab | Firewall/security checklist audit | `systemctl is-active ufw` reported active for weeks with `ENABLED=no`; all ports (Samba, NFS, Cockpit 9090) exposed. Fixed via `sudo ufw enable`, re-verified with `sudo ufw status verbose` |

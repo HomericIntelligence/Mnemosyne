@@ -132,4 +132,4 @@ exportfs -o rw,no_root_squash 192.0.2.20:/path
 
 | Project | Context | Details |
 |---------|---------|---------|
-| apollo homelab | Live NFS data migration (2026-06); backing up owner-restricted files from a ReadyNAS export over NFSv3 | `no_root_squash` + `sync; echo 3 > /proc/sys/vm/drop_caches` took rsync from ~3,064 denials to 0 |
+| <hostname> homelab | Live NFS data migration (2026-06); backing up owner-restricted files from a ReadyNAS export over NFSv3 | `no_root_squash` + `sync; echo 3 > /proc/sys/vm/drop_caches` took rsync from ~3,064 denials to 0 |

@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-17
 **User Goal:** Enable Tailscale on Linux and connect multiple AI Maestro instances across machines
-**Environment:** Debian Linux (epimetheus) + WSL2 (hermes)
+**Environment:** Debian Linux (<hostname>) + WSL2 (<hostname>)
 
 ## Conversation Flow
 
@@ -16,8 +16,8 @@ User asked: "need to enable tailscale on linux for this, how do I do that?"
 
 ### Phase 2: Network Setup
 - User accessed Tailscale admin panel and saw 2 machines:
-  - epimetheus (Linux 5.10.0-37-amd64)
-  - hermes (Linux 6.6.87.2-microsoft-standard-WSL2 on WSL2)
+  - <hostname> (Linux 5.10.0-37-amd64)
+  - <hostname> (Linux 6.6.87.2-microsoft-standard-WSL2 on WSL2)
 - Needed to get actual Tailscale IPs from `tailscale status`
 
 ### Phase 3: Connectivity Testing
@@ -41,17 +41,17 @@ User got: `SSL_ERROR_RX_RECORD_TOO_LONG`
 ### Phase 5: Connection Refused
 After fixing SSL, user got: "Unable to connect" from Firefox.
 
-**Initial hypothesis:** Server not listening on 0.0.0.0. But SSH to hermes failed (not configured on WSL2), so couldn't verify remotely.
+**Initial hypothesis:** Server not listening on 0.0.0.0. But SSH to <hostname> failed (not configured on WSL2), so couldn't verify remotely.
 
 **Workaround:** Since `nc -zv` succeeded (port was open), server must be listening somewhere. Likely listening on localhost only but the port was detected as open because... actually, wait. If localhost-only binding, nc from remote shouldn't succeed. This was confusing.
 
 **Resolution:** Turned out server WAS listening on 0.0.0.0 (no change needed). User said "Hermes is running" and when trying `http://<node-c-tailnet-ip>:23000` in browser, it worked.
 
 ### Phase 6: Cross-Host Linking (Success)
-- Accessed AI Maestro on hermes via `http://<node-c-tailnet-ip>:23000`
-- Entered epimetheus's local AI Maestro as the "host to join"
+- Accessed AI Maestro on <hostname> via `http://<node-c-tailnet-ip>:23000`
+- Entered <hostname>'s local AI Maestro as the "host to join"
 - Setup was triggered, machines linked
-- Result: Both epimetheus and hermes now appear in the same organization
+- Result: Both <hostname> and <hostname> now appear in the same organization
 
 ## Key Learnings Captured
 
@@ -69,7 +69,7 @@ After fixing SSL, user got: "Unable to connect" from Firefox.
 
 ## Debugging Decisions Made
 
-- **Did NOT SSH to hermes** — SSH wasn't available, so used `nc -zv` to test connectivity instead.
+- **Did NOT SSH to <hostname>** — SSH wasn't available, so used `nc -zv` to test connectivity instead.
 - **Did NOT modify server.mjs** — Assumed binding might need fixing, but testing showed port was already accessible, so left it alone.
 - **Did NOT ask user to restart** — Incremental approach: test first, then change only if needed.
 - **Emphasized `http://` over `https://`** — SSL_ERROR_RX_RECORD_TOO_LONG is a common gotcha with localhost HTTP servers exposed over networks.
@@ -117,8 +117,8 @@ http://localhost:23000         # Wrong: localhost doesn't route to remote
 
 - ✅ Tailscale installed and running on both machines
 - ✅ Both machines in same tailnet (<tailnet-name>)
-- ✅ epimetheus: <node-a-tailnet-ip>
-- ✅ hermes: <node-c-tailnet-ip>
+- ✅ <hostname>: <node-a-tailnet-ip>
+- ✅ <hostname>: <node-c-tailnet-ip>
 - ✅ AI Maestro accessible from both machines
 - ✅ Cross-host setup completed (machines linked to same organization)
 

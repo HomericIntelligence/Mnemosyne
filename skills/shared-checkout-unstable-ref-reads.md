@@ -42,8 +42,8 @@ tags:
 1. Bind remote state through the forge, not the ambient ref:
 
    ```bash
-   gh pr view <n> --repo <owner>/<repo> --json headRefOid,files   # binding read
-   gh pr diff <n> --repo <owner>/<repo>                           # content read
+   gh pr view <n> --repo <user>/<repo> --json headRefOid,files   # binding read
+   gh pr diff <n> --repo <user>/<repo>                           # content read
    ```
 
 2. When local Git evidence must be used, pin full SHAs in the same command block as

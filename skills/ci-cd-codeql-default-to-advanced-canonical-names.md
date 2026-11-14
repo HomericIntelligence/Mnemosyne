@@ -39,7 +39,7 @@ history-cleanup-date: "2026-09-20"
 
 ## When to Use
 
-- A repo's CodeQL reports as `Analyze (<lang>)` and the ecosystem's canonical naming scheme requires `security/codeql-<lang>` — and `gh api repos/<owner>/<repo>/code-scanning/default-setup` shows `state: configured` with no `codeql.yml` in `.github/workflows/`
+- A repo's CodeQL reports as `Analyze (<lang>)` and the ecosystem's canonical naming scheme requires `security/codeql-<lang>` — and `gh api repos/<user>/<repo>/code-scanning/default-setup` shows `state: configured` with no `codeql.yml` in `.github/workflows/`
 - Before planning any check-name swap, you must determine whether the OLD names are required status checks (ruleset or classic branch protection) — the answer decides whether emit-before-require sequencing is needed at all
 - You are drafting the advanced-setup workflow and must pick: matrix vs. separate jobs, job `name:` interpolation, build-mode, query-suite/threat-model parity, and pinned action SHAs
 - You must sequence "disable default setup" relative to "first advanced-workflow run" to avoid rejected SARIF uploads
@@ -58,14 +58,14 @@ history-cleanup-date: "2026-09-20"
 
 ```bash
 # 1. Confirm CodeQL is default setup (no workflow file to rename):
-gh api repos/<owner>/<repo>/code-scanning/default-setup
+gh api repos/<user>/<repo>/code-scanning/default-setup
 # state=configured + languages + query_suite + threat_model + schedule → capture for parity
 
 # 2. Check whether old names are REQUIRED checks (decides sequencing risk):
-gh api "repos/<owner>/<repo>/rulesets?includes_parents=true" --jq '.[] | {id,name,source_type}'
-gh api repos/<owner>/<repo>/rulesets/<id> \
+gh api "repos/<user>/<repo>/rulesets?includes_parents=true" --jq '.[] | {id,name,source_type}'
+gh api repos/<user>/<repo>/rulesets/<id> \
   --jq '.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[].context'
-gh api repos/<owner>/<repo>/branches/main/protection --jq '.required_status_checks.contexts'
+gh api repos/<user>/<repo>/branches/main/protection --jq '.required_status_checks.contexts'
 # If "Analyze (python)" absent → no blocked-main risk; plain emit-first migration.
 
 # 3. Verify the codeql-action pin against its tag before use:
@@ -76,10 +76,10 @@ gh api repos/github/codeql-action/tags --paginate \
 #   jobs.analyze.name: security/codeql-${{ matrix.language }}
 
 # 5. Disable default setup IMMEDIATELY BEFORE the first advanced-workflow run:
-gh api -X PATCH repos/<owner>/<repo>/code-scanning/default-setup -f state=not-configured
+gh api -X PATCH repos/<user>/<repo>/code-scanning/default-setup -f state=not-configured
 
 # 6. Post-merge: confirm canonical names on main, old names gone:
-gh api repos/<owner>/<repo>/commits/<sha>/check-runs --jq '.check_runs[].name' | sort -u
+gh api repos/<user>/<repo>/commits/<sha>/check-runs --jq '.check_runs[].name' | sort -u
 ```
 
 ### Detailed Steps

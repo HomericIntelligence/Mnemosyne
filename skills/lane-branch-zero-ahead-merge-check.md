@@ -91,13 +91,13 @@ by label text, by an open-only search, or by artifact authorship.
 
 ```bash
 # 1. Pull-request state for the issue, all states (open, closed, merged)
-gh pr list --repo <owner>/<repo> --state all \
+gh pr list --repo <user>/<repo> --state all \
   --search "<issue-number> in:body,title" \
   --json number,state,mergedAt,mergeCommit,headRefName
 
 # 2. Issue timeline inside the recency window: cross-references and commits
 #    (required when step 1 is empty and no leftover branch exists)
-gh api repos/<owner>/<repo>/issues/<issue-number>/timeline --paginate \
+gh api repos/<user>/<repo>/issues/<issue-number>/timeline --paginate \
   --jq '.[] | select(.created_at >= "<window-start>") |
     {event, created_at, source: (.source.issue.number // null), commit: (.commit_id // null)}'
 

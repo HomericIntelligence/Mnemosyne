@@ -1,6 +1,6 @@
 ---
 name: github-commit-sha-readback-pr-scoped-routes
-description: "Read commit evidence for a pull-request head through PR-scoped routes when a direct commit lookup is rejected. Use when: (1) `gh api repos/<owner>/<repo>/commits/<sha>` returns 422 for an object identifier that the pull request plainly contains, (2) the identifier is reachable only through a pull-request ref or another repository in the fork network, (3) push verification must read the hosted signature state of an exact head, or (4) a script must resolve commit evidence identically for same-repository and fork pull requests."
+description: "Read commit evidence for a pull-request head through PR-scoped routes when a direct commit lookup is rejected. Use when: (1) `gh api repos/<user>/<repo>/commits/<sha>` returns 422 for an object identifier that the pull request plainly contains, (2) the identifier is reachable only through a pull-request ref or another repository in the fork network, (3) push verification must read the hosted signature state of an exact head, or (4) a script must resolve commit evidence identically for same-repository and fork pull requests."
 category: tooling
 date: 2026-10-27
 version: "1.0.0"
@@ -31,7 +31,7 @@ tags:
 
 ## When to Use
 
-- `GET /repos/<owner>/<repo>/commits/<sha>` answers 422 for an identifier that the pull request references.
+- `GET /repos/<user>/<repo>/commits/<sha>` answers 422 for an identifier that the pull request references.
 - The identifier sits behind `refs/pull/<n>/head` rather than a branch ref, or belongs to a fork in the same network.
 - A push-verification step must read `.commit.verification.verified` for every introduced commit.
 - A script must behave the same for same-repository and fork pull requests.

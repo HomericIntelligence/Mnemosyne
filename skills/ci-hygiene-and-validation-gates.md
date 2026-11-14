@@ -46,7 +46,7 @@ The patterns remain `verified-ci`. Reusable decisions are here, project incident
 rg -n '<script-or-context>' .github/workflows/ justfile .pre-commit-config.yaml scripts/
 
 # Inspect required contexts before rename/delete.
-gh api repos/<owner>/<repo>/rulesets --paginate
+gh api repos/<user>/<repo>/rulesets --paginate
 
 # Whole-repository tracked-file invariant.
 git ls-files build/

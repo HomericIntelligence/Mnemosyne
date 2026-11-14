@@ -103,4 +103,4 @@ systemctl daemon-reload && systemctl restart your-sync.service
 
 | Project | Context | Details |
 |---------|---------|---------|
-| apollo-homelab | NAS-USB nightly sync via systemd | unison two-way sync across multiple datasets |
+| <hostname>-homelab | NAS-USB nightly sync via systemd | unison two-way sync across multiple datasets |

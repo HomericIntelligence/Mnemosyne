@@ -91,7 +91,7 @@ Then apply these rules:
 
 ```yaml
 record_set: pull-request reviews (immutable machine carriers)
-enumeration_call: gh api repos/<owner>/<repo>/pulls/<n>/reviews --paginate
+enumeration_call: gh api repos/<user>/<repo>/pulls/<n>/reviews --paginate
 live_chain_signals:
   - a carrier marker fence in a review body
   - an exchange identity string inside a carrier

@@ -55,14 +55,14 @@ python3 <skill-scripts>/collect_evidence.py --expected-* ...   # local bind; no 
 # sanitized environment. An authentication error names the cause.
 env -i PATH="$PATH" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 \
   GIT_TERMINAL_PROMPT=0 \
-  git fetch --no-tags https://<private-forge>/<owner>/<repo>.git \
+  git fetch --no-tags https://<private-forge>/<user>/<repo>.git \
   +refs/heads/<base-branch>:refs/athena/base
 # -> fatal: could not read Username ... terminal prompts disabled
 
 # 2. Get a complete source snapshot under normal host permissions.
 git init --quiet source && cd source
 git fetch --quiet --no-tags --no-write-fetch-head --no-recurse-submodules \
-  https://<private-forge>/<owner>/<repo>.git \
+  https://<private-forge>/<user>/<repo>.git \
   +refs/heads/<base-branch>:refs/athena/base \
   +refs/pull/<N>/head:refs/athena/pr/<N>/head
 
@@ -76,7 +76,7 @@ git checkout --quiet --detach <head-oid>
 # 4. Run strict evidence collection from the snapshot working directory.
 python3 <skill-scripts>/collect_evidence.py \
   --expected-base-oid <base-oid> --expected-head-oid <head-oid> \
-  --expected-host <host> --expected-repository <owner>/<repo> \
+  --expected-host <host> --expected-repository <user>/<repo> \
   --expected-pr-number <N> --expected-pr-url <url> \
   <N>
 ```

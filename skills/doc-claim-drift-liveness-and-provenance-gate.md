@@ -57,7 +57,7 @@ REV=<bound full SHA>   # every count is a receipt at one revision
 git grep -cE '<claim-pattern>' "$REV" -- <live-paths>
 
 # 2. Resolve liveness against the live forge, not the reference text.
-gh api "repos/<owner>/<repo>/issues?state=open&per_page=100&page=1" --jq '.[].number'
+gh api "repos/<user>/<repo>/issues?state=open&per_page=100&page=1" --jq '.[].number'
 
 # 3. Find the tree's own vocabulary for the incomplete state before you touch a marker.
 git grep -hoE '(is not active|are not active|is Planned\.|no implementing issue)' \

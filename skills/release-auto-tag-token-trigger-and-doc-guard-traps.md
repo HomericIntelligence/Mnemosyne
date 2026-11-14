@@ -69,7 +69,7 @@ each continuation line contributes a literal `>` marker.
 Why prior releases looked automatic: their tags were pushed by a human.
 
 ```text
-v0.9.7 taggeremail = 12345+example-contributor@users.noreply.github.com        → push event fires
+v0.9.7 taggeremail = <user>@users.noreply.github.com        → push event fires
 v0.9.8 taggeremail = github-actions[bot]@users.noreply.github.com     → nothing fires
 ```
 
