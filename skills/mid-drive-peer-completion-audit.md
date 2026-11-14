@@ -40,7 +40,7 @@ gh pr view <PR> --json state,mergedAt,mergeCommit,headRefOid,labels,reviews
 gh issue view <N> --json state,labels
 
 # Peer completed your exchange? Compare heads before you conclude:
-gh api repos/<owner>/<repo>/compare/<your-head>...<merge-commit> \
+gh api repos/<user>/<repo>/compare/<your-head>...<merge-commit> \
   --jq '{ahead: .ahead_by, behind: .behind_by, files: [.files[].filename]}'
 
 # Find every PR that references the issue, all states, not only open:
@@ -53,7 +53,7 @@ git fetch origin main <pr-branch>
   && echo "branch is already based on the current default head"
 
 # Did a peer force-push the head after the approval label?
-gh api graphql -f query='{ repository(owner:"<owner>", name:"<repo>") { pullRequest(number: <N>) {
+gh api graphql -f query='{ repository(owner:"<user>", name:"<repo>") { pullRequest(number: <N>) {
   timelineItems(itemTypes:[HEAD_REF_FORCE_PUSHED_EVENT, LABELED_EVENT], first: 50) {
     nodes { __typename
             ... on HeadRefForcePushedEvent { createdAt }

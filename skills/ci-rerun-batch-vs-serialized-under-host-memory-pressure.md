@@ -60,18 +60,18 @@ Job failed in a shared image-build step?
 gh run rerun <RUN_ID> --failed
 
 # Serialized rerun: one job, then wait for its conclusion.
-JOB=$(gh api "repos/<owner>/<repo>/actions/runs/<RUN_ID>/jobs?per_page=50" \
+JOB=$(gh api "repos/<user>/<repo>/actions/runs/<RUN_ID>/jobs?per_page=50" \
   --jq '.jobs[] | select(.name=="<job name>") | .id')
 gh run rerun <RUN_ID> --job "$JOB"
-gh api "repos/<owner>/<repo>/actions/runs/<RUN_ID>/jobs?per_page=50" \
+gh api "repos/<user>/<repo>/actions/runs/<RUN_ID>/jobs?per_page=50" \
   --jq '.jobs[] | select(.name=="<job name>") | [.status, (.conclusion // "running")] | @tsv'
 
 # Read a failure from the log of its own job, not from a batch summary.
-gh api "repos/<owner>/<repo>/actions/jobs/<JOB_ID>/logs" > job.log
+gh api "repos/<user>/<repo>/actions/jobs/<JOB_ID>/logs" > job.log
 grep -E "TooManyRequests|Killed|exit (status|code) [0-9]+" job.log | tail -5
 
 # Job-scoped rerun re-plans the run, so new jobs can appear.
-gh api "repos/<owner>/<repo>/actions/runs/<RUN_ID>/jobs?per_page=50" \
+gh api "repos/<user>/<repo>/actions/runs/<RUN_ID>/jobs?per_page=50" \
   --jq '.jobs[] | [.name, .id, (.conclusion // "running")] | @tsv'
 ```
 

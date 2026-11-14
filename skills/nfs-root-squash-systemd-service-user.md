@@ -18,7 +18,7 @@ tags: []
 |-------|-------|
 | **Date** | 2026-06-23 |
 | **Objective** | Fix systemd service (running as root) that silently fails to write to NFS shares with root_squash |
-| **Outcome** | Successful — adding `User=<username>` to the service unit resolves the issue |
+| **Outcome** | Successful — adding `User=<user>` to the service unit resolves the issue |
 | **Verification** | verified-local |
 
 ## When to Use
@@ -41,17 +41,17 @@ systemctl edit --full <service-name>
 
 # Add to [Service] section:
 # User=<username-who-owns-nfs-files>
-# Environment=HOME=/home/<username>
+# Environment=HOME=/home/<user>
 
 # 2. Fix log file ownership
-chown <username> /var/log/<service>.log
+chown <user> /var/log/<service>.log
 
 # 3. Reload and restart
 systemctl daemon-reload
 systemctl restart <service-name>
 
 # 4. Verify writes work
-sudo -u <username> touch /mnt/nas/test-write && echo "OK" && sudo -u <username> rm /mnt/nas/test-write
+sudo -u <user> touch /mnt/nas/test-write && echo "OK" && sudo -u <user> rm /mnt/nas/test-write
 ```
 
 ### Detailed Steps
@@ -63,8 +63,8 @@ sudo -u <username> touch /mnt/nas/test-write && echo "OK" && sudo -u <username> 
    ```ini
    [Service]
    Type=oneshot
-   User=mvillmow
-   Environment=HOME=/home/mvillmow
+   User=<user>
+   Environment=HOME=/home/<user>
    ExecStart=/usr/local/bin/nas-usb-sync.sh
    ```
 
@@ -73,7 +73,7 @@ sudo -u <username> touch /mnt/nas/test-write && echo "OK" && sudo -u <username> 
 3. **Fix log file ownership**: If the service writes to a log file created as root, transfer ownership:
 
    ```bash
-   chown <username> /var/log/<service>.log
+   chown <user> /var/log/<service>.log
    ```
 
 4. **Reload systemd and restart the service**:
@@ -99,7 +99,7 @@ sudo -u <username> touch /mnt/nas/test-write && echo "OK" && sudo -u <username> 
 | uid | Mapped to | Can write to NFS? |
 |-----|-----------|-------------------|
 | 0 (root) | nobody (uid 99 or 65534) | No (blocked by root_squash) |
-| 1000 (mvillmow) | mvillmow (uid 1000) | Yes (if file permissions allow) |
+| 1000 (<user>) | <user> (uid 1000) | Yes (if file permissions allow) |
 | Any non-root uid | Same uid | Yes (if file permissions allow) |
 
 **Minimal working service unit:**
@@ -110,8 +110,8 @@ Description=NAS USB Sync
 
 [Service]
 Type=oneshot
-User=mvillmow
-Environment=HOME=/home/mvillmow
+User=<user>
+Environment=HOME=/home/<user>
 ExecStart=/usr/local/bin/nas-usb-sync.sh
 
 [Install]
@@ -120,9 +120,9 @@ WantedBy=multi-user.target
 
 **Checklist after applying fix:**
 
-- `User=<username>` set in `[Service]` section
-- `Environment=HOME=/home/<username>` set if service uses tools that need HOME (unison, rsync with SSH, etc.)
-- Log file owned by service user: `chown <username> /var/log/<service>.log`
+- `User=<user>` set in `[Service]` section
+- `Environment=HOME=/home/<user>` set if service uses tools that need HOME (unison, rsync with SSH, etc.)
+- Log file owned by service user: `chown <user> /var/log/<service>.log`
 - `systemctl daemon-reload` run after editing the unit
 - Service user has read access to source paths and write access to destination NFS paths
 
@@ -130,4 +130,4 @@ WantedBy=multi-user.target
 
 | Project | Context | Details |
 |---------|---------|---------|
-| apollo homelab | unison two-way NAS\|USB sync via systemd oneshot timer | Service user changed from root to mvillmow (uid 1000); all NFS writes succeeded |
+| <hostname> homelab | unison two-way NAS\|USB sync via systemd oneshot timer | Service user changed from root to <user> (uid 1000); all NFS writes succeeded |

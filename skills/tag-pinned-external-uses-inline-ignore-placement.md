@@ -34,7 +34,7 @@ Put the ignore comment on the same line as the reported `uses:` value:
 
 ```yaml
   contract-check:
-    uses: <owner>/<repo>/.github/workflows/<name>.yml@<protected-tag>  # zizmor: ignore[unpinned-uses]
+    uses: <user>/<repo>/.github/workflows/<name>.yml@<protected-tag>  # zizmor: ignore[unpinned-uses]
     permissions:
       contents: read
 ```

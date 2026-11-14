@@ -55,7 +55,7 @@ grep -qF '${NOMAD_ADVERTISE_ADDR}' configs/nomad/server.hcl \
 #   grep -q "${NOMAD_ADVERTISE_ADDR}" configs/nomad/server.hcl   # do NOT do this
 
 # 3. Verify with a negative test (then restore):
-#   sed -i 's/${NOMAD_ADVERTISE_ADDR}/100.92.173.32/g' configs/nomad/server.hcl
+#   sed -i 's/${NOMAD_ADVERTISE_ADDR}/<node-a-tailnet-ip>/g' configs/nomad/server.hcl
 #   just validate-configs  # must exit non-zero with error message
 #   git checkout -- configs/nomad/server.hcl
 ```
@@ -93,7 +93,7 @@ Key implementation notes:
 
 Concrete facts derived from the current Odysseus tree (so the guard is grounded, not assumed):
 
-- `configs/nomad/client.hcl` — `servers = ["100.92.173.32:4647"]` is a LITERAL IP with a runtime env-override pattern; it carries NO `${...}` placeholder, so it is NOT guardable. The issue's claim that a `client.hcl` / `${NOMAD_SERVER_IP}` guard existed was false.
+- `configs/nomad/client.hcl` — `servers = ["<node-a-tailnet-ip>:4647"]` is a LITERAL IP with a runtime env-override pattern; it carries NO `${...}` placeholder, so it is NOT guardable. The issue's claim that a `client.hcl` / `${NOMAD_SERVER_IP}` guard existed was false.
 - `configs/nomad/server.hcl` — carries `${NOMAD_ADVERTISE_ADDR}` (the only real placeholder among the Nomad configs), so it is the one config that gets a presence guard.
 - `validate-configs` (justfile) is the canonical recipe; it runs under `set -euo pipefail`, calls `nomad fmt -check` (syntax-only) and `yamllint` (syntax-only), and is invoked by the `ci:` recipe (`ci: lint validate-configs check-doc-field-drift`). The guard belongs inside `validate-configs`.
 

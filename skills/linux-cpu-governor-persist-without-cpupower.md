@@ -140,4 +140,4 @@ writing directly to sysfs is driver-agnostic and has zero new package surface.
 
 | Project | Context | Details |
 |---------|---------|---------|
-| apollo homelab | Aligning CPU governor between two always-on homelab servers (2026-07) | `performance` applied immediately on all 8 cores; `cpu-performance-governor.service` confirmed `active (exited)` + `enabled` via systemd, without installing `cpufrequtils`\/`cpupower`; reboot-survival not empirically observed this session (LUKS boot requires physical presence) |
+| <hostname> homelab | Aligning CPU governor between two always-on homelab servers (2026-07) | `performance` applied immediately on all 8 cores; `cpu-performance-governor.service` confirmed `active (exited)` + `enabled` via systemd, without installing `cpufrequtils`\/`cpupower`; reboot-survival not empirically observed this session (LUKS boot requires physical presence) |

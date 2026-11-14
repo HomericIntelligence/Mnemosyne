@@ -20,7 +20,7 @@ date: 2026-07-22
   = 0.25; `adan` optimum at `lr_scale` = 1.0; etc.
 - Screen: 6 LR-scales x 17 optimizers x 2 rules = 204 cells.
 - Screen ladder: `[1.0, 0.25, 0.063, 0.016, 0.004, 0.001]`.
-- Screen wall time on hermes (2-concurrent, 8-core CPU): reported by the
+- Screen wall time on the training host (2-concurrent, 8-core CPU): reported by the
   `experiments/sweep_matrix_runnable/` dispatcher; per-cell cost was sub-minute.
 - Equivalent full-epoch grid estimate at 73 min/cell / 2-concurrent:
   bounded by the cell count, not by the screen. Result: most cells would have

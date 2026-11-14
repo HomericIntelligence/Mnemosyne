@@ -48,7 +48,7 @@ have usable requirements context; `--prs` selects a target but does not waive it
 one standalone closing line, enforce it deterministically:
 
 ```bash
-gh pr view <pr> --repo <owner>/<repo> --json body,closingIssuesReferences
+gh pr view <pr> --repo <user>/<repo> --json body,closingIssuesReferences
 ```
 
 An orphan fails closed with zero reviewer jobs. Changing reviewer model or effort cannot repair
@@ -81,7 +81,7 @@ path filter, a label condition, or an `if:` expression, can skip the work and le
 context green. Never write "the check passed" from a status row alone. Read the run and each job:
 
 ```bash
-gh run view <run-id> --repo <owner>/<repo> --json status,conclusion,event,headSha,jobs \
+gh run view <run-id> --repo <user>/<repo> --json status,conclusion,event,headSha,jobs \
   --jq '{conclusion, headSha, jobs: [.jobs[] | {name, conclusion}]}'
 ```
 
@@ -198,9 +198,9 @@ than consuming a label.
 Use GitHub reviews, issue events, and PR state:
 
 ```bash
-gh api repos/<owner>/<repo>/pulls/<pr>/reviews
-gh api repos/<owner>/<repo>/issues/<pr>/events --paginate
-gh pr view <pr> --repo <owner>/<repo> --json state,mergedAt,mergeCommit,commits
+gh api repos/<user>/<repo>/pulls/<pr>/reviews
+gh api repos/<user>/<repo>/issues/<pr>/events --paginate
+gh pr view <pr> --repo <user>/<repo> --json state,mergedAt,mergeCommit,commits
 ```
 
 Match the authorizing review’s `commit_id` to final head. Confirm GO followed that review, NOGO was

@@ -43,7 +43,7 @@ git diff "$MB...HEAD" --stat             # files this branch adds
 
 # 2. Find the work the target already contains.
 git diff origin/main HEAD --stat         # differences between the two trees
-gh api "repos/<owner>/<repo>/compare/main...<head>" \
+gh api "repos/<user>/<repo>/compare/main...<head>" \
   --jq '{ahead_by, behind_by, files: [.files[].filename]}'
 
 # 3. Classify each commit. Then rebase to drop what the target already carries.

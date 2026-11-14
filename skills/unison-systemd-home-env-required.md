@@ -41,7 +41,7 @@ export HOME=/root
 # Option B (preferred): Add User= to systemd service unit
 # Edit /etc/systemd/system/your-sync.service
 # [Service]
-# User=mvillmow
+# User=<user>
 
 # After either fix:
 systemctl daemon-reload && systemctl restart your-sync.service
@@ -58,7 +58,7 @@ systemctl daemon-reload && systemctl restart your-sync.service
    Add `export HOME=/root` to the top of your sync script, before calling unison.
 
    **Option B** (preferred — run as a specific user):
-   Add `User=mvillmow` (or the appropriate user) to the `[Service]` section of the systemd unit file.
+   Add `User=<user>` (or the appropriate user) to the `[Service]` section of the systemd unit file.
    When `User=` is set, systemd automatically sets `HOME` to that user's home directory.
    This also fixes NFS root_squash write failures simultaneously.
 
@@ -92,7 +92,7 @@ systemctl daemon-reload && systemctl restart your-sync.service
 
   ```ini
   [Service]
-  User=mvillmow
+  User=<user>
   ```
 
 - **Reload command**: `systemctl daemon-reload && systemctl restart <service>`
@@ -103,4 +103,4 @@ systemctl daemon-reload && systemctl restart your-sync.service
 
 | Project | Context | Details |
 |---------|---------|---------|
-| apollo-homelab | NAS-USB nightly sync via systemd | unison two-way sync across multiple datasets |
+| <hostname>-homelab | NAS-USB nightly sync via systemd | unison two-way sync across multiple datasets |

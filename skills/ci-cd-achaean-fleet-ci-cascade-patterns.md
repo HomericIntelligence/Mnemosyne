@@ -394,7 +394,7 @@ git push --force-with-lease
 
 # Confirm GH sees verified=true on every commit
 git log --format='%h' "$BASE"..HEAD | while read sha; do
-  gh api repos/<owner>/<repo>/commits/$sha --jq '.commit.verification.verified'
+  gh api repos/<user>/<repo>/commits/$sha --jq '.commit.verification.verified'
 done
 ```
 
@@ -404,7 +404,7 @@ GitHub revokes the auto-merge arming on any history rewrite (the head SHA change
 **every** force-push to a PR that previously had auto-merge enabled, re-arm it:
 
 ```bash
-gh pr merge N --squash --auto --repo <owner>/<repo>
+gh pr merge N --squash --auto --repo <user>/<repo>
 ```
 
 If you skip this step, the PR will sit indefinitely after CI goes green, because nothing is

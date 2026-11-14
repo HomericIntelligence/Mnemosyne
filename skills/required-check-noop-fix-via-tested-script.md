@@ -141,7 +141,7 @@ gh api repos/HomericIntelligence/ProjectHephaestus/rulesets --jq '.[].id' \
    - **(b) Don't delete a PINNED required context.** The KISS/DRY ideal was to
      DELETE the redundant job (its invariant is already enforced by the `lint`
      pre-commit hook and by `pixi-check`'s `pixi install --locked`). BUT
-     `gh api repos/<owner>/<repo>/rulesets/<id>` showed `deps/version-sync` is a
+     `gh api repos/<user>/<repo>/rulesets/<id>` showed `deps/version-sync` is a
      PINNED required status check in the active org ruleset. Deleting the job
      without de-listing the context BLOCKS every PR forever (the
      `ci-driver-blocked-required-context-drift` failure mode). Ruleset mutation

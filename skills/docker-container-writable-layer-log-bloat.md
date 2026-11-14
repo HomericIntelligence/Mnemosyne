@@ -28,7 +28,7 @@ tags:
 |-------|-------|
 | **Date** | 2026-06-20 |
 | **Objective** | Identify and recover disk space consumed by log files accumulating inside Docker container writable layers |
-| **Outcome** | Successful — freed 72 GB on apollo by bind-mounting Traefik log dir and recreating container |
+| **Outcome** | Successful — freed 72 GB on <hostname> by bind-mounting Traefik log dir and recreating container |
 | **Verification** | verified-local |
 
 ## When to Use
@@ -54,14 +54,14 @@ docker diff <container_name>
 docker exec <container_name> tail -20 /var/log/traefik/access.log
 
 # 4. Fix: add bind-mount, recreate (drops the writable layer)
-mkdir -p /var/homelabos/traefik/logs
+mkdir -p /var/<HomelabOS>/traefik/logs
 # Add to docker-compose.yml volumes:
-#   - "/var/homelabos/traefik/logs:/var/log/traefik"
+#   - "/var/<HomelabOS>/traefik/logs:/var/log/traefik"
 docker stop <container_name> && docker rm <container_name>
 docker compose up -d
 
 # 5. Verify logs now appear on the host
-ls -lh /var/homelabos/traefik/logs/
+ls -lh /var/<HomelabOS>/traefik/logs/
 ```
 
 ### Detailed Steps
@@ -80,9 +80,9 @@ ls -lh /var/homelabos/traefik/logs/
    - Add a bind-mount in `docker-compose.yml`:
      ```yaml
      volumes:
-       - "/var/homelabos/traefik/logs:/var/log/traefik"
+       - "/var/<HomelabOS>/traefik/logs:/var/log/traefik"
      ```
-   - Create the host directory: `mkdir -p /var/homelabos/traefik/logs`
+   - Create the host directory: `mkdir -p /var/<HomelabOS>/traefik/logs`
 
 6. **Recreate the container** (this is what reclaims the disk — `docker restart` does NOT drop the writable layer):
    ```bash
@@ -91,11 +91,11 @@ ls -lh /var/homelabos/traefik/logs/
    docker compose up -d
    ```
 
-7. **Verify.** Check that logs appear on the host: `ls -lh /var/homelabos/traefik/logs/`. Run `docker system df` again to confirm the writable-layer size is now small (KB, not GB).
+7. **Verify.** Check that logs appear on the host: `ls -lh /var/<HomelabOS>/traefik/logs/`. Run `docker system df` again to confirm the writable-layer size is now small (KB, not GB).
 
 8. **Set up logrotate for the host-side log files** to prevent future unbounded growth:
    ```
-   /var/homelabos/traefik/logs/*.log {
+   /var/<HomelabOS>/traefik/logs/*.log {
        daily
        rotate 14
        compress
@@ -136,8 +136,8 @@ Restart Docker after: `systemctl restart docker`. This caps stdout/stderr logs b
 
 | Parameter | Value |
 |-----------|-------|
-| Host | apollo (HomelabOS server) |
-| Container | homelabos (Traefik v2.2 reverse proxy) |
+| Host | <hostname> (<HomelabOS> server) |
+| Container | <HomelabOS> (Traefik v2.2 reverse proxy) |
 | Runtime duration | ~5 years without recreation |
 | Writable layer size before fix | 76.3 GB |
 | Disk freed after fix | ~72 GB |
@@ -161,7 +161,7 @@ services:
     image: traefik:v2.2
     volumes:
       # Fix: bind-mount log dir so logs land on host, not writable layer
-      - "/var/homelabos/traefik/logs:/var/log/traefik"
+      - "/var/<HomelabOS>/traefik/logs:/var/log/traefik"
 ```
 
 ### Key Commands
@@ -191,4 +191,4 @@ done | sort -rn | head -20
 
 | Project | Context | Details |
 |---------|---------|---------|
-| HomelabOS (apollo) | Traefik v2.2 running 5 years, 76.3 GB writable layer | Freed 72 GB by bind-mounting log dir and recreating container |
+| <HomelabOS> (<hostname>) | Traefik v2.2 running 5 years, 76.3 GB writable layer | Freed 72 GB by bind-mounting log dir and recreating container |

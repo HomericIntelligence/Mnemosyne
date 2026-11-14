@@ -56,15 +56,15 @@ curl -s "https://huggingface.co/api/models/<org>/<repo>" \
 
 # 3. Fetch the COMPLETE body to a file before editing. Never edit from a
 #    truncated buffer fetched with '.body[0:N]'.
-gh issue view <N> --repo <owner>/<repo> --json body --jq .body > body.md
+gh issue view <N> --repo <user>/<repo> --json body --jq .body > body.md
 wc -c body.md
 
 # 4. Edit only the binding lines locally; then replace and re-read.
-gh issue edit <N> --repo <owner>/<repo> --body-file body.md
-gh issue view <N> --repo <owner>/<repo> --json body --jq .body | grep -n "<new-repo-id>"
+gh issue edit <N> --repo <user>/<repo> --body-file body.md
+gh issue view <N> --repo <user>/<repo> --json body --jq .body | grep -n "<new-repo-id>"
 
 # 5. Record the decision; flag dependents by comment.
-gh issue comment <N> --repo <owner>/<repo> --body-file retarget.md
+gh issue comment <N> --repo <user>/<repo> --body-file retarget.md
 ```
 
 ### Detailed Steps

@@ -47,11 +47,11 @@ for an open pull request.
 
 ```bash
 # 1. Fresh read. Do not trust the directive or a prior-turn snapshot.
-gh pr view <PR> -R <owner>/<repo> --json state,mergedAt,mergeCommit,headRefOid,labels
-gh issue view <ISSUE> -R <owner>/<repo> --json state,stateReason,closedAt
+gh pr view <PR> -R <user>/<repo> --json state,mergedAt,mergeCommit,headRefOid,labels
+gh issue view <ISSUE> -R <user>/<repo> --json state,stateReason,closedAt
 
 # 2. List the record comments, and count your own prefix.
-gh pr view <PR> -R <owner>/<repo> --json comments \
+gh pr view <PR> -R <user>/<repo> --json comments \
   --jq '[.comments[] | select(.body | contains("[<prefix>]"))] | length'
 ```
 

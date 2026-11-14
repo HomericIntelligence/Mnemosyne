@@ -45,7 +45,7 @@ not “nothing to do.” Use paginated APIs for completion gates:
 
 ```bash
 gh repo list <org> --json name,isArchived
-gh api --paginate '/repos/<owner>/<repo>/pulls?state=open&per_page=100'
+gh api --paginate '/repos/<user>/<repo>/pulls?state=open&per_page=100'
 ```
 
 Issue and PR numbers are repository-local. A direct `--issues N` or `--prs N` request requires
@@ -58,9 +58,9 @@ never let direct scopes fall back to the current working repository.
 Before planning a report-prescribed action, query each named PR at its current head:
 
 ```bash
-gh pr view <pr> --repo <owner>/<repo> \
+gh pr view <pr> --repo <user>/<repo> \
   --json state,headRefOid,mergeStateStatus,statusCheckRollup,autoMergeRequest
-gh run view <run> --repo <owner>/<repo> --log-failed
+gh run view <run> --repo <user>/<repo> --log-failed
 ```
 
 Read any report-named file at the PR ref and fetch the latest failing log. A still-failing PR does
@@ -118,8 +118,8 @@ Parallelize across independent repositories. Within one repository, merge oldest
 first, rescan after each base advance, and cap each pass. Use the repository’s allowed merge method:
 
 ```bash
-gh api repos/<owner>/<repo> --jq '{allow_squash_merge,allow_rebase_merge,allow_auto_merge}'
-gh pr merge <pr> --repo <owner>/<repo> --auto --squash
+gh api repos/<user>/<repo> --jq '{allow_squash_merge,allow_rebase_merge,allow_auto_merge}'
+gh pr merge <pr> --repo <user>/<repo> --auto --squash
 ```
 
 Do not infer successful arming. Query `autoMergeRequest`, head SHA, checks, and final state. If a

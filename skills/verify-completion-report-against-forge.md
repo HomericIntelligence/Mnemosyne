@@ -71,13 +71,13 @@ Read back the 2–3 cheapest anchor claims in the report before any action:
 git ls-remote --heads <repo-url> | grep -F <item-key>
 
 # Does the claimed pull request resolve, and at what head?
-gh pr view <number> --repo <owner>/<repo> --json number,state,headRefOid
+gh pr view <number> --repo <user>/<repo> --json number,state,headRefOid
 
 # Is a claimed comment or review identifier fetchable?
-gh api repos/<owner>/<repo>/issues/comments/<claimed-id> --jq .id
+gh api repos/<user>/<repo>/issues/comments/<claimed-id> --jq .id
 
 # Does the issue timeline show the claimed label event?
-gh api graphql -f query='{ repository(owner:"<owner>", name:"<repo>") {
+gh api graphql -f query='{ repository(owner:"<user>", name:"<repo>") {
   issue(number:<N>) { timelineItems(itemTypes:[LABELED_EVENT, UNLABELED_EVENT], first:50) {
     nodes { __typename ... on LabeledEvent { createdAt label { name } }
             ... on UnlabeledEvent { createdAt label { name } } } } } } }'

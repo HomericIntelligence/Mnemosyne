@@ -42,10 +42,10 @@ The complete prior source is in
 Find the applying ruleset and record its full payload before mutation:
 
 ```bash
-gh api repos/<owner>/<repo>/rulesets
-gh api repos/<owner>/<repo>/rulesets/<ruleset-id>
-MAIN_SHA=$(gh api repos/<owner>/<repo>/commits/main --jq .sha)
-gh api repos/<owner>/<repo>/commits/$MAIN_SHA/check-runs \
+gh api repos/<user>/<repo>/rulesets
+gh api repos/<user>/<repo>/rulesets/<ruleset-id>
+MAIN_SHA=$(gh api repos/<user>/<repo>/commits/main --jq .sha)
+gh api repos/<user>/<repo>/commits/$MAIN_SHA/check-runs \
   --jq '[.check_runs[].name] | unique'
 ```
 
@@ -56,7 +56,7 @@ can exist and pass under a different display name while the required name never 
 Verify claimed prerequisite PRs live:
 
 ```bash
-gh pr view <pr> --repo <owner>/<repo> --json state,mergedAt,headRefOid
+gh pr view <pr> --repo <user>/<repo> --json state,mergedAt,headRefOid
 ```
 
 An open prerequisite is not default-branch capability.
@@ -66,7 +66,7 @@ An open prerequisite is not default-branch capability.
 Land the workflow/name rollout first. Confirm the exact context on main and on a merged PR’s head:
 
 ```bash
-gh api repos/<owner>/<repo>/commits/<merged-pr-head>/check-runs \
+gh api repos/<user>/<repo>/commits/<merged-pr-head>/check-runs \
   --jq '[.check_runs[].name] | unique'
 ```
 
@@ -100,7 +100,7 @@ Use a temporary payload file and validate it before PUT:
 ```bash
 jq '<preserving transformation>' ruleset-before.json > ruleset-after.json
 jq empty ruleset-after.json
-gh api --method PUT repos/<owner>/<repo>/rulesets/<id> --input ruleset-after.json
+gh api --method PUT repos/<user>/<repo>/rulesets/<id> --input ruleset-after.json
 ```
 
 Keep a digest or immutable capture of the before payload for rollback and audit.
@@ -125,8 +125,8 @@ replacement APIs can accept a structurally incomplete policy.
 ruleset’s `strict_required_status_checks_policy`. Read both:
 
 ```bash
-gh api repos/<owner>/<repo>/branches/main/protection/required_status_checks --jq .strict
-gh api repos/<owner>/<repo>/rules/branches/main
+gh api repos/<user>/<repo>/branches/main/protection/required_status_checks --jq .strict
+gh api repos/<user>/<repo>/rules/branches/main
 ```
 
 On a continuously advancing base, `strict: false` still requires checks but avoids mandatory rebase

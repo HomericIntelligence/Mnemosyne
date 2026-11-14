@@ -242,7 +242,7 @@ When a PR shows all CI checks green and auto-merge is armed but `mergeStateStatu
 **Step 1 — Check branch-protection config (takes 10 seconds):**
 
 ```bash
-gh api repos/<owner>/<repo>/branches/main/protection \
+gh api repos/<user>/<repo>/branches/main/protection \
   --jq '{approving_count: .required_pull_request_reviews.required_approving_review_count, thread_resolution: .required_conversation_resolution.enabled}'
 ```
 
@@ -251,7 +251,7 @@ If `approving_count` is `null` and `thread_resolution` is `true`, the blocker is
 **Step 2 — Enumerate unresolved threads:**
 
 ```bash
-gh api graphql -F owner=<owner> -F repo=<repo> -F pr=<number> -f query='
+gh api graphql -F owner=<user> -F repo=<repo> -F pr=<number> -f query='
 query($owner:String! $repo:String! $pr:Int!) {
   repository(owner:$owner name:$repo) {
     pullRequest(number:$pr) {

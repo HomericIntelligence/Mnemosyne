@@ -1,7 +1,7 @@
 ---
 name: homelab-nextcloud-data-dir-nfs-migration
 license: BSD-3-Clause
-description: "Relocate the Nextcloud /data directory between storage tiers in HomelabOS (local NVMe/USB <-> NFS NAS) while keeping core (webroot, config, apps, DB) on fast storage, with a reboot-safe live cutover. Use when: (1) moving the Nextcloud data dir from local disk to a NAS NFS share, (2) moving it OFF a slow NFS share onto a fast local disk because uploads time out, (3) HomelabOS Nextcloud compose has NFS bind mounts but NFS mounted after container start, (4) rsyncing to/from a share with root_squash, (5) making the data dir bind reboot-safe with fstab + RequiresMountsFor."
+description: "Relocate the Nextcloud /data directory between storage tiers in <HomelabOS> (local NVMe/USB <-> NFS NAS) while keeping core (webroot, config, apps, DB) on fast storage, with a reboot-safe live cutover. Use when: (1) moving the Nextcloud data dir from local disk to a NAS NFS share, (2) moving it OFF a slow NFS share onto a fast local disk because uploads time out, (3) <HomelabOS> Nextcloud compose has NFS bind mounts but NFS mounted after container start, (4) rsyncing to/from a share with root_squash, (5) making the data dir bind reboot-safe with fstab + RequiresMountsFor."
 category: architecture
 date: 2026-06-28
 version: "1.1.0"
@@ -19,19 +19,19 @@ history-cleanup-date: "2026-09-20"
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-06-28 |
-| **Objective** | Relocate Nextcloud's `/data` directory between storage tiers in HomelabOS — local NVMe/USB <-> NFS NAS — keeping core (webroot, config, apps, DB) on fast storage, with a reboot-safe live cutover |
+| **Objective** | Relocate Nextcloud's `/data` directory between storage tiers in <HomelabOS> — local NVMe/USB <-> NFS NAS — keeping core (webroot, config, apps, DB) on fast storage, with a reboot-safe live cutover |
 | **Outcome** | Successful in both directions: 271 GB moved local NVMe -> NFS NAS (v1.0.0); `/data` moved OFF a slow NFS share onto a fast local disk to fix upload timeouts (v1.1.0) |
-| **Verification** | verified-local (executed end-to-end on a live HomelabOS v1.0 host; CI validation pending) |
+| **Verification** | verified-local (executed end-to-end on a live <HomelabOS> v1.0 host; CI validation pending) |
 | **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/homelab-nextcloud-data-dir-nfs-migration.history) |
 
 ## When to Use
 
 - Moving the Nextcloud data directory from local disk to a NAS NFS share
 - Moving the Nextcloud data directory OFF a slow NFS share onto a fast local disk because uploads/metadata are timing out (only `/data` is slow; core + DB are already on fast storage)
-- HomelabOS Nextcloud compose already has the NFS path in the bind mount but NFS was mounted after container start (data silently stayed on local disk)
+- <HomelabOS> Nextcloud compose already has the NFS path in the bind mount but NFS was mounted after container start (data silently stayed on local disk)
 - Rsyncing large data sets to/from an NFS share with root_squash (files must be owned by the Nextcloud uid, not root)
 - Making the `/data` bind reboot-safe so Nextcloud never starts against an empty mountpoint (fstab + systemd `RequiresMountsFor`)
-- Changing a HomelabOS service bind persistently (must edit BOTH the Jinja template and the rendered compose)
+- Changing a <HomelabOS> service bind persistently (must edit BOTH the Jinja template and the rendered compose)
 
 ## Verified Workflow
 
@@ -43,16 +43,16 @@ fast local disk** and adds the reboot-safety hardening. The same core gotchas ap
 rsync as the data-owner uid (root_squash), keep the `.ocdata` marker, and keep the old copy as
 a fail-safe/rollback.
 
-### HomelabOS service structure (read first)
+### <HomelabOS> service structure (read first)
 
-Each HomelabOS service is rendered from
-`roles/<svc>/templates/docker-compose.<svc>.yml.j2` -> `/var/homelabos/<svc>/docker-compose.yml`
+Each <HomelabOS> service is rendered from
+`roles/<svc>/templates/docker-compose.<svc>.yml.j2` -> `/var/<HomelabOS>/<svc>/docker-compose.yml`
 (the rendered file, owned by the `homelab` user) and run by a systemd unit `<svc>.service`
-whose `ExecStart` is `docker-compose -p <svc> up` (`WorkingDirectory=/var/homelabos/<svc>`).
+whose `ExecStart` is `docker-compose -p <svc> up` (`WorkingDirectory=/var/<HomelabOS>/<svc>`).
 So you restart a service with `systemctl restart <svc>`, and any change must go in **BOTH**:
 
 - the **template** (`roles/<svc>/templates/...j2` + `settings/config.yml`) — for persistence across `ansible` redeploys, and
-- the **rendered compose** (`/var/homelabos/<svc>/docker-compose.yml`) — for immediate effect.
+- the **rendered compose** (`/var/<HomelabOS>/<svc>/docker-compose.yml`) — for immediate effect.
 
 The rendered compose is owned by `homelab`, so the Edit/Write tool fails with EACCES — edit it
 with `sudo sed` / `sudo tee`.
@@ -71,7 +71,7 @@ sudo -u '#1002' -g '#1002' rsync -rltD --partial --info=progress2 \
 
 # 3. Enable maintenance mode + stop container
 docker exec nextcloud_nextcloud_1 php occ maintenance:mode --on
-docker compose -f /var/homelabos/nextcloud/docker-compose.yml stop nextcloud
+docker compose -f /var/<HomelabOS>/nextcloud/docker-compose.yml stop nextcloud
 
 # 4. Pass 2 rsync (delta, while offline)
 sudo -u '#1002' -g '#1002' rsync -rltD --partial --info=progress2 \
@@ -84,11 +84,11 @@ diff <(cd /mnt/root-view/mnt/nas/Documents/NextCloud && find . | sort) \
 # Must produce no output
 
 # 6. Start container (NFS already mounted, bind resolves to NFS)
-docker compose -f /var/homelabos/nextcloud/docker-compose.yml up -d nextcloud
+docker compose -f /var/<HomelabOS>/nextcloud/docker-compose.yml up -d nextcloud
 
 # 7. Confirm data is on NAS
 docker exec nextcloud_nextcloud_1 df -h /data
-# Must show NFS server IP (e.g., 192.168.2.11:/data/Documents/NextCloud)
+# Must show NFS server IP (e.g., 192.0.2.11:/data/Documents/NextCloud)
 
 # 8. Disable maintenance mode, then scan files
 docker exec nextcloud_nextcloud_1 php occ maintenance:mode --off
@@ -99,7 +99,7 @@ docker exec nextcloud_nextcloud_1 php occ files:scan --all
 
 1. **Understand the root cause (if data is on local disk despite NFS bind in compose)**
 
-   HomelabOS Nextcloud compose may already have the correct NFS path as the bind source
+   <HomelabOS> Nextcloud compose may already have the correct NFS path as the bind source
    (e.g., `/mnt/nas/Documents/NextCloud:/data`). If NFS was not mounted when Docker started
    the container, Docker resolved the bind to the bare local directory at that path — silently
    writing 271 GB locally. The compose is correct; only the startup order needs fixing.
@@ -140,7 +140,7 @@ docker exec nextcloud_nextcloud_1 php occ files:scan --all
 
    ```bash
    docker exec nextcloud_nextcloud_1 php occ maintenance:mode --on
-   docker compose -f /var/homelabos/nextcloud/docker-compose.yml stop nextcloud
+   docker compose -f /var/<HomelabOS>/nextcloud/docker-compose.yml stop nextcloud
    ```
 
 6. **Pass 2 rsync — delta only**
@@ -165,9 +165,9 @@ docker exec nextcloud_nextcloud_1 php occ files:scan --all
    With NFS already mounted, Docker resolves the bind to the NFS share:
 
    ```bash
-   docker compose -f /var/homelabos/nextcloud/docker-compose.yml up -d nextcloud
+   docker compose -f /var/<HomelabOS>/nextcloud/docker-compose.yml up -d nextcloud
    docker exec nextcloud_nextcloud_1 df -h /data
-   # 192.168.2.11:/data/Documents/NextCloud  ...
+   # 192.0.2.11:/data/Documents/NextCloud  ...
    ```
 
 9. **Reclaim local disk space (fail-safe first)**
@@ -213,7 +213,7 @@ are timing out, while core (webroot/config/apps/themes) and MariaDB are already 
 1. **Make the data dir configurable in the template, then mirror into the rendered compose**
 
    In `roles/nextcloud/templates/docker-compose.nextcloud.yml.j2` change the `/data` bind so
-   it reads a config value (keep the separate `{{ storage_dir }}:/mnt/homelabos` external-storage
+   it reads a config value (keep the separate `{{ storage_dir }}:/mnt/<HomelabOS>` external-storage
    mount untouched):
 
    ```diff
@@ -234,8 +234,8 @@ are timing out, while core (webroot/config/apps/themes) and MariaDB are already 
    ```bash
    sudo sed -i \
      's#- "[^"]*:/data"#- "/media/<user>/<disk>/.../NextCloud:/data"#' \
-     /var/homelabos/nextcloud/docker-compose.yml
-   sudo grep -n ':/data"' /var/homelabos/nextcloud/docker-compose.yml   # verify
+     /var/<HomelabOS>/nextcloud/docker-compose.yml
+   sudo grep -n ':/data"' /var/<HomelabOS>/nextcloud/docker-compose.yml   # verify
    ```
 
 2. **Make the mount reboot-safe (critical — so Nextcloud never starts against an empty dir)**
@@ -306,7 +306,7 @@ are timing out, while core (webroot/config/apps/themes) and MariaDB are already 
 | rsync as root to NFS | `sudo rsync ... /mnt/nas/Documents/NextCloud/` | NFS export has root_squash; all files landed owned nobody (99:99); Nextcloud cannot read them | Always rsync to/from NFS as the Nextcloud uid (`sudo -u '#1002' -g '#1002'`), never as root. With root_squash, client root is squashed to anon and cannot even read the uid-1002-owned `770` files |
 | rsync without bind view | `sudo -u '#1002' rsync /mnt/nas/Documents/NextCloud/ ...` | Source path is the live NFS mount itself, not the local data hidden beneath it — copies NFS back to NFS | Mount a bind view of `/` first to expose the hidden local directory |
 | occ files:scan in maintenance mode | `docker exec ... php occ files:scan --all` while `maintenance:mode --on` | Returns "database isn't accessible" | Disable maintenance mode before running `occ files:scan`; maintenance mode blocks DB access |
-| Edit rendered compose with the file tool | Opened `/var/homelabos/nextcloud/docker-compose.yml` with the Edit/Write tool | EACCES — the rendered compose is owned by the `homelab` user, not the current user | Edit rendered HomelabOS files with `sudo sed` / `sudo tee`; also mirror the change into the Jinja template + `settings/config.yml` so `ansible` does not revert it |
+| Edit rendered compose with the file tool | Opened `/var/<HomelabOS>/nextcloud/docker-compose.yml` with the Edit/Write tool | EACCES — the rendered compose is owned by the `homelab` user, not the current user | Edit rendered <HomelabOS> files with `sudo sed` / `sudo tee`; also mirror the change into the Jinja template + `settings/config.yml` so `ansible` does not revert it |
 | Public-URL upload speed test | Uploaded to `https://<domain>/...` from inside the LAN to "prove" the move helped | Saw ~5.7 MB/s and assumed the relocation failed — but the LAN client hairpinned out the WAN and was capped by upload bandwidth (~5 MB/s), masking real storage speed | Re-test with `curl --resolve <domain>:443:<lan-ip>` to force the local path (showed ~30 MB/s LAN DAV). For LAN clients, fix the slow public path with split-DNS (e.g. a Tailscale custom DNS record to the tailnet IP, since traefik answers there with a valid cert) |
 | Rely on the desktop automount for the bind | Let udisks auto-mount the disk at `/media/<user>/...` and pointed the docker bind there | After a reboot the disk may not be auto-mounted before Docker starts, so Nextcloud would start against an empty `/data` and re-fork data locally | Add an `/etc/fstab` entry (`nofail`) + a `nextcloud.service` `RequiresMountsFor` drop-in so Nextcloud refuses to start until the data mount is present |
 
@@ -319,12 +319,12 @@ Nextcloud container user:  uid=1002 gid=1002 (rsync/occ must run as this uid)
 Total data:                271 GB, 610 folders, 48,346 files
 files:scan duration:       ~33 seconds
 NFS fstab entry:
-  192.168.2.11:/data/Documents  /mnt/nas/Documents  nfs  defaults,_netdev,soft,timeo=30,retrans=3  0  0
+  192.0.2.11:/data/Documents  /mnt/nas/Documents  nfs  defaults,_netdev,soft,timeo=30,retrans=3  0  0
 docker.service drop-in (/etc/systemd/system/docker.service.d/wait-nas.conf):
   [Unit]
   RequiresMountsFor=/mnt/nas/Documents
 Confirm: docker exec nextcloud_nextcloud_1 df -h /data
-  # 192.168.2.11:/data/Documents/NextCloud  ...
+  # 192.0.2.11:/data/Documents/NextCloud  ...
 
 --- Scenario B (slow NFS -> fast local disk), v1.1.0 ---
 Before / after (only /data moved; core + MariaDB already on NVMe):
@@ -376,5 +376,5 @@ Notes:
 
 | Project | Context | Details |
 |---------|---------|---------|
-| HomelabOS Nextcloud | apollo homelab server, NVMe to TrueNAS NFS (v1.0.0, 2026-06-23) | End-to-end migration; Nextcloud serving from NAS confirmed |
-| HomelabOS Nextcloud | live HomelabOS v1.0 host, slow NFS to fast local disk (v1.1.0, 2026-06) | End-to-end live cutover; `docker inspect` confirmed `/data` on the new disk; 8 -> 214 MB/s write, real upload test passed |
+| <HomelabOS> Nextcloud | <hostname> homelab server, NVMe to TrueNAS NFS (v1.0.0, 2026-06-23) | End-to-end migration; Nextcloud serving from NAS confirmed |
+| <HomelabOS> Nextcloud | live <HomelabOS> v1.0 host, slow NFS to fast local disk (v1.1.0, 2026-06) | End-to-end live cutover; `docker inspect` confirmed `/data` on the new disk; 8 -> 214 MB/s write, real upload test passed |

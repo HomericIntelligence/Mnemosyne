@@ -89,7 +89,7 @@ a published record:
 ```bash
 git fetch origin              # configured refspec updates the tracking refs
 git fetch origin <branch>:refs/remotes/origin/<branch>   # explicit destination mapping
-gh api repos/<owner>/<repo>/branches/<branch> --jq .commit.sha   # forge truth
+gh api repos/<user>/<repo>/branches/<branch> --jq .commit.sha   # forge truth
 ```
 
 This rule covers each read that later carries a decision: a tip in a coordination record, the

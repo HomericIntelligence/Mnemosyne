@@ -58,10 +58,10 @@ uv run zizmor --min-severity medium .github/workflows/ .github/actions/
 jq -e '[.runs[].results[]] | length == 0' results.sarif
 
 # Inspect a CodeQL check-run and its annotations.
-gh api 'repos/<owner>/<repo>/check-runs/<check-run-id>' \
+gh api 'repos/<user>/<repo>/check-runs/<check-run-id>' \
   --jq '{name,conclusion,details_url,html_url}'
-gh api 'repos/<owner>/<repo>/check-runs/<check-run-id>/annotations' --paginate
-gh api 'repos/<owner>/<repo>/code-scanning/alerts?pr=<pr>&tool_name=CodeQL' --paginate
+gh api 'repos/<user>/<repo>/check-runs/<check-run-id>/annotations' --paginate
+gh api 'repos/<user>/<repo>/code-scanning/alerts?pr=<pr>&tool_name=CodeQL' --paginate
 
 # Produce LOW findings without letting Bandit's own exit status skip policy comparison.
 uv run bandit -c pyproject.toml -r <targets> \
@@ -101,11 +101,11 @@ Pin third-party actions to a full commit SHA and retain the release tag as a rev
 both lightweight and annotated tags:
 
 ```bash
-ref=$(gh api repos/<owner>/<action>/git/ref/tags/<tag>)
+ref=$(gh api repos/<user>/<action>/git/ref/tags/<tag>)
 type=$(jq -r '.object.type' <<<"$ref")
 sha=$(jq -r '.object.sha' <<<"$ref")
 if [ "$type" = tag ]; then
-  sha=$(gh api repos/<owner>/<action>/git/tags/"$sha" --jq '.object.sha')
+  sha=$(gh api repos/<user>/<action>/git/tags/"$sha" --jq '.object.sha')
 fi
 printf '%s\n' "$sha"
 ```

@@ -144,9 +144,9 @@ Before redispatching a quiet executor, search for its branch/PR. A merged PR mea
 open PR may still be active; absence permits redispatch. After a report:
 
 ```bash
-gh pr view <pr> --repo <owner>/<repo> \
+gh pr view <pr> --repo <user>/<repo> \
   --json state,headRefName,headRefOid,mergeable,statusCheckRollup
-gh pr diff <pr> --repo <owner>/<repo> --name-only
+gh pr diff <pr> --repo <user>/<repo> --name-only
 ```
 
 Confirm the named files, source issue, commit signature, checks, and merge state. Parse structured

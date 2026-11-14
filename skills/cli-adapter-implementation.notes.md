@@ -6,7 +6,7 @@
 **Issue:** #744 - [Feature] Add support for goose
 **Branch:** 744-auto-impl
 **PR:** #812
-**Worktree:** /home/mvillmow/ProjectScylla/.worktrees/issue-744
+**Worktree:** /home/<user>/ProjectScylla/.worktrees/issue-744
 
 ## Objective
 

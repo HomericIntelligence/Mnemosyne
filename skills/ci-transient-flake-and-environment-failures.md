@@ -102,11 +102,11 @@ if [[ "${CI:-}" == "true" ]]; then
 fi
 
 # --- Dependency-install hang before tests start ---
-gh api repos/<owner>/<repo>/actions/jobs/<job_id> \
+gh api repos/<user>/<repo>/actions/jobs/<job_id> \
   --jq '{status:.status,steps:[.steps[]|{name,status,started_at,completed_at}]}'
 
 # Compare against a latest green main/PR job before deciding whether to wait.
-gh api repos/<owner>/<repo>/actions/runs/<main_run_id>/jobs \
+gh api repos/<user>/<repo>/actions/runs/<main_run_id>/jobs \
   --jq '.jobs[] | select(.name=="tests-frontend") | {status,conclusion,started_at,completed_at,steps}'
 
 # If the install path invokes optional OS package work but the runner already has deps:
@@ -117,7 +117,7 @@ gh run cancel <run_id> --repo <owner/repo>
 gh run rerun <run_id> --repo <owner/repo>
 
 # If the cancel is accepted but the run stays in_progress, the runner is not answering:
-gh api -X POST repos/<owner>/<repo>/actions/runs/<run_id>/force-cancel
+gh api -X POST repos/<user>/<repo>/actions/runs/<run_id>/force-cancel
 gh run rerun <run_id> --repo <owner/repo> --failed   # only after status is completed; keeps the passed jobs
 ```
 
@@ -224,9 +224,9 @@ differs between a developer shell and a CI runner.
 
    ```bash
    # Same SHA, different conclusions on one node = environment, not a regression.
-   gh api "repos/<owner>/<repo>/actions/runs?branch=<branch>&per_page=10" \
+   gh api "repos/<user>/<repo>/actions/runs?branch=<branch>&per_page=10" \
      --jq '[.workflow_runs[]|select(.name=="<workflow>")][0:3][]|"\(.id) \(.head_sha[0:8])"'
-   gh api "repos/<owner>/<repo>/actions/runs/<run-id>/jobs?per_page=100" \
+   gh api "repos/<user>/<repo>/actions/runs/<run-id>/jobs?per_page=100" \
      --jq '"failed=\([.jobs[]|select(.conclusion=="failure")|.name]|join(" | "))"'
    ```
 
@@ -336,7 +336,7 @@ fix it. This is a wrong input, not a flake.
 #### E. Dependency-install step hangs before tests start
 
 1. **Use the job API, not just logs.** In-progress jobs may return unavailable log
-   blobs, but `gh api repos/<owner>/<repo>/actions/jobs/<job_id>` still reports
+   blobs, but `gh api repos/<user>/<repo>/actions/jobs/<job_id>` still reports
    each step's `status`, `started_at`, and `completed_at`. If the test step is
    pending, do not debug the tests yet.
 
@@ -358,7 +358,7 @@ fix it. This is a wrong input, not a flake.
 5. **Force-cancel when the cancel is ignored.** A hung runner step can accept
    `gh run cancel` and still stay `in_progress`. Poll the run for about a minute. If
    it does not reach `completed`, call the force-cancel endpoint
-   (`POST /repos/<owner>/<repo>/actions/runs/<run_id>/force-cancel`). A rerun is
+   (`POST /repos/<user>/<repo>/actions/runs/<run_id>/force-cancel`). A rerun is
    refused while the run is still active. After the run is `completed` with
    conclusion `cancelled`, use `gh run rerun --failed`. It keeps the jobs that
    already passed and reruns only the cancelled and failed ones.

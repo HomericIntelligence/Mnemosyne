@@ -20,7 +20,7 @@ history-cleanup-date: "2026-09-20"
 |-------|-------|
 | **Date** | 2026-06-23 |
 | **Objective** | Add a doc link inside `.github/pull_request_template.md` and have it resolve correctly on GitHub. The plan first asserted GitHub resolves relative links relative to the repo root, then contradicted itself; the reviewer returned NOGO. |
-| **Outcome** | Resolved by sidestepping relative resolution entirely with an absolute `https://github.com/<owner>/<repo>/blob/<branch>/docs/...` URL — backed by a verified in-repo sibling pattern that already does exactly this. |
+| **Outcome** | Resolved by sidestepping relative resolution entirely with an absolute `https://github.com/<user>/<repo>/blob/<branch>/docs/...` URL — backed by a verified in-repo sibling pattern that already does exactly this. |
 | **Verification** | verified-precommit — markdownlint-cli2 pre-commit hook passed; CI pending. |
 | **History** | v1.0.0 — initial skill (relative-link resolution rule, lint runner discovery). v1.1.0 — added PR size band guidance, DoD checklist pattern, CONTRIBUTING.md pattern (issue #1552). |
 
@@ -41,7 +41,7 @@ history-cleanup-date: "2026-09-20"
 # 1. The rule: GitHub resolves a relative link RELATIVE TO THE LINKING FILE.
 #    From .github/pull_request_template.md, repo-root docs/X.md is "../docs/X.md".
 #    Easy to get wrong from memory — so prefer an absolute blob URL instead:
-#    https://github.com/<owner>/<repo>/blob/<branch>/docs/X.md
+#    https://github.com/<user>/<repo>/blob/<branch>/docs/X.md
 #    (resolves identically regardless of where the linking file lives)
 
 # 2. Find the proven in-repo pattern before inventing a link form.
@@ -64,7 +64,7 @@ grep -n markdownlint .pre-commit-config.yaml   # often the real gate (markdownli
    relative `href`. From `.github/pull_request_template.md`, the repo-root
    `docs/X.md` is `../docs/X.md` — NOT `docs/X.md`, and NOT relative to the repo root.
 2. **Prefer an absolute blob URL.** Use
-   `https://github.com/<owner>/<repo>/blob/<branch>/docs/X.md`. This resolves the
+   `https://github.com/<user>/<repo>/blob/<branch>/docs/X.md`. This resolves the
    same no matter where the linking file lives, removing the entire class of
    relative-path-depth bugs and the "is it `../` or not" ambiguity.
 3. **Cite the proven sibling pattern.** Before inventing a link form, grep for how
@@ -139,7 +139,7 @@ Note the contrast:
 **Robust link form (copy-paste, resolves from ANY file location):**
 
 ```markdown
-[Contributing guide](https://github.com/<owner>/<repo>/blob/<branch>/docs/CONTRIBUTING.md)
+[Contributing guide](https://github.com/<user>/<repo>/blob/<branch>/docs/CONTRIBUTING.md)
 ```
 
 **Fragile relative forms (correct path depends on the linking file's directory):**

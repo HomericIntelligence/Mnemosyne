@@ -38,9 +38,9 @@ tags: []
 ```bash
 # --- ON THE NFS SERVER ---
 # 1. Grant THIS client no_root_squash (match the exact client IP; don't touch others)
-sed -i 's/192.168.2.20(\(.*\)root_squash/192.168.2.20(\1no_root_squash/' /etc/exports
+sed -i 's/192.0.2.20(\(.*\)root_squash/192.0.2.20(\1no_root_squash/' /etc/exports
 exportfs -ra
-exportfs -v | grep 192.168.2.20        # confirm LIVE state shows no_root_squash
+exportfs -v | grep 192.0.2.20        # confirm LIVE state shows no_root_squash
 
 # --- ON THE NFS CLIENT (the critical, oft-missed step) ---
 # 2. Flush the per-inode ACCESS-check cache so the client re-asks the server
@@ -54,7 +54,7 @@ nice -n19 ionice -c3 rsync -rlptD --chown=owner /mnt/nas/ /backup/dest/
 
 # --- ON THE NFS SERVER, AFTER you're done (security tightening) ---
 # 5. Revert to root_squash
-sed -i 's/192.168.2.20(\(.*\)no_root_squash/192.168.2.20(\1root_squash/' /etc/exports
+sed -i 's/192.0.2.20(\(.*\)no_root_squash/192.0.2.20(\1root_squash/' /etc/exports
 exportfs -ra
 ```
 
@@ -62,11 +62,11 @@ exportfs -ra
 
 1. **Confirm it's an ownership/squash problem, not a mount problem.** The mount is `rw`, yet root gets `Permission denied (13)` on owner-only files. Under `root_squash` the client's root maps to `anon` (uid 99); it is neither the owner nor granted world access, so it cannot read 700/750/770/755 files. Only the owning uid (if it maps to a client user) or `no_root_squash` grants access.
 
-2. **Grant `no_root_squash` to this client on the server.** Edit `/etc/exports` so the client spec reads `192.168.2.20(...,rw,no_root_squash,...)` — match the exact client IP so you don't loosen other clients — then `exportfs -ra`. Now the client's root is the server's root over NFS and can read/write anything.
+2. **Grant `no_root_squash` to this client on the server.** Edit `/etc/exports` so the client spec reads `192.0.2.20(...,rw,no_root_squash,...)` — match the exact client IP so you don't loosen other clients — then `exportfs -ra`. Now the client's root is the server's root over NFS and can read/write anything.
 
 3. **CRITICAL — flush the client's NFS access cache.** The Linux NFS client caches per-inode ACCESS-check results (governed by `actimeo`, default ~30 min via `acregmax`/`acdirmax` attribute caching). After a server-side export change, the client keeps serving the previously-cached `Permission denied` and never re-asks the server. Flush it **on the client**: `sync; echo 3 > /proc/sys/vm/drop_caches` (or remount, or wait out `actimeo`). Diagnostic confirmation: a freshly-named file reads fine while previously-denied files keep failing = stale client cache.
 
-4. **Test writability on a RESTRICTIVE subdir, not the share root.** Share roots are frequently `777` (writable even under `root_squash` via `anon`), which masks the real state. Probe a child dir whose perms/owner are restrictive (e.g. a `775 mvillmow` subdir), not `/mnt/nas/<share>/.x`.
+4. **Test writability on a RESTRICTIVE subdir, not the share root.** Share roots are frequently `777` (writable even under `root_squash` via `anon`), which masks the real state. Probe a child dir whose perms/owner are restrictive (e.g. a `775 <user>` subdir), not `/mnt/nas/<share>/.x`.
 
 5. **Re-run the read/rsync.** It now succeeds with 0 denials. Use a gentle, low-priority copy on RAM-starved NAS appliances: `nice -n19 ionice -c3 rsync -rlptD --chown=owner ...`.
 
@@ -77,8 +77,8 @@ exportfs -ra
 `readynasd` regenerates `/etc/exports` from its own config DB on reboot / any config change, **wiping a manual `sed` edit**. For persistence either (a) set "no root squash / allow root access" per-share in the admin UI, **or** (b) have the consuming script re-apply the LIVE export table at the start of each run (no `/etc/exports` dependence):
 
 ```bash
-exportfs -o rw,no_root_squash 192.168.2.20:/path     # mutates the live table directly
-exportfs -v | grep 192.168.2.20                       # verify it actually took
+exportfs -o rw,no_root_squash 192.0.2.20:/path     # mutates the live table directly
+exportfs -v | grep 192.0.2.20                       # verify it actually took
 ```
 
 Always verify the LIVE state with `exportfs -v | grep <client>` (look for `no_root_squash` vs `root_squash`) and confirm empirically with a restrictive-subdir write test — don't trust that the setting "took".
@@ -89,7 +89,7 @@ Always verify the LIVE state with `exportfs -v | grep <client>` (look for `no_ro
 |---------|----------------|---------------|----------------|
 | Set `no_root_squash`, rsync immediately | Added `no_root_squash` + `exportfs -ra`, re-ran rsync at once | Client served ~3,064 STALE cached denials; it never re-asked the server (per-inode ACCESS cache, `actimeo` ~30 min) | After any server-side export change you MUST flush the client cache: `sync; echo 3 > /proc/sys/vm/drop_caches`, then re-run (0 denials) |
 | Recursively `chmod` the files on the NAS | Tried to make files readable by mass `chmod -R` on the server instead of using `no_root_squash` | OOM-crashed the RAM-starved NAS (see the related NFS-OOM skill) | `no_root_squash` + `drop_caches` is the gentle, correct path; mass chmod on the server is dangerous |
-| Probe writability on the share root | `touch /mnt/nas/Pictures/.x` reported "WRITABLE" | Share root is `777` — always writable even under `root_squash` via `anon`; it masks the real constraint | Probe a RESTRICTIVE child (`/mnt/nas/Pictures/Pic3/.x`, 775 mvillmow) → DENIED reveals the truth |
+| Probe writability on the share root | `touch /mnt/nas/Pictures/.x` reported "WRITABLE" | Share root is `777` — always writable even under `root_squash` via `anon`; it masks the real constraint | Probe a RESTRICTIVE child (`/mnt/nas/Pictures/Pic3/.x`, 775 <user>) → DENIED reveals the truth |
 | Manual `/etc/exports` edit on appliance NAS | `sed`-edited `/etc/exports` on a NETGEAR ReadyNAS | `readynasd` regenerates `/etc/exports` from its config DB on reboot/any change, wiping the edit | Set it in the admin UI, or re-apply the LIVE table with `exportfs -o rw,no_root_squash <client>:/path` each run |
 
 ## Results & Parameters
@@ -100,7 +100,7 @@ Always verify the LIVE state with `exportfs -v | grep <client>` (look for `no_ro
 # Grant + apply (server)
 sed -i 's/...root_squash.../...no_root_squash.../' /etc/exports
 exportfs -ra
-exportfs -v | grep 192.168.2.20            # expect: ...,no_root_squash,...
+exportfs -v | grep 192.0.2.20            # expect: ...,no_root_squash,...
 
 # Flush stale client access cache (client) — THE key gotcha
 sync; echo 3 > /proc/sys/vm/drop_caches
@@ -112,7 +112,7 @@ touch /mnt/nas/Pictures/Pic3/.x && rm -f /mnt/nas/Pictures/Pic3/.x && echo WRITA
 nice -n19 ionice -c3 rsync -rlptD --chown=owner /mnt/nas/ /backup/dest/
 
 # Live-table re-apply for appliance NAS that reverts /etc/exports
-exportfs -o rw,no_root_squash 192.168.2.20:/path
+exportfs -o rw,no_root_squash 192.0.2.20:/path
 ```
 
 **Squash semantics:**
@@ -132,4 +132,4 @@ exportfs -o rw,no_root_squash 192.168.2.20:/path
 
 | Project | Context | Details |
 |---------|---------|---------|
-| apollo homelab | Live NFS data migration (2026-06); backing up owner-restricted files from a ReadyNAS export over NFSv3 | `no_root_squash` + `sync; echo 3 > /proc/sys/vm/drop_caches` took rsync from ~3,064 denials to 0 |
+| <hostname> homelab | Live NFS data migration (2026-06); backing up owner-restricted files from a ReadyNAS export over NFSv3 | `no_root_squash` + `sync; echo 3 > /proc/sys/vm/drop_caches` took rsync from ~3,064 denials to 0 |

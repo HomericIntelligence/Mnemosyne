@@ -209,4 +209,4 @@ stacks on a Debian host): removed `Restart=`/`RestartSec=`, changed `ExecStart` 
 
 | Project | Context | Details |
 |---------|---------|---------|
-| HomeLab (Debian host) | Traefik reverse proxy + 3 independent HomelabOS docker-compose app stacks, each supervised by its own systemd unit | Confirmed via `systemctl --failed` (empty), `systemctl status` (`active (exited)` on all 4 units), `docker ps` (containers running), and functional HTTP checks through the reverse proxy after applying the `Type=oneshot` + `RemainAfterExit=yes` + `up -d`/`down` fix to all 4 units |
+| HomeLab (Debian host) | Traefik reverse proxy + 3 independent <HomelabOS> docker-compose app stacks, each supervised by its own systemd unit | Confirmed via `systemctl --failed` (empty), `systemctl status` (`active (exited)` on all 4 units), `docker ps` (containers running), and functional HTTP checks through the reverse proxy after applying the `Type=oneshot` + `RemainAfterExit=yes` + `up -d`/`down` fix to all 4 units |

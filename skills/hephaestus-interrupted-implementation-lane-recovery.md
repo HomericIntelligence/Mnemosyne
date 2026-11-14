@@ -149,7 +149,7 @@ git -C <clone> worktree add --force <lane-path> <receipt-branch>   # branch pinn
 #     Keep the fresh <issue>-impl.json receipt, then relaunch with --rebase.
 
 # P6. Probe GitHub GraphQL budget with a real call before relaunch:
-gh label list --limit 1 --json name --jq '.[0].name' -R <owner>/<repo>
+gh label list --limit 1 --json name --jq '.[0].name' -R <user>/<repo>
 #     (the REST rate_limit endpoint reports a GraphQL remainder that the enforcement
 #      counters do not honor; only a real query is authoritative)
 

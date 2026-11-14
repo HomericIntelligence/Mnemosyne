@@ -58,7 +58,7 @@ rg -n 'amd64|x86_64|arm64|aarch64|TARGETARCH|curl|wget|ADD https?://' \
 
 # Compare workflow job names with live required contexts.
 rg -n '^\s+name:|schema-validation|image' .github/workflows/
-gh api repos/<owner>/<repo>/rulesets --paginate
+gh api repos/<user>/<repo>/rulesets --paginate
 
 # Read, rather than guess, ADR lifecycle policy.
 sed -n '1,80p' docs/adr/template.md

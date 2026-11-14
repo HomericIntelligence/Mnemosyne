@@ -45,7 +45,7 @@ The generic `gh api` calls in the main file's Quick Reference are the exact shap
 
 - `commits/<sha>/check-runs?per_page=100`, with the jq group-by-name / max-by-started-at dedupe;
 - `gh run view --job <job-id> --log-failed` for failed-node and cascade lines;
-- `repos/<owner>/<repo>/compare/<merge>...main` for ancestry.
+- `repos/<user>/<repo>/compare/<merge>...main` for ancestry.
 
 One-shell-per-command pipelines with `/tmp` files and `diff` made the two job-name sets easy to
 re-check after each foreign merge landed.

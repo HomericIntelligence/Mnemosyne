@@ -35,7 +35,7 @@ tags: [github, graphql, issue-dependencies, blocked-by, epic, tracking-issue, bu
 
 ```bash
 # 1. Resolve node IDs for the epic and all blockers in ONE aliased query:
-gh api graphql -f query='query { repository(owner:"<owner>", name:"<repo>") {
+gh api graphql -f query='query { repository(owner:"<user>", name:"<repo>") {
   i123: issue(number: 123) { id number }
   i456: issue(number: 456) { id number }
 } }'
@@ -47,7 +47,7 @@ gh api graphql -f query='mutation($issue: ID!, $blocker: ID!) {
   } }' -F issue="<epic-node-id>" -F blocker="<blocker-node-id>"
 
 # 3. Verify the edge count against the checklist:
-gh api graphql -f query='query { repository(owner:"<owner>", name:"<repo>") {
+gh api graphql -f query='query { repository(owner:"<user>", name:"<repo>") {
   issue(number: <epic-number>) { blockedBy(first: 100) { nodes { number } } }
 } }'
 ```

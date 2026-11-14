@@ -63,7 +63,7 @@ New location resolution (after fix):
 ```
 FAILED tests/unit/config/test_config_loader.py::TestConfigLoaderEvalCase::test_load_test
   scylla.config.models.ConfigurationError: Configuration file not found:
-  /home/mvillmow/ProjectScylla/.worktrees/issue-849/tests/unit/fixtures/tests/test-001/test.yaml
+  /home/<user>/ProjectScylla/.worktrees/issue-849/tests/unit/fixtures/tests/test-001/test.yaml
 ```
 
 18 tests failed across: TestConfigLoaderEvalCase, TestConfigLoaderRubric,

@@ -52,9 +52,9 @@ rules; only the decision-bearing measurements are kept.
 ```bash
 sacct -j <id> -o JobID,State,ExitCode,Elapsed,NodeList -X
 sacct -j <id> -o JobID,State,ExitCode,Elapsed,MaxRSS,ReqMem
-sacct -S <date> -u <owner> -o JobID,JobName,State,ExitCode,Elapsed -X
+sacct -S <date> -u <user> -o JobID,JobName,State,ExitCode,Elapsed -X
 scontrol show job <id>
-squeue -u <owner>
+squeue -u <user>
 ls -ld <parent>; ls -lt <store>; find <store> -name '*<marker>*'
 head -c4 <candidate> | od -c      # planned gate step; no artifact existed
 sha256sum <candidate>             # planned gate step; no artifact existed

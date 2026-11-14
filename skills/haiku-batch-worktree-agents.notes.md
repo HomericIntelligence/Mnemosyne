@@ -50,7 +50,7 @@ Implement ~78 remaining low-complexity GitHub issues from ProjectOdyssey backlog
 
 ### Pre-commit Quirk
 - Pre-commit must run from main repo dir, not worktree
-- `cd /home/mvillmow/ProjectOdyssey && pixi run pre-commit run --files <files>`
+- `cd /home/<user>/ProjectOdyssey && pixi run pre-commit run --files <files>`
 - `.github/workflows/*.yml` files: use Write tool, not Edit (safety hook blocks Edit)
 
 ## Results

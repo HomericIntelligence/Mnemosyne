@@ -89,10 +89,10 @@ ruff format --check tests/unit/scripts/test_dependency_floor_consistency.py # cl
 
 # --- Commit ONLY the in-scope file(s): signed (-S) + DCO (-s), committer email == GPG key ---
 git add pyproject.toml README.md tests/unit/scripts/test_dependency_floor_consistency.py
-git -c user.email="123456+developer@users.noreply.github.com" commit -S -s \
+git -c user.email="<user>@users.noreply.github.com" commit -S -s \
   -m "docs(packaging): document automation extra in [all] declaration"
 # Verify signing via GitHub, NOT `git log --show-signature` (which can lie):
-gh api repos/<owner>/<repo>/commits/<sha> --jq '.commit.verification'   # .verified == true
+gh api repos/<user>/<repo>/commits/<sha> --jq '.commit.verification'   # .verified == true
 # If the active workflow assigns push ownership to an orchestrator, let that owner publish to avoid competing writes.
 
 # --- PRE-PUSH FULL-SUITE NOISE AFTER A REBASE ---
@@ -166,13 +166,13 @@ git push --force-with-lease --no-verify origin <branch>
    unsigned:
 
    ```bash
-   git -c user.email="123456+developer@users.noreply.github.com" commit -S -s -m "<msg>"
+   git -c user.email="<user>@users.noreply.github.com" commit -S -s -m "<msg>"
    ```
 
    Verify signing via GitHub, not local git (`git log --show-signature` can lie):
 
    ```bash
-   gh api repos/<owner>/<repo>/commits/<sha> --jq '.commit.verification'   # .verified == true
+   gh api repos/<user>/<repo>/commits/<sha> --jq '.commit.verification'   # .verified == true
    ```
 
    If the active workflow assigns push ownership to an orchestrator, let that owner publish to avoid competing writes.
@@ -258,9 +258,9 @@ pixi run pytest tests/
 **Signed + DCO commit invocation (committer email == GPG key):**
 
 ```bash
-git -c user.email="123456+developer@users.noreply.github.com" commit -S -s \
+git -c user.email="<user>@users.noreply.github.com" commit -S -s \
   -m "docs(packaging): document automation extra in [all] declaration"
-gh api repos/<owner>/<repo>/commits/<sha> --jq '.commit.verification'   # .verified == true
+gh api repos/<user>/<repo>/commits/<sha> --jq '.commit.verification'   # .verified == true
 ```
 
 In this recorded loop, the orchestrator owned push.
