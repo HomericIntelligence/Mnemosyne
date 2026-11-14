@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Verify that a local OpenAI-compatible agent server can carry a coding agent's full prompt envelope before you rely on it. Use when: (1) you stand up a local LLM endpoint as the backend for a coding or tool agent, (2) a client reports a generic connection or sampler error on the first request, (3) an agent check ends with a context-size error while the plain completion path works, or (4) tools-incapable small models are registered as agent backends."
 category: tooling
 date: 2026-11-10
-version: "1.0.0"
+version: "1.0.1"
 user-invocable: false
 tags:
   - agent-server
