@@ -42,15 +42,15 @@ language
 
 ```
 scylla.executor.tier_config.TierConfigError: Tiers file not found:
-/home/mvillmow/Scylla2/.worktrees/issue-670/tests/config/tiers/tiers.yaml
+/home/<user>/Scylla2/.worktrees/issue-670/tests/config/tiers/tiers.yaml
 ```
 
 **Root cause:** Incorrect path calculation
 
 - Used: `Path(__file__).parent.parent.parent / "config"`
-- From: `/home/mvillmow/.../tests/unit/executor/test_tier_config.py`
-- Resolved to: `/home/mvillmow/.../tests/config/` (wrong!)
-- Should be: `/home/mvillmow/.../config/` (project root)
+- From: `/home/<user>/.../tests/unit/executor/test_tier_config.py`
+- Resolved to: `/home/<user>/.../tests/config/` (wrong!)
+- Should be: `/home/<user>/.../config/` (project root)
 
 **Fix:** Changed to `Path(__file__).parent.parent.parent.parent / "config"`
 

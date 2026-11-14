@@ -24,7 +24,7 @@ tags: [wsl, wsl2, oom, swap, host-hang, forensics, syslog, multi-agent, resource
 | Field | Value |
 | ------- | ------- |
 | **Date** | 2026-06-29 |
-| **Objective** | Forensically diagnose, after the fact, why a WSL2 host (`hostname` = `hermes`, 16 GB RAM / 8 cores) hung/froze during a heavy multi-agent build sweep, and prove the root cause from kernel + `/proc` evidence rather than guesswork. |
+| **Objective** | Forensically diagnose, after the fact, why a WSL2 host (`hostname` = `<wsl-host>`, 16 GB RAM / 8 cores) hung/froze during a heavy multi-agent build sweep, and prove the root cause from kernel + `/proc` evidence rather than guesswork. |
 | **Outcome** | Root cause pinpointed: concurrent pixi SAT-solves + C++ builds across ~16 unthrottled agent sessions drove RAM → swap → disk-I/O thrash (swap-death-by-overcommit), distinct from a clean single-process OOM. |
 
 ## When to Use
@@ -65,7 +65,7 @@ df /tmp; stat -f -c '%T' /tmp                    # disk vs tmpfs; prove disk fre
 ### Detailed Steps
 
 1. **Identify the host & its real ceiling first.** Run `hostname` — confirm whether "the X box hung"
-   means the *host* or a *service* of the same name (here `hostname` is literally `hermes`; check
+   means the *host* or a *service* of the same name (here `hostname` is literally `<wsl-host>`; check
    `/etc/wsl.conf`). Then `free -h`, `nproc`, and
    `grep -E "MemTotal|SwapTotal|CommitLimit|Committed_AS" /proc/meminfo`. Read
    `/mnt/c/Users/*/.wslconfig`: **no `memory=` cap means WSL2 defaults to ~50% of Windows RAM**, so a
@@ -128,7 +128,7 @@ Incident parameters observed:
 
 | Parameter | Value |
 | ----------- | ------- |
-| Host | `hostname` = `hermes`, WSL2, 16 GB VM RAM / 8 cores (~32 GB Windows host implied by no `memory=` cap) |
+| Host | `hostname` = `<wsl-host>`, WSL2, 16 GB VM RAM / 8 cores (~32 GB Windows host implied by no `memory=` cap) |
 | Swap state at freeze | `Free swap = 0kB` (fully exhausted) |
 | Major page faults | `pgmajfault` in the thousands (swap I/O stalls) |
 | Scheduler signature | repeated `Time jumped backwards, rotating` (full-hang tell, not clean OOM) |
@@ -145,7 +145,7 @@ For the **fix** once diagnosed, see `concurrency-and-process-reliability-pattern
 
 | Project | Context | Details |
 | --------- | --------- | --------- |
-| HomericIntelligence / `hermes` WSL2 host | Real host-hang incident during a heavy multi-agent build sweep, 2026-06-29 | verified-local: live forensic diagnosis performed against the actual frozen-host evidence — `Free swap = 0kB` + thousands of `pgmajfault` + repeated `Time jumped backwards` in syslog/journalctl pinpointed swap-death-by-overcommit; ~16 agents counted from `~/.claude/worktrees/`; `/tmp` proven disk-backed (466 GB free) and `max_workers=3` proven to be an in-process thread cap, both ruled out as red herrings |
+| HomericIntelligence / `<wsl-host>` WSL2 host | Real host-hang incident during a heavy multi-agent build sweep, 2026-06-29 | verified-local: live forensic diagnosis performed against the actual frozen-host evidence — `Free swap = 0kB` + thousands of `pgmajfault` + repeated `Time jumped backwards` in syslog/journalctl pinpointed swap-death-by-overcommit; ~16 agents counted from `~/.claude/worktrees/`; `/tmp` proven disk-backed (466 GB free) and `max_workers=3` proven to be an in-process thread cap, both ruled out as red herrings |
 
 ## References
 

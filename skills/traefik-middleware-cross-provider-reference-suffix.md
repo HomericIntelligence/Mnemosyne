@@ -122,4 +122,4 @@ docker exec <traefik-container> cat /var/log/traefik/access.log | tail
 
 | Project | Context | Details |
 |---------|---------|---------|
-| HomeLab (apollo) | Traefik v3.7.6 upgrade, Docker provider + file provider, Nextcloud HTTP→HTTPS redirect router | Reproduced live; confirmed via internal log file; fix verified by observing `404` → `307` after adding `@file` suffix and recreating the container |
+| HomeLab (<homelab-host>) | Traefik v3.7.6 upgrade, Docker provider + file provider, Nextcloud HTTP→HTTPS redirect router | Reproduced live; confirmed via internal log file; fix verified by observing `404` → `307` after adding `@file` suffix and recreating the container |

@@ -63,8 +63,8 @@ sudo -u <username> touch /mnt/nas/test-write && echo "OK" && sudo -u <username> 
    ```ini
    [Service]
    Type=oneshot
-   User=mvillmow
-   Environment=HOME=/home/mvillmow
+   User=<user>
+   Environment=HOME=/home/<user>
    ExecStart=/usr/local/bin/nas-usb-sync.sh
    ```
 
@@ -99,7 +99,7 @@ sudo -u <username> touch /mnt/nas/test-write && echo "OK" && sudo -u <username> 
 | uid | Mapped to | Can write to NFS? |
 |-----|-----------|-------------------|
 | 0 (root) | nobody (uid 99 or 65534) | No (blocked by root_squash) |
-| 1000 (mvillmow) | mvillmow (uid 1000) | Yes (if file permissions allow) |
+| 1000 (<user>) | <user> (uid 1000) | Yes (if file permissions allow) |
 | Any non-root uid | Same uid | Yes (if file permissions allow) |
 
 **Minimal working service unit:**
@@ -110,8 +110,8 @@ Description=NAS USB Sync
 
 [Service]
 Type=oneshot
-User=mvillmow
-Environment=HOME=/home/mvillmow
+User=<user>
+Environment=HOME=/home/<user>
 ExecStart=/usr/local/bin/nas-usb-sync.sh
 
 [Install]
@@ -130,4 +130,4 @@ WantedBy=multi-user.target
 
 | Project | Context | Details |
 |---------|---------|---------|
-| apollo homelab | unison two-way NAS\|USB sync via systemd oneshot timer | Service user changed from root to mvillmow (uid 1000); all NFS writes succeeded |
+| <homelab-host> homelab | unison two-way NAS\|USB sync via systemd oneshot timer | Service user changed from root to <user> (uid 1000); all NFS writes succeeded |

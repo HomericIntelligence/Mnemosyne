@@ -6,7 +6,7 @@
 **Project**: ProjectOdyssey
 **Issue**: #3090 - [Cleanup] Document epsilon values in gradient checking
 **Branch**: 3090-auto-impl
-**Worktree**: /home/mvillmow/Odyssey2/.worktrees/issue-3090
+**Worktree**: /home/<user>/Odyssey2/.worktrees/issue-3090
 
 ## What Happened
 

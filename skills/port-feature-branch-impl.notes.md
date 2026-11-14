@@ -35,10 +35,10 @@ only accepts `Int`. Had to switch to `assert_equal[T: Comparable]` and add it to
 
 ## Worktree Location
 
-Implementation source: `/home/mvillmow/Odyssey2/.worktrees/issue-2722/shared/core/extensor.mojo:2767-2793`
+Implementation source: `/home/<user>/Odyssey2/.worktrees/issue-2722/shared/core/extensor.mojo:2767-2793`
 
 ## Grep Command That Found It
 
 ```bash
-grep -rn "__hash__" /home/mvillmow/Odyssey2/.worktrees/ | grep "shared/core/extensor.mojo"
+grep -rn "__hash__" /home/<user>/Odyssey2/.worktrees/ | grep "shared/core/extensor.mojo"
 ```

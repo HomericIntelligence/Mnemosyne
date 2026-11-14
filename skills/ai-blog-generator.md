@@ -186,7 +186,7 @@ Copy-paste ready configurations and expected outputs.
 
 ## References
 
-- Source PR: [PR #3003](https://github.com/mvillmow/ProjectOdyssey/pull/3003)
-- Fix PR: [PR #3004](https://github.com/mvillmow/ProjectOdyssey/pull/3004)
+- Source PR: [PR #3003](https://github.com/<user>/ProjectOdyssey/pull/3003)
+- Fix PR: [PR #3004](https://github.com/<user>/ProjectOdyssey/pull/3004)
 - Blog location: `notes/blog/MM-DD-YYYY.md`
 - Related skill: `doc-update-blog` for manual blog updates

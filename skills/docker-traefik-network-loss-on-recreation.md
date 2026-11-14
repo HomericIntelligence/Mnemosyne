@@ -50,7 +50,7 @@ grep -A5 "^networks:" /path/to/traefik/docker-compose.yml
 # REACTIVE: instant fix if you're already seeing 504s (no restart needed):
 docker network connect <external-network> <traefik-container>
 # Example:
-docker network connect homelabos_traefik homelabos
+docker network connect <homelab-os>_traefik <homelab-os>
 
 # Verify fix:
 docker inspect <traefik-container> --format '{{json .NetworkSettings.Networks}}'
@@ -111,14 +111,14 @@ docker inspect <traefik-container> --format '{{json .NetworkSettings.Networks}}'
    networks:
      traefik:
        driver: bridge
-     homelabos_traefik:    # <-- the backend external network
+     <homelab-os>_traefik:    # <-- the backend external network
        external: true
 
    services:
      traefik:
        networks:
          - traefik
-         - homelabos_traefik    # <-- must be listed here too
+         - <homelab-os>_traefik    # <-- must be listed here too
    ```
    After recreating, re-run the proactive check from step 0 to confirm the same
    networks with the same IP addresses are still attached post-recreate.
@@ -157,14 +157,14 @@ docker run --rm --network <traefik-network> alpine nc -zv <backend-ip> <port>
 networks:
   traefik:
     driver: bridge
-  homelabos_traefik:
+  <homelab-os>_traefik:
     external: true      # declares the pre-existing backend network
 
 services:
   traefik:
     networks:
       - traefik
-      - homelabos_traefik   # joins Traefik to the backend network on every recreation
+      - <homelab-os>_traefik   # joins Traefik to the backend network on every recreation
 ```
 
 **Root cause summary:** `docker compose up -d` only connects a container to networks
@@ -185,5 +185,5 @@ attributable to this failure mode.
 
 | Project | Context | Details |
 |---------|---------|---------|
-| HomeLab (apollo) | Traefik v2.2 with Nextcloud and Gitea backends on separate Docker network | Immediate fix + permanent compose fix both verified locally |
-| HomeLab (apollo) | Traefik v2.2 -> v3.7.6 major upgrade; same external-network attachment | Proactive detection (step 0) run before recreating; permanent fix confirmed to survive a major-version recreate, not just a same-version restart |
+| HomeLab (<homelab-host>) | Traefik v2.2 with Nextcloud and Gitea backends on separate Docker network | Immediate fix + permanent compose fix both verified locally |
+| HomeLab (<homelab-host>) | Traefik v2.2 -> v3.7.6 major upgrade; same external-network attachment | Proactive detection (step 0) run before recreating; permanent fix confirmed to survive a major-version recreate, not just a same-version restart |

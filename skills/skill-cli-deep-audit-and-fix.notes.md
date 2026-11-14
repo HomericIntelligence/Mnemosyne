@@ -4,7 +4,7 @@
 
 | Field | Value |
 | ------- | ------- |
-| **Project** | ProjectScylla (`/home/mvillmow/Scylla2`) |
+| **Project** | ProjectScylla (`/home/<user>/Scylla2`) |
 | **Branch** | `consolidate-run-command` |
 | **File Audited** | `scripts/manage_experiment.py` |
 | **Commit** | `554bfac fix(cli): Deep audit fixes for manage_experiment.py` |

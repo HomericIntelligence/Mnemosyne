@@ -21,8 +21,8 @@ history-cleanup-date: "2026-09-20"
 | **Date** | 2026-05-31 |
 | **Objective** | Turn red CI green on 22 fully-auto PRs across 7 HomericIntelligence repos using purely mechanical autofixes with signed commits. |
 | **Outcome** | All 22 target PRs green; signed commits verified by GitHub API; auto-merge eligible. |
-| **Verification** | verified-ci — every check observed `conclusion=success` in real CI on host `aeolus`. |
-| **Host** | `aeolus` (account uses GitHub email-privacy noreply identity for pushes). |
+| **Verification** | verified-ci — every check observed `conclusion=success` in real CI on host `<worker-host>`. |
+| **Host** | `<worker-host>` (account uses GitHub email-privacy noreply identity for pushes). |
 | **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/tooling-wave-b-pr-fix-mesh-playbook.history) |
 | **Cross-links** | [Odysseus#299](https://github.com/HomericIntelligence/Odysseus/pull/299) · `<run-report-path>` |
 
@@ -32,7 +32,7 @@ history-cleanup-date: "2026-09-20"
 - A Wave-B auto-fix executor has just **exited claiming PRs pass** and you need to confirm and finish them — its own log over-reports (see "Trust nothing the swarm logged").
 - You need to re-sign a previously-pushed unsigned commit without rewriting history beyond the tip.
 - A shared doc on `main` has a defect that N open PRs all inherit (none of them touched it) and you want to fix it once and propagate.
-- You are running on host `aeolus` or any environment where GitHub email-privacy blocks pushes that author with the gmail address.
+- You are running on host `<worker-host>` or any environment where GitHub email-privacy blocks pushes that author with the gmail address.
 
 ## Verified Workflow
 
@@ -60,7 +60,7 @@ cd REPO
 git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
 git fetch origin --depth=50
 
-# 2. Force noreply identity on aeolus (email-privacy is enabled)
+# 2. Force noreply identity on <worker-host> (email-privacy is enabled)
 git config user.email '<account-noreply-email>'
 git config user.name '<operator-name>'
 # Signing is global: gpg.format=ssh, signingkey=~/.ssh/id_signing_ed25519.pub, commit.gpgsign=true
@@ -280,11 +280,11 @@ block recording the targeted check as resolved.
 | Target PRs | 22 fully-auto PRs |
 | Repos touched | 7 (HomericIntelligence/*) |
 | Final state | All 22 green on every required check |
-| Host | `aeolus` |
+| Host | `<worker-host>` |
 | Date | 2026-05-31 |
 | Signature verification | 100% of new commits return `verified=true` |
 
-### Required git config (per clone, on aeolus)
+### Required git config (per clone, on <worker-host>)
 
 ```ini
 [user]
@@ -333,5 +333,5 @@ fix-mesh run.
 
 | Project | Context | Details |
 |---------|---------|---------|
-| HomericIntelligence/* (7 repos) | Wave-B autonomous fix-mesh, host `aeolus`, 2026-05-31 | 22/22 PRs green; signatures verified by GitHub API. |
+| HomericIntelligence/* (7 repos) | Wave-B autonomous fix-mesh, host `<worker-host>`, 2026-05-31 | 22/22 PRs green; signatures verified by GitHub API. |
 | HomericIntelligence/* | Wave-B auto-fix run verification/cleanup, 2026-05-31 (v1.1.0) | Re-verified live vs swarm log; fixed the actually-failing files/rules; targeted checks observed green after push. |

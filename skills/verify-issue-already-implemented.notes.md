@@ -4,7 +4,7 @@
 
 - **Date**: 2026-03-05
 - **Repository**: HomericIntelligence/ProjectOdyssey (Mojo AI research platform)
-- **Worktree**: `/home/mvillmow/Odyssey2/.worktrees/issue-3112`
+- **Worktree**: `/home/<user>/Odyssey2/.worktrees/issue-3112`
 - **Branch**: `3112-auto-impl`
 - **Issue**: #3112 — Standardize matrix multiplication: Convert `A.__matmul__(B)` to `matmul(A, B)`
 
