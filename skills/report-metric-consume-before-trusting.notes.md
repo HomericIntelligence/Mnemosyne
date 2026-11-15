@@ -43,9 +43,33 @@ The correct action was to keep the table that already supplied the report
 totals and correct the hand-written lines to match it. The wrong action was to
 mix values from both tables in one report.
 
+## Third failure in the same session: rate denominator
+
+A later report stated per-day rates in a figure, a table, and the prose. The
+collection window was 6.858 days and ended at a partial day. The event data had
+records on 7 distinct calendar dates.
+
+The figure builder counted the dates with data and used 7 as the divisor. The
+table and prose read the window duration from the collection metadata and used
+6.858. Every numerator came from the same query. Only the divisor differed, so
+the figure was about 2% high.
+
+The repair read the window duration from the collection metadata and passed the
+same value to the figure builder. If that key is absent, derive the duration
+from the window start and end timestamps. Do not fall back to a date count for
+a window that is not a whole number of days.
+
+The check that would have caught this defect compares the divisor, not only the
+numerator, across every artifact that states the rate. This session found the
+defect by reading the figure and the table side by side. No automated check
+compared them before the repair.
+
 ## Limits of this evidence
 
 - The entry is general. Project names, paths, table names, and account names
-  are omitted.
+  are omitted from the rule.
 - The workflow was validated on one reporting pipeline. The same rule applies to
   other generated documents, but this session did not test them.
+- The rate-denominator failure was found by inspection. The reported values
+  were verified against the collection metadata after the repair, but the
+  session did not add a regression test for the figure builder.
