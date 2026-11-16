@@ -118,6 +118,14 @@ MD033:
     - subject
     - today
     - url
+    # Redaction placeholders used by the privacy-internal-identifiers corpus
+    # update: placeholders replace real identifiers with generic patterns.
+    - user
+    - hostname
+    - HomelabOS
+    - tailnet-name
+    - node-a-tailnet-ip
+    - node-c-tailnet-ip
 
 # Duplicate headings: allow same heading text at different nesting levels.
 # CHANGELOG files legitimately repeat "Added"/"Fixed" under each version.
