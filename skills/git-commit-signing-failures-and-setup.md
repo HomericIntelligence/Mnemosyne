@@ -1,9 +1,9 @@
 ---
 name: git-commit-signing-failures-and-setup
-description: "Use when required-signature policy blocks a conflict-free PR; GitHub reports unsigned, no_user, unknown_key, or bad signatures; local cryptographic checks disagree with GitHub; noninteractive workers silently fail to sign; a fresh headless host needs SSH signing; a restored host or later session inherits a stale signing-key path; email privacy rejects a push; amend produced a signed sibling that the PR did not adopt; or local verify-commit reports No principal matched or Can't check signature while signing is actually correct; or a worker that runs commands with an isolated HOME loses the signer configuration and Git falls back to OpenPGP with a No secret key error. Diagnose with REST, align identity and registered key, re-sign every introduced commit without changing content, verify an embedded signature in place after key registration, separate verification noise from a real fault, and verify the exact remote PR head before merge."
+description: "Use when required-signature policy blocks a conflict-free PR; GitHub reports unsigned, no_user, unknown_key, or bad signatures; local cryptographic checks disagree with GitHub; noninteractive workers silently fail to sign; a fresh headless host needs SSH signing; a restored host or later session inherits a stale signing-key path; email privacy rejects a push; amend produced a signed sibling that the PR did not adopt; a healthy signing host still yields an unsigned commit; a single-introduced-commit range needs only a tip amend; or an aggregate required job fails as a cascade of the named failing job. Diagnose with REST, align identity and registered key, re-sign every affected commit without changing content, verify an embedded signature in place after key registration, separate verification noise from a real fault, and verify the exact remote PR head before merge."
 category: tooling
 date: 2026-10-15
-version: "2.5.0"
+version: "2.6.0"
 user-invocable: false
 license: BSD-3-Clause
 verification: mixed
@@ -21,7 +21,8 @@ signature policy. Local `%G?` proves cryptography against the local keyring; Git
 registered-key and identity attribution. Treat those as separate gates, and treat email-privacy push
 acceptance as a third gate.
 
-Verification is `mixed`: the core GPG/SSH remediation is CI-backed, while the in-place patch-replay
+Verification is `mixed`: the core GPG/SSH remediation, the sole-commit sign repair, and the
+aggregate-gate cascade reading are CI-backed, while the in-place patch-replay
 recovery for a PR head pinned to an unsigned sibling was reconstructed and partially exercised but
 not completed through a green merge. Case evidence is in
 [the notes](./git-commit-signing-failures-and-setup.notes.md); the exact prior skill is in
@@ -45,6 +46,13 @@ not completed through a green merge. Case evidence is in
 - Fleet tooling might rewrite a bot or another owners PR.
 - A worker runs commands with an isolated `HOME` and `git commit -S` fails with `No secret key`,
   although the same command signs correctly in the interactive shell.
+- A required signature gate fails while the host signing setup is healthy: the stored commit
+  object has no signature header, so the object was created in an environment that did not apply
+  the signing configuration, not by a key-registration fault.
+- The introduced range is exactly one commit that only needs a signature: a targeted tip amend
+  covers the whole range, and a whole-range re-sign rewrite is unnecessary.
+- An aggregate required job fails and its dependency list names the failing job — treat the
+  aggregate as a cascade of that dependency, not as an independent defect.
 
 ## Verified Workflow
 
@@ -69,9 +77,15 @@ gh api repos/<O>/<R>/commits/<sha> \
 `mergeable` reports conflicts, not policy. Query `mergeStateStatus`, required checks, rulesets, and
 every PR commit through REST. Use REST immediately after push; GraphQL signature fields can lag.
 
+Distinguish "unsigned" from "signed but not recognized" at the object level. Inspect the stored
+commit: `git cat-file commit <sha>` contains a `gpgsig` header for a signed object and no header
+for an unsigned one. A missing header proves a divergence at commit time (for example, a
+noninteractive worker without the signer configuration), not a key-registration fault. Classify
+from this before changing any signing configuration.
+
 | REST reason | Interpretation | Next action |
 | --- | --- | --- |
-| `unsigned` | Commit has no signature | Configure/prime signing and rewrite every affected commit |
+| `unsigned` | Commit has no signature | Configure/prime signing and rewrite every affected commit; a targeted amend covers a sole-commit range (see boundary below) |
 | `no_user` | Signed identity is not attributable to the GitHub user | Use a verified email or canonical noreply identity and re-sign |
 | `unknown_key` | The commit carries a signature, but its key is not registered for signing | Register the correct GPG/SSH signing key; the embedded signature then verifies in place |
 | `valid` | Signature policy is not the blocker | Inspect missing contexts, reviews, conversations, and issue-link policy |
@@ -211,6 +225,25 @@ Every row must be `G` and use an attributable email. A failed hook can leave HEA
 the command exit and before/after SHAs rather than assuming amend occurred. Push rewritten history
 only with `--force-with-lease` after fetching and confirming no unexpected remote owner update.
 
+#### Sole-commit range boundary
+
+When the introduced range is exactly one commit and only its signature is missing, a targeted
+amend covers the whole range; a whole-range `--exec` rewrite replays the pick without changing
+the verdict:
+
+```bash
+git fetch origin
+test "$(git rev-list --count HEAD ^origin/main)" = 1   # exactly one introduced commit
+unsigned_head=$(git rev-parse HEAD)                     # content anchor
+git commit --amend --no-edit -S
+git diff "$unsigned_head" HEAD   # must be empty: content unchanged
+git log origin/main..HEAD --format='%H %G? %ae'
+git push --force-with-lease origin HEAD:<branch>
+```
+
+Do not add `--reset-author` here unless the identity itself must change; `amend` preserves the
+existing author and committer.
+
 ### 4. Recover a PR-head sibling safely
 
 This pattern remains only `verified-local`. `git commit --amend -S` creates a sibling of the old
@@ -287,6 +320,9 @@ the real configuration.
 | Re-sign another owners PR | Fleet rewrite included bots | Native signatures and ownership were damaged | Scope to owned PRs only |
 | Amend into a sibling | Force-pushed a same-parent signed SHA | The PR still introduced unsigned/tangled lineage | Replay patches on the correct base and verify head identity |
 | Merge/update over unsigned history | Added a merge commit | Required signatures checks all introduced ancestors | Replace the lineage; do not cover it with a merge |
+| Treat a healthy host as the proof for signed output | A required gate failed while `gpg.format`, `user.signingkey`, and `commit.gpgsign` were all healthily set | The stored object had no signature; the fault was in the environment that composed the commit, not in the configuration | Classify with `git cat-file commit <sha>` first; a missing `gpgsig` header means re-sign, not re-configure |
+| Re-sign the whole range for a singleton | Ran a full range `--exec` rewrite where exactly one introduced commit needed a signature | Unnecessary replay churn and a second force-push for identical coverage | Count the introduced range; a singleton with a compliant message needs only a tip `--amend -S` |
+| Diagnose an aggregate gate as an independent defect | Investigated the summary job after the named policy job already reported the failure | The aggregate mirrors its failing dependencies; there was no separate defect | Read the dependency list; fix the named failing job and the aggregate follows |
 | Recreate the commit through the REST git API | Created a commit with `gh api repos/<O>/<R>/git/commits` to obtain a hosted signature | The created commit returned `unsigned`; that token type received no hosted signature | Register the signing key or use a signing-capable hosted path; check `verified/reason` before you move the ref |
 | Treat `No principal matched` as a broken config | Reported the shared `allowed_signers` file as malformed without reading it | The file was valid and unchanged; the message came from a malformed temporary file that a test command generated | Read the `Good "git" signature` line and inspect the file that the command actually read |
 | Treat `Can't check signature` on a base commit as a fault | Diagnosed a signing problem from commits authored by other people | Those commits are GPG-signed and the host uses SSH signing, so the check cannot succeed | Test your own commit, not the base history, when you diagnose signing |
@@ -303,6 +339,9 @@ the real configuration.
 | Signing preflight | `gpg.format` set, `user.signingkey` set, and the key file present on this host |
 | Content preservation | `git diff <old-head> HEAD` empty after pure re-sign |
 | In-place key repair | `unknown_key` only: register the key, re-run the check, no force-push |
+| Object classification | `git cat-file commit <sha>`: `gpgsig` present means signed, missing means unsigned |
+| Range scope | Exactly one introduced commit → targeted tip amend; more → whole-range rewrite |
+| Aggregate gate | Fix the named failing dependency; the aggregate follows |
 | Rewrite push | Owned branch, fetched remote, `--force-with-lease` |
 | PR-head proof | `headRefOid` equals verified remote tip |
 | Fleet scope | Author/owner allowlist; never rewrite third-party PRs |
@@ -310,6 +349,9 @@ the real configuration.
 ## Verified On
 
 - Core GPG/SSH workflows: CI-backed cases across the repositories indexed in notes.
+- Sole-commit sign repair and aggregate-gate cascade reading (operator session, 2026-11):
+  CI-backed; GraphQL `signature.isValid` reported true directly after a `--force-with-lease`
+  push, and both the named policy check and the aggregate gate passed.
 - Sibling/patch-replay recovery: `verified-local`, not demonstrated through a merged green gate.
 - In-place `unknown_key` repair and the REST-API unsigned result: `verified-local`, one operator
   session (2026-10); the in-place repair is documented GitHub behavior, and the green check was
