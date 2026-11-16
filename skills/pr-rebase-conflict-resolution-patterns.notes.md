@@ -30,6 +30,7 @@ version 1.15.0. The complete v1.15.0 retrievable content is archived once in the
 | Stale import found only by lint after the rebase | Anonymized hosted monorepo PR, 2026-10 (see below) | verified-local | Restore or delete the import in the commit that uses it; amend `HEAD` only when `HEAD` is that commit |
 | Scripted resolver dropped adjacent numbered steps | Mnemosyne merge-wave stack integration, 2026-11 (see below) | verified-local | Preserve each whole conflict side or a verified union, then diff the heading and step inventory against both stages before every push in a stack |
 | Wholesale side copy dropped planned hunks | Anonymized hosted monorepo CI-workflow PR rebase, 2026-11 (see below) | verified-local | Diff each resolved path against the original head; every planned hunk must survive, or restore it explicitly |
+| Incomplete merge materialization staged upstream files as deletions | Anonymized hosted monorepo PR merge on shared network storage, 2026-11 (see below) | verified-local | Verify the whole merge result against the trunk before the commit; abort and redo when upstream files are missing |
 
 ## Stale Import Found Only by Lint
 
@@ -274,3 +275,32 @@ Every planned hunk must appear in the replayed diff. A missing hunk needs an
 explicit re-application on top of the moved trunk content, not trust in the
 copy. Re-deriving planned edits from memory during a rebase is the failure
 mode; keep the planned-hunk list from the original head, not from the message.
+
+## v2.9.0 — an incomplete conflicted-merge checkout staged upstream files as deletions
+
+Two pull requests in an anonymized hosted monorepo reported `CONFLICTING`
+against a trunk that had advanced by dozens of commits. Each branch was merged
+with the trunk in an isolated worktree on shared network storage, conflicts
+were resolved, and the result was staged with `git add -A`.
+
+The first merge reported success and `git status` looked clean, but the result
+was missing plain trunk files that the branch never touched: a vendored patch
+stack, two CI workflows, and a maintenance script. The stage had recorded them
+as deletions. The completeness check caught it before the commit:
+
+```bash
+git diff --cached --stat "$trunk"
+```
+
+The diff against the trunk must list only the paths the pull request intends to
+change. Here it listed the missing trunk files as deletions. The merge was
+aborted and redone; the fresh merge materialized every file, the same diff
+showed only the branch's own paths, and the signed merge commit was created
+from the verified result. The second branch failed the same way and was
+recovered the same way.
+
+The durable rule: a conflicted merge or rebase on a shared filesystem can leave
+the working tree incomplete after it reports success. Verify the whole result
+against the trunk after every conflicted integration, before the commit and the
+push. When upstream files appear as deletions, abort and redo the merge; do not
+repair individual paths inside the incomplete tree.
