@@ -1,10 +1,10 @@
 ---
 name: stale-plan-already-resolved
 license: BSD-3-Clause
-description: "Check whether current source already satisfies a stale issue, plan, log finding, review finding, or pull-request premise — including at a workflow resume under a durable approval state, on an open PR head that a sibling session rewrote, on an outdated review thread, and inside a multi-item issue where a merged change delivered only some items or only some severity sites; avoid redundant fixes and close tracked work only within authorized scope."
+description: "Check whether current source already satisfies a stale issue, plan, log finding, review finding, or pull-request premise — including at a workflow resume under a durable approval state, on an open PR head that a sibling session rewrote, on an outdated review thread, inside a multi-item issue where a merged change delivered only some items or only some severity sites, and when the invoked workflow is older than the repository revision it must serve; avoid redundant fixes and close tracked work only within authorized scope."
 category: ci-cd
 date: 2026-06-14
-version: "1.9.0"
+version: "1.10.0"
 user-invocable: false
 verification: verified-ci
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/stale-plan-already-resolved.history"
@@ -189,6 +189,34 @@ rows either produces no diff or reverts the downgrade.
 
 Verification level: this subsection is `verified-live` from one planning session (see the
 notes). The rest of this entry keeps its `verified-ci` claim.
+
+### 0e. The invoked workflow is older than the artifact it must serve
+
+A task can name a workflow the session loaded from an installed copy that lags the repository
+under review. The invoked copy can lack the repository's current contract, rewrites, and
+deletions. The repository revision wins.
+
+Run these checks before you apply the invoked workflow:
+
+1. Identify the artifact and revision the task targets, and the workflow the session would
+   apply to it.
+2. Read the same workflow at that revision, not only the copy the session loaded. Diff the two.
+3. Select the outcome:
+
+   | Finding | Action |
+   | --- | --- |
+   | The invoked copy is absent, older, or materially different | Apply the repository revision's workflow; report the divergence and name the revision |
+   | The invoked copy matches the target revision | Apply it unchanged |
+   | The invoked copy is newer than the target revision | Apply it only with task authority; flag the version skew like any other source-of-truth decision |
+
+Decision rule: when an invoked workflow and the target repository disagree, bind to the target
+repository's revision, not to the session's installed copy. Apply the repository's workflow,
+record the divergence in the report, and do not publish artifacts bound to a workflow the
+repository no longer recognizes. A stale invoked workflow is evidence about history, not about
+the current contract.
+
+Verification level: this subsection is `verified-live` from a repository review executed in a
+fresh-context lane. The rest of this entry keeps its `verified-ci` claim.
 
 ### 1. Read the plan carefully for specific anchors
 
@@ -409,6 +437,7 @@ python3 scripts/validate_test_coverage.py
 | Empty commit to satisfy a fix-per-thread contract | Review workflows often expect one commit per accepted finding | The commits existed. An empty one would move the head and restart review for no change | Zero-diff is a valid outcome. Never move a head to show activity |
 | Filed from a stale checkout | Opened a feature issue and started an agent for behavior the default branch already had; the requester pasted an older banner and the last fetch partly failed | The checkout lagged and the partial fetch left the default branch stale | Compare versions against a clean fetch before you file |
 | Trusted a title-level delivery search for a multi-item issue | Read that one merged change named the issue, then planned the whole issue body or reported it complete | The merged change delivered only part of the named items, and one item was partially delivered: a warn site existed beside a site that still exited non-zero | Split the issue per named item and read severity per site (step 0d); plan only the residual rows and guard the delivered ones |
+| Applied the invoked (stale) review workflow | The workflow had been rewritten in the repository under review; the session's installed copy still shipped an older delivery contract, and the invoked workflow would have published review artifacts the repository no longer recognized | The repository revision's workflow governs; bind the invoked workflow to the target revision and report the divergence |
 
 ## Verified On
 

@@ -361,3 +361,17 @@ v1.9.0 did these edits:
 - Fixed the duplicated `15.` item number in "When to Use".
 
 No decision branch was removed.
+
+## Provenance for 0e (v1.10.0)
+
+- Trigger: a session loaded a review workflow from an installed plugin copy that lagged the
+  repository under review by many releases. The invoked copy still shipped a review and delivery
+  contract that the target repository had since rewritten and partly removed. Applying it would
+  have published review artifacts bound to a contract the repository no longer recognizes.
+- Disposition: learn and apply the workflow at the target revision instead, and report the
+  divergence. Fresh-context review of the engagement reported no other defects; the deliverable
+  remained the repository's own small documentation fix.
+- Privacy: no repository, organization, issue, or path names are recorded. The pattern is the
+  general case of an invoked workflow lagging the artifact it must serve.
+- Decision rule kept in the main entry: bind the invoked workflow to the target repository's
+  revision, report the divergence, and do not publish with the stale workflow.
