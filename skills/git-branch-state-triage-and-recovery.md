@@ -8,7 +8,7 @@ description: >-
   bulk local-branch inventory cleanup.
 category: tooling
 date: 2026-10-13
-version: "2.8.0"
+version: "2.9.0"
 license: BSD-3-Clause
 user-invocable: false
 verification: verified-local
@@ -312,6 +312,20 @@ A branch that a worktree holds cannot be deleted at all; the command reports the
 path. Do not detach or delete that worktree to free the branch inside a branch-only cleanup. Remove
 the worktree in its own operation, then re-enumerate, because other agents can create branches and
 stashes while the cleanup runs.
+
+#### Run a bulk cleanup tool
+
+A tool that deletes merged branches and rebases many branches in a repository with hundreds of
+worktrees can run longer than a command timeout.
+
+1. Start it in the background and write its exit code to a log. A foreground run can time out after
+   partial changes; reconcile the state before you retry.
+2. Expect it to fail on branches that other worktrees hold, and to skip them.
+3. Afterward, verify that the shared checkout is on the trunk branch (an aborted rebase can leave it
+   on a feature branch), that no rebase is in progress there, and that worktrees with unique or
+   dirty work still exist.
+4. Report the branch and worktree counts before and after. Never report a clean result from a
+   nonzero exit code.
 
 ### 5. Verify and publish
 
