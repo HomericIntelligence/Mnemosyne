@@ -26,7 +26,7 @@
 
 ### 1. Initial Investigation (Plan Mode)
 
-- Read plan transcript at: `/home/mvillmow/.claude/projects/-home-mvillmow-ProjectScylla/62a6a816-6898-490f-993a-1b47cbbf9d7d.jsonl`
+- Read plan transcript at: `/home/<user>/.claude/projects/-home-<user>-ProjectScylla/62a6a816-6898-490f-993a-1b47cbbf9d7d.jsonl`
 - Confirmed one-line fix needed
 - No other files require modification
 

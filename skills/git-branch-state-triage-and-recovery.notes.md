@@ -70,7 +70,7 @@ forge had already merged the lane's own prerequisite pull requests (found later 
 order and file-level deltas of the merge commits). The corrected procedure is mechanical: run an
 unqualified `git fetch origin` or a fetch with an explicit destination mapping before any read
 that carries a decision, and bind every published tip claim to the forge branch API
-(`gh api repos/<owner>/<repo>/branches/<branch> --jq .commit.sha`) so the record cites forge
+(`gh api repos/<user>/<repo>/branches/<branch> --jq .commit.sha`) so the record cites forge
 truth, not a local ref. The reusable rule is that a fetch form and the ref it refreshes are a
 pair: verifying one without the other produces confident stale records.
 

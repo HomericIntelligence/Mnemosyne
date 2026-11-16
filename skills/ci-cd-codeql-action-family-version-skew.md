@@ -67,7 +67,7 @@ bump fails the CodeQL job with a configuration error. Aligning all pins to
 <commit-sha> (v4.36.3) in one PR."
 
 # 4. PROOF before merge: the CodeQL job must run GREEN on the aligned head.
-gh pr checks <PR> --repo <owner>/<repo>   # name the CodeQL check run explicitly
+gh pr checks <PR> --repo <user>/<repo>   # name the CodeQL check run explicitly
 
 # 5. Sibling dependabot PR now has an identical/empty diff — first merge wins;
 #    the other auto-closes on rebase-push, or close it manually with a

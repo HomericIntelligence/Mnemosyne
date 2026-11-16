@@ -47,7 +47,7 @@ Out of scope: the plan content rubric itself. Use the applicable plan review rub
 
 ```bash
 # Requirements identity: recompute with the formula that the plan states.
-gh issue view <N> --repo <owner>/<repo> --json id,title,body,updatedAt \
+gh issue view <N> --repo <user>/<repo> --json id,title,body,updatedAt \
   | python3 -c 'import json,sys,hashlib
 d=json.load(sys.stdin)
 s=json.dumps({"id":d["id"],"title":d["title"],"body":d["body"]},
@@ -55,11 +55,11 @@ s=json.dumps({"id":d["id"],"title":d["title"],"body":d["body"]},
 print(hashlib.sha256(s).hexdigest(), d["id"], d["updatedAt"])'
 
 # Scope presence: is each plan subject token in the live body?
-gh issue view <N> --repo <owner>/<repo> --json body -q .body | grep -c '<subject-token>'
+gh issue view <N> --repo <user>/<repo> --json body -q .body | grep -c '<subject-token>'
 
 # Dependency list and states: compare with the plan's claim.
 for n in <dependency-numbers>; do
-  gh issue view "$n" --repo <owner>/<repo> --json number,state,title \
+  gh issue view "$n" --repo <user>/<repo> --json number,state,title \
     -q '"\(.number)\t\(.state)\t\(.title)"'
 done
 

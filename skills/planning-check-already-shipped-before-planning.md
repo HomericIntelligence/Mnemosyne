@@ -247,7 +247,7 @@ provide the rest; an empty placeholder is not a plan.
 ### 7. Preserve repository and PR boundaries
 
 A change in `../OtherRepo/` requires a branch and PR in that repository. A local build of the sibling
-does not prove its hosted CI; use `gh pr checks --repo <owner>/<other> <pr>`. Keep red local WIP out
+does not prove its hosted CI; use `gh pr checks --repo <user>/<other> <pr>`. Keep red local WIP out
 of a closeout/docs commit, run the labels that cover the deliverable, and route unrelated defects
 without claiming they are green.
 

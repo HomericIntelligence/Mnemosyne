@@ -50,7 +50,7 @@ the build tree from analysis and wire that config into every `init` step.
 Never trust the severity at face value. Split open alerts by location path first:
 
 ```bash
-gh api --paginate "repos/<owner>/<repo>/code-scanning/alerts?state=open&per_page=100" \
+gh api --paginate "repos/<user>/<repo>/code-scanning/alerts?state=open&per_page=100" \
   | jq -s 'add' > alerts.json
 
 # how many alerts are vendored (in the build/_deps tree)?
@@ -101,7 +101,7 @@ grep -rl "codeql-action/init" .github/workflows/
 
 ```bash
 # 1. pull all open alerts
-gh api --paginate "repos/<owner>/<repo>/code-scanning/alerts?state=open&per_page=100" \
+gh api --paginate "repos/<user>/<repo>/code-scanning/alerts?state=open&per_page=100" \
   | jq -s 'add' > alerts.json
 # 2. count vendored alerts
 jq '[.[] | select(.most_recent_instance.location.path | test("build/.*/_deps/"))] | length' alerts.json
@@ -151,7 +151,7 @@ paths-ignore:
 **Detection one-liners:**
 
 ```bash
-gh api --paginate "repos/<owner>/<repo>/code-scanning/alerts?state=open&per_page=100" \
+gh api --paginate "repos/<user>/<repo>/code-scanning/alerts?state=open&per_page=100" \
   | jq -s 'add' > alerts.json
 jq '[.[] | select(.most_recent_instance.location.path | test("build/.*/_deps/"))] | length' alerts.json
 jq -r '.[] | select(.rule.id=="cpp/use-after-free") | .most_recent_instance.location.path' alerts.json

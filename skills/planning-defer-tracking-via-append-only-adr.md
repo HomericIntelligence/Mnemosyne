@@ -80,7 +80,7 @@ redundant regex alternation).
 
 ```bash
 # Is the inline tracker reference actually live? (the trap: it may be CLOSED/wrong-scope)
-gh issue view <N> --repo <owner>/<repo> --json state,title
+gh issue view <N> --repo <user>/<repo> --json state,title
 
 # Find every "planned/future phase" mention that needs a tracker
 grep -n -iE "planned|future phase|not yet implemented" docs/architecture.md

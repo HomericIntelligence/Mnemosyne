@@ -40,7 +40,7 @@ Bind the lifecycle state before any review, repair, or comment:
 
 ```bash
 # 1. Read the artifact lifecycle state first.
-gh pr view <number> --repo <owner>/<repository> \
+gh pr view <number> --repo <user>/<repository> \
   --json state,mergedAt,mergeCommit,headRefOid,labels,headRefName,mergeStateStatus
 
 # 2. For a merged state, prove the delivery on the target branch.

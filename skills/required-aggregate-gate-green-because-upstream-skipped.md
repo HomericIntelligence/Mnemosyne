@@ -48,14 +48,14 @@ condition skips every upstream job, the gate has nothing red to collect. The gat
 ```bash
 H=<commit>
 # 1. Which checks are not skipped, and what did they conclude?
-gh api repos/<owner>/<repo>/commits/$H/check-runs \
+gh api repos/<user>/<repo>/commits/$H/check-runs \
   --jq '.check_runs[] | select(.conclusion != "skipped")
         | [.name, .status, .conclusion] | @tsv'
 # 2. The number of skipped checks is the warning sign.
-gh api repos/<owner>/<repo>/commits/$H/check-runs \
+gh api repos/<user>/<repo>/commits/$H/check-runs \
   --jq '[.check_runs[] | select(.conclusion == "skipped")] | length'
 # 3. Read the aggregate job's own steps. A skipped job has no steps.
-gh api repos/<owner>/<repo>/actions/jobs/<job-id> \
+gh api repos/<user>/<repo>/actions/jobs/<job-id> \
   --jq '{conclusion, steps: [.steps[] | [.name, .conclusion] | @tsv]}'
 ```
 

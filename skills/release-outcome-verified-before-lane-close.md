@@ -43,7 +43,7 @@ before you state a delta or close the lane.**
 
 ```bash
 # 1. Release objects, newest first. A tag name can differ from the release title.
-gh release list -R <owner>/<repo> --limit 10
+gh release list -R <user>/<repo> --limit 10
 
 # 2. Milestone state, creation time, and open count.
 gh api graphql -f query='query { repository(owner:"<o>", name:"<r>") {

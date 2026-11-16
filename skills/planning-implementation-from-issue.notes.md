@@ -40,7 +40,7 @@ find tests -name "*.orig" -type f
 ### 2. Searched for Skip Markers
 
 ```bash
-Grep pattern="@pytest\.mark\.skip" path=/home/mvillmow/ProjectScylla/tests
+Grep pattern="@pytest\.mark\.skip" path=/home/<user>/ProjectScylla/tests
 # Found all 4 skipped tests with reasons
 ```
 

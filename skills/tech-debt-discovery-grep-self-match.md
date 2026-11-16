@@ -64,7 +64,7 @@ git grep -nE 'FIXME|TODO|DEPRECATED|HACK|XXX' -- '*.py' '*.toml' '*.yml'   # the
 #      comment step: if: steps.scan.outputs.found == 'true'
 
 # 4. Pre-validate labels against the REAL repo before any gh issue create:
-gh label list --repo <owner>/<repo>
+gh label list --repo <user>/<repo>
 ```
 
 ### Detailed Steps

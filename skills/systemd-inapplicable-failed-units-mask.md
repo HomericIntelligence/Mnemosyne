@@ -21,7 +21,7 @@ history-cleanup-date: "2026-09-20"
 | **Date** | 2026-07-04 |
 | **Objective** | Clear systemd units stuck in "failed" state that can NEVER succeed on this hardware/filesystem, without wasting time trying to "repair" them |
 | **Outcome** | Success — `systemctl --failed` reduced from 2 failing units to `0 loaded units listed` via mask + reset-failed |
-| **Verification** | verified-local (host "epimetheus", PureOS 10, kernel 5.10, legacy BIOS, ext4 root) |
+| **Verification** | verified-local (host "<hostname>", PureOS 10, kernel 5.10, legacy BIOS, ext4 root) |
 
 ## When to Use
 
@@ -143,4 +143,4 @@ sudo systemctl unmask fwupd-refresh.service snapper-boot.service
 
 | Project | Context | Details |
 |---------|---------|---------|
-| epimetheus (PureOS 10, kernel 5.10, legacy BIOS, ext4 root) | Boot-time `systemctl --failed` triage | fwupd-refresh (UEFI-only firmware) and snapper-boot (btrfs-only snapshots) masked + reset-failed → 0 failed units |
+| <hostname> (PureOS 10, kernel 5.10, legacy BIOS, ext4 root) | Boot-time `systemctl --failed` triage | fwupd-refresh (UEFI-only firmware) and snapper-boot (btrfs-only snapshots) masked + reset-failed → 0 failed units |

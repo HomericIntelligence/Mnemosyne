@@ -5,7 +5,7 @@
 - **Repo**: HomericIntelligence/ProjectOdyssey
 - **Issue**: #3013 "[Feature] ExTensor Operations - Matrix, shape, indexing operations"
 - **Branch**: 3013-auto-impl
-- **Worktree**: /home/mvillmow/Odyssey2/.worktrees/issue-3013
+- **Worktree**: /home/<user>/Odyssey2/.worktrees/issue-3013
 - **Date**: 2026-03-05
 
 ## What the Issue Claimed

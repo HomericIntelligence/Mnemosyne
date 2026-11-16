@@ -20,7 +20,7 @@ history-cleanup-date: "2026-09-20"
 |-------|-------|
 | **Date** | 2026-07-04 |
 | **Objective** | Switch a Linux host from default `cubic` + `pfifo_fast` to `bbr` + `fq` for better throughput on lossy/higher-latency paths (internet uploads, Tailscale mesh), persistently and in a kernel-version-aware way. |
-| **Outcome** | Success. Verified live and persistent on host `epimetheus` (PureOS 10, kernel 5.10); approach assessed and adapted for `apollo` (Debian, kernel 4.19). |
+| **Outcome** | Success. Verified live and persistent on host `<hostname>` (PureOS 10, kernel 5.10); approach assessed and adapted for `<hostname>` (Debian, kernel 4.19). |
 | **Verification** | verified-local |
 
 ## When to Use
@@ -96,8 +96,8 @@ tc qdisc show dev enp0s31f6                     # expect: qdisc fq ... root
 
 ### Kernel-version-aware notes
 
-- **kernel 5.10 (epimetheus):** Worked cleanly; modules present. A reboot switches qdiscs automatically, but applying `fq` live avoids needing one.
-- **kernel 4.19 (apollo):** BBR is loadable (`modprobe -n tcp_bbr` dry-run OK) and `tcp_bbr.ko`/`sch_fq.ko` are present, but stock config was `cubic`/`pfifo_fast` with available list `reno cubic`. On 4.19 you MUST apply `fq` live to already-up interfaces — it will not auto-switch — so a remote tuning script should loop over `/sys/class/net` (excluding `lo`) doing `tc qdisc replace dev $i root fq`.
+- **kernel 5.10 (<hostname>):** Worked cleanly; modules present. A reboot switches qdiscs automatically, but applying `fq` live avoids needing one.
+- **kernel 4.19 (<hostname>):** BBR is loadable (`modprobe -n tcp_bbr` dry-run OK) and `tcp_bbr.ko`/`sch_fq.ko` are present, but stock config was `cubic`/`pfifo_fast` with available list `reno cubic`. On 4.19 you MUST apply `fq` live to already-up interfaces — it will not auto-switch — so a remote tuning script should loop over `/sys/class/net` (excluding `lo`) doing `tc qdisc replace dev $i root fq`.
 
 ### Reversibility
 

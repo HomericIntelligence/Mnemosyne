@@ -54,7 +54,7 @@ Compare one budget read with one live call that uses the same credential:
 gh api rate_limit --jq '.resources.graphql | "\(.remaining)/\(.limit)"'
 
 # 2. Make one live call.
-gh issue view <number> --repo <owner>/<repo> --json number,state
+gh issue view <number> --repo <user>/<repo> --json number,state
 ```
 
 | Budget read | Live call | Classification | Recovery |
@@ -116,8 +116,8 @@ For hourly exhaustion, not only lockouts:
    GraphQL calls are rejected:
 
    ```bash
-   gh api repos/<owner>/<repo>/issues -X POST -F title=... -F body=@body.md
-   gh api repos/<owner>/<repo>/pulls  -X POST -F title=... -F head=<branch> -F base=<base> -F body=@body.md
+   gh api repos/<user>/<repo>/issues -X POST -F title=... -F body=@body.md
+   gh api repos/<user>/<repo>/pulls  -X POST -F title=... -F head=<branch> -F base=<base> -F body=@body.md
    ```
 
 5. Keep git transport traffic running. `git fetch` and `git push` do not use the GraphQL budget.

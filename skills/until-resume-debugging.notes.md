@@ -3,7 +3,7 @@
 ## Session context
 - Branch: `1067-additive-cli-args-checkpoint`
 - Tests validated: test-031, test-033
-- Results dirs: `/home/mvillmow/dryrun_step_test4` (test-031), `/home/mvillmow/dryrun_step_test5` (test-033)
+- Results dirs: `/home/<user>/dryrun_step_test4` (test-031), `/home/<user>/dryrun_step_test5` (test-033)
 
 ## Sequence of failures encountered
 

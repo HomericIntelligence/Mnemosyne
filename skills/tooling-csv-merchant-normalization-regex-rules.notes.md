@@ -3,11 +3,11 @@
 ## Session Context
 
 - **Date**: 2026-04-26
-- **File**: `/home/mvillmow/Downloads/combined_transactions.csv`
+- **File**: `/home/<user>/Downloads/combined_transactions.csv`
 - **Rows**: 2,261 (header + 2,260 data rows)
 - **Original unique descriptions**: 1,039
 - **Final unique merchant names**: 559
-- **Script**: `/home/mvillmow/Downloads/normalize_descriptions.py`
+- **Script**: `/home/<user>/Downloads/normalize_descriptions.py`
 
 ## CSV Column Layout (after normalization)
 
@@ -75,6 +75,6 @@ for desc, count in freq.most_common(30):
 
 | File | Purpose |
 | ------ | --------- |
-| `/home/mvillmow/Downloads/normalize_descriptions.py` | Normalization script (idempotent, re-runs from .bak) |
-| `/home/mvillmow/Downloads/combined_transactions.csv` | Enriched CSV with `merchant` column added |
-| `/home/mvillmow/Downloads/combined_transactions.csv.bak` | Backup of original CSV before modification |
+| `/home/<user>/Downloads/normalize_descriptions.py` | Normalization script (idempotent, re-runs from .bak) |
+| `/home/<user>/Downloads/combined_transactions.csv` | Enriched CSV with `merchant` column added |
+| `/home/<user>/Downloads/combined_transactions.csv.bak` | Backup of original CSV before modification |

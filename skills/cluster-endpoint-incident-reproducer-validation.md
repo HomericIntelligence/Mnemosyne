@@ -72,8 +72,8 @@ pre-commit run --files <staged-files>
 scripts/validate.sh
 
 # GitHub final state.
-gh pr checks <pr-number> --repo <owner>/<repo>
-gh pr view <pr-number> --repo <owner>/<repo> --json mergeStateStatus,mergeable,statusCheckRollup
+gh pr checks <pr-number> --repo <user>/<repo>
+gh pr view <pr-number> --repo <user>/<repo> --json mergeStateStatus,mergeable,statusCheckRollup
 ```
 
 ### Detailed Steps

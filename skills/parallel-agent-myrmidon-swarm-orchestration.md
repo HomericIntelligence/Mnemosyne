@@ -301,8 +301,8 @@ When reviewing code that has an existing audit epic with N findings already file
 ```bash
 # Step 1 — Build exclusion list FIRST (before reading code)
 gh issue list --state open --json number,title,labels,body --limit 200 \
-  --repo <owner>/<repo> > /tmp/open_issues.json
-gh issue view <epic-number> --repo <owner>/<repo> --json title,body > /tmp/parent_epic.json
+  --repo <user>/<repo> > /tmp/open_issues.json
+gh issue view <epic-number> --repo <user>/<repo> --json title,body > /tmp/parent_epic.json
 
 # Step 2 — Dispatch parallel Explore agents sliced by PHASE (not by file)
 # Step 3 — Spot-verify EVERY concrete claim before writing the plan

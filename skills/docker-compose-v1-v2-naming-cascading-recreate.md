@@ -194,4 +194,4 @@ services:
 
 | Project | Context | Details |
 |---------|---------|---------|
-| HomeLab (apollo) | Gitea + MariaDB, Nextcloud Talk HPB coturn, Nextcloud redis — image version bumps in one session using `docker compose` v2 on projects with v1-era container names | Confirmed via `docker ps -a` clean end states on all three services; `gitea doctor check --all` (28/28 OK) additionally confirmed no DB corruption |
+| HomeLab (<hostname>) | Gitea + MariaDB, Nextcloud Talk HPB coturn, Nextcloud redis — image version bumps in one session using `docker compose` v2 on projects with v1-era container names | Confirmed via `docker ps -a` clean end states on all three services; `gitea doctor check --all` (28/28 OK) additionally confirmed no DB corruption |

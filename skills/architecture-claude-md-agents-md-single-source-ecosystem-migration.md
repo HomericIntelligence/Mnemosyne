@@ -78,11 +78,11 @@ verify the comprehensive policy-consumer migration described in the next section
 
 ```bash
 # Probe the default branch before cloning.
-gh api "repos/<owner>/<repo>/contents/CLAUDE.md" --jq '.size'
-gh api "repos/<owner>/<repo>/contents/AGENTS.md" --jq '.size'
+gh api "repos/<user>/<repo>/contents/CLAUDE.md" --jq '.size'
+gh api "repos/<user>/<repo>/contents/AGENTS.md" --jq '.size'
 
 # Confirm the old file is already the exact pointer, or classify both substantive files.
-gh api "repos/<owner>/<repo>/contents/CLAUDE.md" --jq '.content' | base64 -d
+gh api "repos/<user>/<repo>/contents/CLAUDE.md" --jq '.content' | base64 -d
 
 # Only after proving there are no functional consumers: merge the semantic union,
 # install the exact pointer, and run the repository's Markdown gate.

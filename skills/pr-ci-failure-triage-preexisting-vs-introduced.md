@@ -429,7 +429,7 @@ git log --oneline -20 origin/main
   A first red whose commit is an ancestor of the merge — including the merge's direct
   parent — predates it; main was already broken.
 - Collate the failing node identities across a sample of failed jobs
-  (`gh api repos/<owner>/<repo>/actions/jobs/<job-id>/logs`, keep the `FAILED` lines).
+  (`gh api repos/<user>/<repo>/actions/jobs/<job-id>/logs`, keep the `FAILED` lines).
   One module failing set-identically in the pre-merge red run, the merge's own run, and
   the current tip run is a pre-existing failure line, not spread from your patch.
 - Compare the failing set against your patch surface. A set disjoint from every file
@@ -490,9 +490,9 @@ with the signal, and record what you observed:
 A robust quiet test needs a long window and two signals, not one. Require
 about 45 minutes with both signals unchanged:
 
-- `gh api repos/<owner>/<repo>/commits?sha=main&per_page=1 --jq '.[0].sha'`
+- `gh api repos/<user>/<repo>/commits?sha=main&per_page=1 --jq '.[0].sha'`
   (the default-branch tip), and
-- `gh api repos/<owner>/<repo>/pulls/<N>/reviews?per_page=100 --jq 'length'`
+- `gh api repos/<user>/<repo>/pulls/<N>/reviews?per_page=100 --jq 'length'`
   (the count of published reviews on the pull request under review).
 
 Sample every few minutes by default and less often (for example every 15
@@ -501,8 +501,8 @@ because the forge read can hang:
 
 ```bash
 while :; do
-  rev=$(timeout 60 gh api repos/<owner>/<repo>/commits?sha=main&per_page=1 --jq '.[0].sha' 2>/dev/null)
-  rn=$(timeout 60 gh api repos/<owner>/<repo>/pulls/<N>/reviews?per_page=100 --jq 'length' 2>/dev/null)
+  rev=$(timeout 60 gh api repos/<user>/<repo>/commits?sha=main&per_page=1 --jq '.[0].sha' 2>/dev/null)
+  rn=$(timeout 60 gh api repos/<user>/<repo>/pulls/<N>/reviews?per_page=100 --jq 'length' 2>/dev/null)
   cur="${rev:0:8}:$rn"
   if [ "$cur" = "$last" ]; then stable=$((stable+1)); else stable=0; fi
   last="$cur"

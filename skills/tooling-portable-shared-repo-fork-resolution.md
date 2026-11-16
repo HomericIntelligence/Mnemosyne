@@ -228,7 +228,7 @@ Assert both target selection and command exit status. A test that checks only pr
 ### Required Report
 
 ```text
-resolved_repository: <owner>/<repository>
+resolved_repository: <user>/<repository>
 revision: <full-commit-sha>
 trust_basis: explicit override | maintained organization fork | canonical upstream
 candidate_probe: found | absent | not-applicable

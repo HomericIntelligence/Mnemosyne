@@ -136,22 +136,22 @@ gh issue comment <number> --body-file /path/to/update.md
 
 # Duplicate check first (always --state all) — scope-reshaping pass
 # Run BEFORE drafting any issue body; use at least two keyword angles
-gh issue list --repo <owner>/<repo> --state all --search "<keywords>" --limit 20
-gh issue list --repo <owner>/<repo> --state all --search "<related keywords>" --limit 20
+gh issue list --repo <user>/<repo> --state all --search "<keywords>" --limit 20
+gh issue list --repo <user>/<repo> --state all --search "<related keywords>" --limit 20
 # If existing issue found: comment on it; a URL recorded in your tracker = "filed" for acceptance purposes
 
 # Label discovery
-gh label list --repo <owner>/<repo>
+gh label list --repo <user>/<repo>
 
 # Clone to throwaway dir, propose patch, create secret gist
-git clone https://github.com/<owner>/<repo> /tmp/<repo>-$$
+git clone https://github.com/<user>/<repo> /tmp/<repo>-$$
 git -C /tmp/<repo>-$$ checkout -b proposal-<feature>
 # ... edit following existing pattern ...
 bash -n /tmp/<repo>-$$/<script>   # syntax check
 git -C /tmp/<repo>-$$ diff main..proposal-<feature> > /tmp/patch.diff
 gh gist create /tmp/patch.diff --desc "Proposed patch: <feature>"   # secret by default
 
-gh issue create --repo <owner>/<repo> --title "..." --label enhancement \
+gh issue create --repo <user>/<repo> --title "..." --label enhancement \
   --body-file /tmp/issue-body.md
 rm -rf /tmp/<repo>-$$
 
@@ -178,7 +178,7 @@ ISSUE_BODY=/tmp/<repo>-<bug-slug>.md
 $EDITOR "$ISSUE_BODY"
 
 # 2. File the durable bug issue using the template structure.
-gh issue create --repo <owner>/<repo> \
+gh issue create --repo <user>/<repo> \
   --title "Bug: <concise observed failure>" \
   --label bug \
   --body-file "$ISSUE_BODY"
@@ -325,7 +325,7 @@ is temporary evidence.
    current checklist/status.
 3. Keep the draft body outside the repo, for example `/tmp/<repo>-<bug-slug>.md`, so the
    PR branch does not accumulate another disposable artifact.
-4. File the issue with `gh issue create --repo <owner>/<repo> --title "Bug: ..." --label bug
+4. File the issue with `gh issue create --repo <user>/<repo> --title "Bug: ..." --label bug
    --body-file /tmp/<repo>-<bug-slug>.md`.
 5. Remove the transient validation artifact files from the PR branch.
 6. Update docs/tests to reference the durable GitHub issue number/URL instead of the
@@ -356,7 +356,7 @@ is temporary evidence.
 | Guess heading anchors for double-digit numeric prefixes | Assumed `## 2.2 Memory layout` → `#2-2-memory-layout` | GitHub strips `.` and concatenates: actual anchor is `#22-memory-layout` | Smoke-test anchors in a browser before filing 25+ issues |
 | Skip pre-flight label/milestone check before filing loop | Started filing loop, hit "label not found" on issue 6 | Loop filed 5 issues then errored; those already-filed issues lacked the label | Run `gh label list` and `gh api .../milestones` BEFORE the loop; create missing ones up front |
 | `yes \| gh tidy` for OSS smoke test | Piped `yes` to bypass interactive prompts | Fragile — output order is unpredictable, prompts may not align with `yes` responses | Use dev-mode env vars (e.g., `GH_TIDY_DEV_MODE=1`) for smoke testing |
-| Assigning labels without checking upstream repo | Assumed common labels like `feature` or `good-first-issue` existed | Labels vary per repo; assigning a non-existent label causes `gh issue create` to fail | Always run `gh label list --repo <owner>/<repo>` before any `--label` argument |
+| Assigning labels without checking upstream repo | Assumed common labels like `feature` or `good-first-issue` existed | Labels vary per repo; assigning a non-existent label causes `gh issue create` to fail | Always run `gh label list --repo <user>/<repo>` before any `--label` argument |
 | Filing from memory / stale context of upstream code | Drafted issue without re-reading current source | Existing pattern may differ from memory; patch becomes inconsistent | Always read the full source file before proposing a change |
 | Skipping duplicate check before filing upstream | Jumped straight to implementation | Risk of filing a duplicate issue, wasting maintainer time | Always run `gh issue list --state all --search "<keywords>"` first |
 | Skipped the duplicate-check because the task said "file 2 issues" | Treated issue-filing requirement as literal, started drafting both bodies | One was already filed (by the same author) months earlier; the other was based on a stale audit (the cited code already existed). Drafting both consumed time before discovery | Always run duplicate-search FIRST — even when the upstream relationship is yours. Authors forget what they've filed. The duplicate-collapse can re-scope the entire task, not merely confirm absence. |

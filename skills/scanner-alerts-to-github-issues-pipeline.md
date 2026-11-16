@@ -49,8 +49,8 @@ jq -r 'group_by(.tool.name+"|"+.rule.id)[] | "\(length)x sec=\(.[0].rule.securit
 #### 1. COLLECT — pull the repo's own open scanner alerts
 
 ```bash
-gh api --paginate "repos/<owner>/<repo>/code-scanning/alerts?state=open&per_page=100"
-gh api --paginate "repos/<owner>/<repo>/dependabot/alerts?state=open&per_page=100"
+gh api --paginate "repos/<user>/<repo>/code-scanning/alerts?state=open&per_page=100"
+gh api --paginate "repos/<user>/<repo>/dependabot/alerts?state=open&per_page=100"
 ```
 
 - `code-scanning/alerts` covers CodeQL / Semgrep / Trivy / plugin-scanner SARIF uploads.

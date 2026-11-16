@@ -101,7 +101,7 @@ a host-side shim, not an automation patch.
   multi-run contention windows the enforcement side can be exhausted while REST shows thousands
   remaining.
 - Authoritative probe: one real GraphQL call, for example
-  `gh label list --limit 1 --json name --jq '.[0].name' -R <owner>/<repo>`.
+  `gh label list --limit 1 --json name --jq '.[0].name' -R <user>/<repo>`.
 - Observed contention windows under multiple concurrent runs: exhaustion from roughly minute 13
   to minute 55 of each hour; recovery once co-tenants' batches pass. Time a relaunch to the start
   of a quiet window.

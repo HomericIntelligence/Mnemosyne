@@ -29,7 +29,7 @@ history-cleanup-date: "2026-09-20"
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-07-13 |
-| **Objective** | Restore a fully-working Docker Engine on a Debian "buster"-based host (self-hosted HomelabOS stack: Traefik + several docker-compose-managed services) after `docker.service`/`docker.socket` were found masked and every dependent systemd unit was failing |
+| **Objective** | Restore a fully-working Docker Engine on a Debian "buster"-based host (self-hosted <HomelabOS> stack: Traefik + several docker-compose-managed services) after `docker.service`/`docker.socket` were found masked and every dependent systemd unit was failing |
 | **Outcome** | Successful fix — root cause was that installing the standalone Debian `runc` package had caused apt to remove `containerd.io` and (transitively) `docker-ce`; reinstalling `docker-ce docker-ce-cli containerd.io` restored a healthy daemon |
 | **Verification** | verified-local — executed live on a real host, confirmed `docker info` healthy afterward. Not verified-ci since this isn't a CI-testable scenario |
 
@@ -78,7 +78,7 @@ docker info
 ### Detailed Steps
 
 1. **Don't stop at `systemctl unmask`.** If Docker was previously masked (e.g. by an earlier
-   troubleshooting step, or a HomelabOS provisioning script), `systemctl unmask docker.service
+   troubleshooting step, or a <HomelabOS> provisioning script), `systemctl unmask docker.service
    docker.socket` followed by `systemctl daemon-reload` will succeed and remove the
    admin-created `/dev/null` mask symlinks — but this does **nothing** if the underlying vendor
    unit file is simply absent. The tell is that `systemctl start docker.socket` still fails with
@@ -168,7 +168,7 @@ docker info
 
 ## Results & Parameters
 
-**Environment:** Debian "buster"-based homelab host running HomelabOS (Traefik + several
+**Environment:** Debian "buster"-based homelab host running <HomelabOS> (Traefik + several
 docker-compose-managed services)
 
 **Failing command (after unmask):**
@@ -221,4 +221,4 @@ docker info   # confirmed healthy
 
 | Project | Context | Details |
 |---------|---------|---------|
-| homelab | Debian "buster"-based host, HomelabOS stack (Traefik + docker-compose services), 2026-07-13 | Confirmed via live `dpkg -l`/`apt-cache show`/`/var/log/apt/history.log` output; fix verified with `docker info` reporting a healthy daemon afterward |
+| homelab | Debian "buster"-based host, <HomelabOS> stack (Traefik + docker-compose services), 2026-07-13 | Confirmed via live `dpkg -l`/`apt-cache show`/`/var/log/apt/history.log` output; fix verified with `docker info` reporting a healthy daemon afterward |

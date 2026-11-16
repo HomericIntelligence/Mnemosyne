@@ -62,7 +62,7 @@ gh api graphql -f query='
         commits(first:100){nodes{commit{message}}}
       }
     }
-  }' -F owner='<owner>' -F name=ProjectHephaestus -F num=1233 \
+  }' -F owner='<user>' -F name=ProjectHephaestus -F num=1233 \
   --jq '.data.repository.pullRequest.commits.nodes[].commit.message | split("\n")[0]'
 
 # 4. An allow-list inferred from docs is NOT evidence. SCAN real history.

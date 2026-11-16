@@ -213,7 +213,7 @@ gh pr merge <pr> --auto --squash --repo $ORG/$REPO   # only if live policy permi
 - **Required checks:** read live policy; historical check names do not establish current requirements.
 - **Merge method:** the captured repositories used squash. Check current repository settings and queue requirements.
 - **Ruleset:** the captured cases required thread resolution. Apply current policy and review authority before resolving a thread.
-- **Signature email:** sign with the noreply email `<account-noreply-email>` so rewritten/re-signed commits stay `verified==true` and survive the GH007 email-privacy push block (see cross-link below).
+- **Signature email:** sign with the noreply email `<user>@users.noreply.github.com` so rewritten/re-signed commits stay `verified==true` and survive the GH007 email-privacy push block (see cross-link below).
 - **Throughput ceiling:** force-pushing ~80 PRs saturates the runner pool; armed PRs sit BLOCKED/QUEUED and auto-merge as runners free — this is the rate limit, not a failure.
 
 ### Related skills (cross-links)
@@ -223,4 +223,4 @@ gh pr merge <pr> --auto --squash --repo $ORG/$REPO   # only if live policy permi
 - `automation-review-loop-unpushed-fix-oscillates` — narrower review-loop failure mode (unpushed fix oscillation).
 - `dependabot-lockfile-rebase-regenerate-resign` — regenerating + re-signing lockfiles when rebasing dependency PRs (the pixl.lock / CHANGELOG re-conflict case).
 - `multi-repo-pr-automation-loop-orchestration` — the driver-side honest-reporting / report-vs-live-state failures of the loop itself.
-- `reference_signed_commits_email_privacy` (Odysseus memory) — the noreply email `<account-noreply-email>` that keeps signatures valid past GH007.
+- `reference_signed_commits_email_privacy` (Odysseus memory) — the noreply email `<user>@users.noreply.github.com` that keeps signatures valid past GH007.

@@ -154,4 +154,4 @@ GitHub template-location rule: GitHub auto-wires `ISSUE_TEMPLATE/` and `pull_req
 
 | Project | Context | Details |
 |---------|---------|---------|
-| predictive-coding research project (a subdirectory of the `<owner>/<monorepo>` 5-project monorepo) | Adding project-scoped `.claude/` config and GitHub templates to a monorepo subproject, 2026-05-19 | The monorepo-root `.gitignore` `.claude/` rule silently blocked the subproject's `.claude/settings.json` + `.claude/agents/*.md`; fixed with a directory-first negation block. GitHub did not surface the subproject's `.github/` templates; resolved by documenting `gh ... --body-file` usage in `CONTRIBUTING.md` |
+| predictive-coding research project (a subdirectory of the `<user>/<monorepo>` 5-project monorepo) | Adding project-scoped `.claude/` config and GitHub templates to a monorepo subproject, 2026-05-19 | The monorepo-root `.gitignore` `.claude/` rule silently blocked the subproject's `.claude/settings.json` + `.claude/agents/*.md`; fixed with a directory-first negation block. GitHub did not surface the subproject's `.github/` templates; resolved by documenting `gh ... --body-file` usage in `CONTRIBUTING.md` |

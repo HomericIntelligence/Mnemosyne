@@ -4,7 +4,7 @@
 
 ## Context
 
-Working in `/home/mvillmow/Odyssey2/.worktrees/issue-3093` on branch `3093-auto-impl`.
+Working in `/home/<user>/Odyssey2/.worktrees/issue-3093` on branch `3093-auto-impl`.
 Prompt file: `.claude-prompt-3093.md` instructed implementation of GitHub issue #3093.
 
 ## Issue Summary

@@ -36,15 +36,15 @@ Bind the merge state, then read the closeout evidence before you write:
 
 ```bash
 # 1. Bind the merge and its head.
-gh pr view <number> --repo <owner>/<repository> \
+gh pr view <number> --repo <user>/<repository> \
   --json state,mergedAt,mergeCommit,headRefOid,closingIssuesReferences
 
 # 2. Read the linked issue state.
-gh issue view <issue> --repo <owner>/<repository> \
+gh issue view <issue> --repo <user>/<repository> \
   --json state,stateReason,closedAt
 
 # 3. Find which closeout writes already exist.
-gh pr view <number> --repo <owner>/<repository> --json comments \
+gh pr view <number> --repo <user>/<repository> --json comments \
   -q '.comments[] | "\(.createdAt) \(.author.login): \(.body[0:200])"'
 
 # 4. With a merge commit, prove that a prepared change reached the merged tree.

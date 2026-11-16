@@ -79,7 +79,7 @@ git log --show-signature -1      # look for "Good signature"
    ```
    This must list exactly the files you edited and nothing else. Also run `git diff --cached --stat` and scan the hunks to ensure no unrelated changes slipped in.
 
-5. **Commit signed.** The committer email must match the signing key (e.g. `12345+example-contributor@users.noreply.github.com`).
+5. **Commit signed.** The committer email must match the signing key (e.g. `<user>@users.noreply.github.com`).
    ```bash
    git commit -S -m "fix(scope): description"
    ```

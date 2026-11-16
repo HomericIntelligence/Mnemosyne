@@ -45,8 +45,8 @@ interface: symbol name, module, signature, fields, return/disposition, consumer,
 Issue-body text is the only available contract until code lands; label it assumed.
 
 ```bash
-gh issue view <issue> --repo <owner>/<repo>
-gh pr list --repo <owner>/<repo> --state all --search '<issue>'
+gh issue view <issue> --repo <user>/<repo>
+gh pr list --repo <user>/<repo> --state all --search '<issue>'
 ```
 
 Add a dependency note that the capstone branch is cut from a base containing the last sibling merge.
