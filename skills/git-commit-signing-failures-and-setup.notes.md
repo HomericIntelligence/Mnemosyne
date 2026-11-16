@@ -14,6 +14,8 @@ prior main is archived in [history](https://github.com/HomericIntelligence/Mnemo
 | Mnemosyne PR #3021 sibling-head desynchronization | [immutable base source](https://github.com/HomericIntelligence/Mnemosyne/blob/af4676cc2c54565a41c1e196ad964cf8ccc51e5b/skills/git-commit-signing-failures-and-setup.md) | verified-local | Retained patch-replay recovery as partial evidence; no green merge inferred |
 | Embedded SSH signature with an unregistered key (operator session, 2026-10) | this amendment | verified-local; gate green pending at publication | Added the in-place verification branch, signature-blob key identification, and the REST-API unsigned failure |
 | Stale signing-key path on a restored host (operator session, 2026-10) | this amendment | verified-live | Added the signing preflight: confirm `gpg.format` and `user.signingkey` resolve and the key file exists on the live host before composing or rewriting a commit |
+| Unsigned object from a healthy signing host (operator session, 2026-11) | this amendment | verified-ci | Added object-level unsigned classification (`git cat-file`, no `gpgsig` header) and the sole-commit amend boundary |
+| Aggregate required job fails as a cascade (operator session, 2026-11) | this amendment | verified-ci | Documented that the aggregate mirrors its named failing dependency; fixing the dependency passes both jobs |
 
 ## Case Details
 
@@ -50,10 +52,33 @@ token type received no hosted signature, so the API recreation path did not resc
 Parsing the embedded SSH signature blob identified which of several local keys had signed; the
 local keyring fingerprint alone did not distinguish the keys that the account had registered.
 
+### Unsigned object from a healthy signing host
+
+A required signature-policy check failed on one PR commit although the host signing setup
+(`gpg.format=ssh`, a signing-key reference, an allowed signers mapping, and `commit.gpgsign=true`)
+was configured and had signed prior commits. The required job's report text named the commit as
+having no signature or an invalid one. The stored commit object settled the classification:
+`git cat-file commit` showed no `gpgsig` header, so the object carried no signature at all. The
+unsigned object had been composed in a different environment than the configured interactive
+shell; that environment must have lost or overridden the signing configuration. The chosen repair
+was the smallest one: `git commit --amend --no-edit -S` produced a signed sibling with identical
+content and identity; `--force-with-lease` published it; the committed verification record then
+reported the new object valid (`signature.isValid=true`), and the policy check plus the aggregate
+summary gate turned green without further action.
+
+### Aggregate gate cascade
+
+The repository's aggregation job (final verdict of the required run) failed only because a
+named dependency job failed; after the dependency succeeded, the aggregate passed without any
+separate intervention. Treating the aggregate as an independent defect produced investigation
+that found nothing. Read the aggregate's dependency list first, then fix only the named failing
+dependency job.
+
 ## Compaction Disposition
 
 - Kept in main: all diagnostic states, key/identity parameters, complete-range rewrite, content
-  preservation, force-with-lease scope, PR-head proof, sibling recovery boundary, and the
-  in-place `unknown_key` repair.
+  preservation, force-with-lease scope, PR-head proof, sibling recovery boundary, the
+  in-place `unknown_key` repair, object-level unsigned classification, the sole-commit amend
+  boundary, and the aggregate-gate cascade reading.
 - Moved here: repository-specific PRs, incident chronology, and fleet statistics.
 - Archived only: exhaustive status-code tables, command transcripts, and repeated examples.
