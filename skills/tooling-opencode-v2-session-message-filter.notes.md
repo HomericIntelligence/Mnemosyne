@@ -52,3 +52,51 @@ removed; magnitudes are rounded.
   the reports.
 - Verification used the read store and process state only. No export of an
   actively written session was trusted as evidence.
+
+## Amendment evidence: outage-casualty revival (2026-11-15)
+
+Source task: "find the sessions that the serving-gateway cold cutover
+killed, and send each one a continue command." Session identifiers,
+repository names, release names, issue numbers, host names, and paths are
+removed; magnitudes are rounded.
+
+### Attribution method
+
+- The failure signature was an assistant row whose JSON carried
+  `finish = "error"`, an error type in the transport class, and a
+  connection-refusal message.
+- Grouping that signature by session produced about 1370 dead sessions that
+  spanned several months and many past incidents. The time window, not the
+  signature alone, separated the current casualties from the old ones.
+- The forge held a draft release record for the change. Its creation time
+  bounded the window. A forge issue that described the cold cutover path
+  confirmed the attribution. The connection-refusal cluster for the current
+  incident fell inside that window; the clusters of the earlier incidents
+  lined up with their own release dates, which confirmed the method.
+- The selection used the last-turn predicate: only root sessions whose last
+  assistant row ended in an error inside the window. Sessions that had
+  already completed a later turn had recovered and stayed out.
+
+### Selection outcome
+
+- Six root sessions matched the transport-refusal signature in the window.
+- One root session matched the unserved-model state (its model entry had no
+  live replicas right after the cutover) and stayed in the target list.
+- One root session showed a step interrupt that fell exactly at the window
+  start; it stayed in the target list and was flagged in the report.
+- One root session showed a model-content error (an input shape that the
+  model refuses) inside the window. It was excluded: not a casualty.
+- Two-snapshot movement detection showed all eight targets idle. Detached
+  delivery attached to all eight runs; log growth verified the delivery.
+- One unserved-model target then started a real turn, which confirmed that
+  its model entry was served again after the cutover.
+
+### Evidence limits
+
+- The last-turn predicate uses only the read store; a session that self-
+  continues between the selection and the send can look dead. The batch-send
+  workflow re-derives the state at send time and covers that gap.
+- The window start came from the release record creation time, not from a
+  server-side outage log. A boundary casualty (the step interrupt) was
+  adjudicated against the issue that described the cutover, not against a
+  gateway log.
