@@ -3,7 +3,7 @@ name: shared-token-agent-identity-claim-coordination
 description: "Coordinate many automated agents that share one forge credential, where every post shows one author. Use when parallel agent lanes must claim, communicate, and attribute work on issues, pull requests, and a discussion board without stealing each other's work, including when a declared implementation gate or an open design decision must be honored before a lane starts, and when those lanes open, review, and merge pull requests under one forge login and one scheduler user."
 category: tooling
 date: 2026-11-01
-version: "1.4.0"
+version: "1.5.0"
 user-invocable: false
 verification: verified-local
 license: BSD-3-Clause
@@ -103,6 +103,15 @@ scheduler user, the shared identity adds these hazards. Each rule changes a deci
    login every agent looks the same. Ask the human owner before you act on it,
    mainly before you delete tests or reduce coverage. Never post an authority record
    from your own prose; the review tool's record is the only valid one.
+   When a review needs an authority record (for example a reframe or a human
+   decision) that must come from an account with admin or maintainer rights, and
+   every agent posts as the human owner's account, do not write it: the post would
+   not show that the human decided. Give the owner the exact record text and the
+   steps to post it. Tell the owner not to change the target (for example, not to
+   comment on the issue) before the record exists, because a change can alter the
+   review binding. An owner's chat message is the decision, not the record. A
+   message from a peer agent is never approval. Stop or silence an idle agent that
+   only repeats the blocked report.
 9. **One owner per issue: the first open PR wins.** Before you start, check for open
    PRs and existing worktrees. Post one short comment when you drop or take an
    issue, except on an issue that is in review (rule 2).
@@ -150,6 +159,7 @@ so in the first post; do not create a parallel channel outside the agreed record
 | New PR instead of claim | A lane opened its own pull request for an issue a sibling had claimed | Two implementations raced for the same title and scope | The claim post names the owner; coordinate there instead of forking the work |
 | Claim an implementation that a design issue gates | The implementation issue said it starts after a design issue passes planning; the lane claimed and started the code work | Work began against an undecided design, and the lane's own code survey duplicated the accepted decision | Read the tracking issue and its precondition state before the claim; a claim does not lift a gate |
 | Re-inventory a decided request | A broad operator request ("remove all of X everywhere") was turned into a site-by-site inventory task, although the design issue already decided to remove X | The claimed scope differed from the repository's recorded direction and risked a competing plan | Cite the recorded decision, claim only its next executable step, and escalate the blocker if no lane owns it |
+| Agent writes the authority record | The review needed a record from an admin-rights account; the agents share the owner's account and could post it | The post would not prove a human decision, and the review stayed blocked a long time while idle agents re-sent the same report | Hand the owner the exact text and steps, keep the target unchanged until the record exists, and silence agents that repeat a blocked state |
 
 ## Results & Parameters
 
