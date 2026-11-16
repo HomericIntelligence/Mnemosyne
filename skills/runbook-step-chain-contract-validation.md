@@ -1,13 +1,13 @@
 ---
 name: runbook-step-chain-contract-validation
 license: BSD-3-Clause
-description: "Validate a hand-authored sequence of deploy or cutover step scripts as one ordered chain, not step by step. Use when (1) an executor with stop-on-first-failure runs a numbered runbook and each run exposes one new failure that an artifact or contract of a previous step causes (a clean-tree preflight rejects a helper file the pipeline itself wrote, a sourced environment-file path is expanded as an interpreter directory, an idempotency marker is written and read in different line formats), (2) an idempotent rerun branch can skip the verification that a later fix changed, or (3) every step needs one cheap proof shared by its apply branch and its already-done branch."
+description: "Validate a hand-authored sequence of deploy or cutover step scripts as one ordered chain, not step by step. Use when (1) an executor with stop-on-first-failure runs a numbered runbook and each run exposes one new failure that an artifact or contract of a previous step causes (a clean-tree preflight rejects a helper file the pipeline itself wrote, a sourced environment-file path is expanded as an interpreter directory, an idempotency marker is written and read in different line formats), (2) an idempotent rerun branch can skip the verification that a later fix changed, or (3) every step needs one cheap proof shared by its apply branch and its already-done branch, or (4) the first run of the chain is the live run because no rehearsal lane or rehearsal time exists (check flags, option positions, and launch targets statically), or (5) a step stops a running component and then starts its replacement (prove the replacement can start before the stop)."
 category: debugging
 date: 2026-10-29
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-live
-tags: [runbook, deployment, cutover, step-scripts, chain-rehearsal, executor-loop, idempotency, marker-contract, path-role-naming, preflight-gate]
+tags: [runbook, deployment, static-contract-check, stop-then-start, no-rehearsal, cutover, step-scripts, chain-rehearsal, executor-loop, idempotency, marker-contract, path-role-naming, preflight-gate]
 ---
 
 # Validate a Deploy Runbook as One Ordered Chain, Not Step by Step
@@ -44,6 +44,11 @@ Use this skill when one of these conditions applies:
   reader, and either side was edited after the marker was first written.
 - An idempotent rerun branch would skip exactly the verification that the
   last fix changed.
+- No rehearsal is possible and the first run of the chain is the live run.
+  The step scripts were written from a reading of the code, so each flag is a
+  guess until a real run proves it.
+- A step stops a running component (a daemon, a service, an allocation) and
+  then starts its replacement in the same step.
 
 Do not use this skill for queue-based worker pipelines (a separate skill owns
 worker result contracts) or for trust-boundary checkout admission gates (the
@@ -130,6 +135,36 @@ DEPLOY_VENV_DIR="$CHECKOUT/.venv"            # a directory: holds bin/
    report, and the failing line. The one-bug-per-run pattern only converges
    when each fix is verified by a rerun, not by re-reading the script.
 
+7. **Without a rehearsal, check the chain statically before the first live run.**
+   Do these checks for every step, in order, and fix each defect before any
+   step runs:
+   - Compare every flag with the usage text of the real step script and with
+     the signature of the command it calls. A flag that the author inferred
+     is a guess. An option can belong to the sub-command and not to the
+     parent command: placed before the sub-command, it is silently ignored.
+     A flag can also change which object the command acts on (an option that
+     names a prior object can make the command derive the target from the
+     prior object). Read how the command resolves its target.
+   - For every path that a step builds, test the exact file that will be
+     executed, not its parent directory. Include paths that the called tool
+     writes into a launcher or unit file.
+   - Run the read-only steps (observe, verify, preflight) first. A step that
+     fails before it changes anything costs one rerun. Put every
+     state-changing step after them.
+   - Give every command a run environment that names its tools by explicit
+     path. A clean environment (a scheduler step, a service shell) has a
+     different search path from the author's shell.
+
+8. **A stop-then-start step proves the replacement can start before it stops
+   anything.** Before the stop, check that the replacement launch target
+   exists and is executable, and that its configuration file is readable.
+   Refuse before any change when a check fails, and name the correct input.
+   If the tool you call cannot do this check, run it in the wrapper. Keep the
+   restart command of the previous version ready: if the replacement does
+   not come up, start the previous one at once, then diagnose. Do not trust a
+   message such as "the new process keeps running for diagnosis"; list the
+   processes.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -138,6 +173,8 @@ DEPLOY_VENV_DIR="$CHECKOUT/.venv"            # a directory: holds bin/
 | Already-done branch exits without re-verification | The idempotent branch found the marker and exited 0 after the proof's interpreter path had been fixed | A rerun then succeeded without ever executing the fixed proof; the marker predated the fix | Run cheap proofs on every rerun; share one proof function across both branches |
 | One variable for two path roles | A single prefix variable held the sourced env file and was also expanded as `$VAR/bin/python` | Exit 126 `Not a directory` surfaced at the proof command, three steps away from the assignment | Name variables by role (`_FILE` vs `_DIR`) and resolve executables explicitly |
 | Bare whole-line marker grep after a format edit | The writer was changed to stamp `KEY <revision>` for provenance; the reader still grepped the bare revision | Every rerun took the re-apply branch and failed on the by-design-dirty tree | Writer and reader share one exact line contract; test the pair against a real marker after edits |
+| Step flags written from a reading of the code, never run | A runbook wrapper was written for a live release with no rehearsal, and each flag came from the author's reading of the step scripts | Four defects stopped the live run: a bare tool name that a clean scheduler step could not find, a launcher target that did not exist, a prior-object option that made the command derive the old target, and an option placed before the sub-command that the command ignored | Check each flag, option position, and path statically against the real usage text and signature before the first live step |
+| Pass a tree root where the launcher needs the tool directory | A start-and-replace step was given the root of a staged tree. The tool wrote a launcher that executes `<root>/bin/tool`, but the tool lives in `<root>/.venv/bin` | The tool stopped the live daemon first, then the launcher failed at once. No replacement process was created, and the control function stayed down about seven minutes while the data path kept serving | Test the exact exec target before the stop. Keep the previous-version start command ready |
 | Relax the clean-tree preflight to ignore untracked files | Suppressing untracked output made the pipeline's own helper file stop blocking the step | The same flag also hides arbitrary ambient executables and configuration from every later consumer of the checkout | Keep the untracked-files=all gate for trust boundaries; move or ignore the helper instead (see the clean-checkout skill) |
 
 ## Results & Parameters
@@ -148,6 +185,10 @@ DEPLOY_VENV_DIR="$CHECKOUT/.venv"            # a directory: holds bin/
 - The whole loop ran read-only relative to production: buy this safety by
   rehearsing only the steps that cannot mutate live state, and hold every
   operator-bound step behind a separate readiness gate.
+- Observed cost of skipping the static check on a live run with no rehearsal:
+  four defects, one rerun each. Three stopped a step before any change. The
+  fourth stopped a running daemon and left no replacement, so the control
+  function was down about seven minutes. The data path was not affected.
 - Marker format examples that satisfy the contract: `STEP <full-revision>`,
   `P <full-revision>` — a key prefix documents provenance and keeps the
   whole-line grep unambiguous.
