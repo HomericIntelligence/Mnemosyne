@@ -10,6 +10,22 @@
 | uv-managed Python under root-only home | [immutable source case](https://github.com/HomericIntelligence/Mnemosyne/blob/d377a8924aff84e5cc193b720130b4c57e38c5c3/skills/container-ci-uid-permissions-rootless.md) | Reproduced with real Podman build | Retained `/opt/uv-python` shared path |
 | Workspace bind mount masks baked venv | [immutable source case](https://github.com/HomericIntelligence/Mnemosyne/blob/d377a8924aff84e5cc193b720130b4c57e38c5c3/skills/container-ci-uid-permissions-rootless.md) | Reproduced with real Podman/compose flow | Retained `/opt/venv` path |
 | Podman external image COPY parsing | [immutable source case](https://github.com/HomericIntelligence/Mnemosyne/blob/d377a8924aff84e5cc193b720130b4c57e38c5c3/skills/container-ci-uid-permissions-rootless.md) | Reproduced; correct digest resolved | Retained named-stage and digest-verification rule |
+| Hosted container-job runner parity | Private repository CI validation ladder (six hosted runs, no public identifier) | `verified-ci`: final run green with 8,903 cases, 0 failures; per-shard wall time dropped about 30% | Retained mirror-the-runner-identity, named-USER, safe.directory, and interpreter-path rules |
+
+### Runner-parity validation ladder (one variable per run)
+
+| Run | Image delta | Observed failure class |
+| --- | --- | --- |
+| 1 | Base image, root user | Private-package pull blocked (permissions scope), then git dubious ownership on the mounted checkout |
+| 2 | System `safe.directory` baked | Fourteen permission-boundary failures: root bypasses the encoded refusals |
+| 3 | uid/gid 1001 (numeric `USER`) | Group fixtures fail: numeric `USER` skips `/etc/group` supplementary loading |
+| 4 | Supplementary groups created | Same four failures: membership loads only for a named user |
+| 5 | Named `USER` | Job-running cases fail: rendered preflight executes `/usr/bin/python3`, absent in the slim base |
+| 6 | `/usr/bin/python3` symlink | Green end to end |
+
+The decisive evidence came from a temporary in-test instrument that printed the subprocess's
+stderr (`job.sh: line 22: /usr/bin/python3: No such file or directory`), the event log (empty),
+and the tree (destination never created) — none of which reached the test report.
 
 ## Boundary worksheet
 
