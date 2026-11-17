@@ -1,9 +1,9 @@
 ---
 name: git-commit-signing-failures-and-setup
-description: "Use when required-signature policy blocks a conflict-free PR; GitHub reports unsigned, no_user, unknown_key, or bad signatures; local cryptographic checks disagree with GitHub; noninteractive workers silently fail to sign; a fresh headless host needs SSH signing; a restored host or later session inherits a stale signing-key path; email privacy rejects a push; amend produced a signed sibling that the PR did not adopt; a healthy signing host still yields an unsigned commit; a single-introduced-commit range needs only a tip amend; or an aggregate required job fails as a cascade of the named failing job. Diagnose with REST, align identity and registered key, re-sign every affected commit without changing content, verify an embedded signature in place after key registration, separate verification noise from a real fault, and verify the exact remote PR head before merge."
+description: "Use when required-signature policy blocks a conflict-free PR; GitHub reports unsigned, no_user, unknown_key, or bad signatures; local cryptographic checks disagree with GitHub; noninteractive workers silently fail to sign; a fresh headless host needs SSH signing; a restored host or later session inherits a stale signing-key path; email privacy rejects a push; amend produced a signed sibling that the PR did not adopt; a healthy signing host still yields an unsigned commit; a single-introduced-commit range needs only a tip amend; or an aggregate required job fails as a cascade of the named failing job; a merge-queue repository never admits an armed, CI-green PR and no `merge_group` run appears for it; Diagnose with REST, align identity and registered key, re-sign every affected commit without changing content, verify an embedded signature in place after key registration, separate verification noise from a real fault, and verify the exact remote PR head before merge."
 category: tooling
 date: 2026-10-15
-version: "2.6.0"
+version: "2.7.0"
 user-invocable: false
 license: BSD-3-Clause
 verification: mixed
@@ -70,6 +70,17 @@ git log -1 --pretty=format:'%G?'
 # GitHub is authoritative for hosted policy attribution.
 gh api repos/<O>/<R>/commits/<sha> \
   --jq '.commit.verification | {verified,reason,signature,payload}'
+
+# A merge queue suppresses the reason on the PR page: ask enrollment directly (jump tests admission).
+# UNPROCESSABLE carries the rejected rule; otherwise the PR is (or already is) in the queue.
+echo '{"query":"mutation { enqueuePullRequest(input:{pullRequestId:\"<PR-ID>\", jump:false}) { clientMutationId }}"}' \
+  | curl -s -X POST -H "Authorization: token $GH_TOKEN" -H "Content-Type: application/json" \
+      -d @- "https://api.github.com/graphql"
+
+# Undo a successful probe entry; leave auto-merge armed PRs that are already queued alone.
+echo '{"query":"mutation { dequeuePullRequest(input:{pullRequestId:\"<PR-ID>\"}) { clientMutationId }}"}' \
+  | curl -s -X POST -H "Authorization: token $GH_TOKEN" -H "Content-Type: application/json" \
+      -d @- "https://api.github.com/graphql"
 ```
 
 ### 1. Classify the blocker
@@ -93,7 +104,27 @@ from this before changing any signing configuration.
 Record the base SHA, PR head SHA, branch ref SHA, and commit range before rewriting. Do not mutate a
 PR you do not own.
 
-### 2. Align author, committer, and key
+### 2. Merge-queue read: the one surface that names the blocked rule
+
+With a merge queue enabled, a PR that is armed and CI-green can stay `BLOCKED` with no visible
+cause: `mergeable` stays `MERGEABLE`, the required gate passes, queue entries stay empty, and
+GitHub never creates a `merge_group` run for the PR. In this mode the PR page suppresses the
+policy explanation, and neither the REST PR object nor GraphQL exposes the rejected rule.
+
+The enrollment mutation is the only interface that names the blocked policy. `enqueuePullRequest`
+(missing requirement) returns `UNPROCESSABLE` with the exact rejection text; success or
+`Pull request is already in the queue` means admission already passed.
+
+| Rejection message | Cause | First action |
+| --- | --- | --- |
+| `Commits must have verified signatures.` | The repository requires verified commit signatures, and admission verifies every commit in the introduced range — not only the head | Classify each introduced commit (section 1), then rewrite and verify the whole range (section 4) |
+| `Required status check "<name>" is expected.` | No successful run of the named check exists for the current head | Wait for the gate that the latest push must trigger |
+
+After a successful probe, call `dequeuePullRequest` to remove the temporary entry, unless the PR
+was already queued by auto-merge. Toggling auto-merge off and on does not surface the admission
+reason; that cycle changed nothing in the face of the unsigned-ancestor rejection.
+
+### 3. Align author, committer, and key
 
 For GPG, the author/committer email must be a UID attributable to the registered key and GitHub
 account. The canonical private-email-safe identity is
@@ -206,7 +237,7 @@ REST `signature` field. After the `SSHSIG` magic and the version field, the leng
 fields contain the complete public key. Compare its fingerprint with `ssh-keygen -lf <pubkey>`
 for each candidate. For GPG, a local `gpg --verify` of the commit names the signing key ID.
 
-### 3. Re-sign the complete introduced range
+### 4. Re-sign the complete introduced range
 
 Fetch the base, set the correct identity/key, preserve the old head, then rewrite every introduced
 commit rather than only the tip:
@@ -244,7 +275,7 @@ git push --force-with-lease origin HEAD:<branch>
 Do not add `--reset-author` here unless the identity itself must change; `amend` preserves the
 existing author and committer.
 
-### 4. Recover a PR-head sibling safely
+### 5. Recover a PR-head sibling safely
 
 This pattern remains only `verified-local`. `git commit --amend -S` creates a sibling of the old
 commit, not its descendant. A branch ref can move while an open PR remains associated with a stale
@@ -269,14 +300,14 @@ workflow is acceptable when it produces a clean signed lineage. Confirm GitHub `
 the remote branch tip and re-query REST verification for every commit. A fresh PR is a last-resort
 escape because it abandons reviews and discussion.
 
-### 5. Verify hosted acceptance
+### 6. Verify hosted acceptance
 
 After push, poll REST on the exact PR commit SHAs until GitHub reports `verified:true, reason:valid`
 or a stable failure. Re-read `headRefOid`; do not verify a signed commit that is not the PR head.
 Then inspect required checks and merge state. Local signature, hosted verification, and email privacy
 must all pass independently.
 
-### 6. Separate verification noise from a signing failure
+### 7. Separate verification noise from a signing failure
 
 `git verify-commit` can report a negative-looking result when signing is correct. Read the
 `Good "git" signature` line before you treat the output as a defect.
@@ -327,6 +358,8 @@ the real configuration.
 | Treat `No principal matched` as a broken config | Reported the shared `allowed_signers` file as malformed without reading it | The file was valid and unchanged; the message came from a malformed temporary file that a test command generated | Read the `Good "git" signature` line and inspect the file that the command actually read |
 | Treat `Can't check signature` on a base commit as a fault | Diagnosed a signing problem from commits authored by other people | Those commits are GPG-signed and the host uses SSH signing, so the check cannot succeed | Test your own commit, not the base history, when you diagnose signing |
 | Trust a recorded key path | Reused the signing-key path that a prior session recorded | The path did not exist on the current host; signing failed when composing the commit | Preflight `gpg.format` and `user.signingkey`, and confirm the key file exists on the live host before you commit |
+| Sign an empty head (queue case) | Added a signed empty commit on top of an unsigned original and kept toggling auto-merge | Merge-queue admission verifies every commit in the introduced range; the signed-empty head did not cover the unsigned ancestor, and no `merge_group` run ever appeared | Classify the whole introduced range (section 1), then replay the introduced content as signed commits — not a sign-only append |
+| Trust arming as the diagnosis | Re-armed every stuck PR and re-polled for over half the session | Auto-merge status reports intent, never the admission reason; the queue simply never scheduled a batch | Probe the enrollment mutation (section 2) at the first unexplained long BLOCKED |
 
 ## Results & Parameters
 
@@ -344,6 +377,8 @@ the real configuration.
 | Aggregate gate | Fix the named failing dependency; the aggregate follows |
 | Rewrite push | Owned branch, fetched remote, `--force-with-lease` |
 | PR-head proof | `headRefOid` equals verified remote tip |
+| Queue reason | No PR-state field carries it; read the `enqueuePullRequest` UNPROCESSABLE message |
+| Admission chain verdict | Every introduced commit must be valid at queue admission; a valid tip does not cover an unsigned ancestor |
 | Fleet scope | Author/owner allowlist; never rewrite third-party PRs |
 
 ## Verified On
@@ -356,6 +391,11 @@ the real configuration.
 - In-place `unknown_key` repair and the REST-API unsigned result: `verified-local`, one operator
   session (2026-10); the in-place repair is documented GitHub behavior, and the green check was
   pending at publication.
+- Merge-queue admission held by an unsigned ancestor: CI-backed. `enqueuePullRequest` returned
+  `UNPROCESSABLE` with `Commits must have verified signatures` for an armed, CI-green PR while
+  the queue showed zero entries and created no `merge_group` run. After the introduced range was
+  replayed as signed commits (section 4, authors preserved), the required gate re-ran green and
+  the merge queue admitted and merged the PR.
 
 ## Companions
 
