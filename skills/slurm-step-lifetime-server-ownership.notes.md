@@ -85,3 +85,34 @@ sessions and window contents survived; no phantom socket ever appeared.
 - Edits in a shared checkout can be discarded by another session's branch
   operations; keep the fixed install artifact separately and verify with
   checksums before relying on any working tree.
+
+## Stale deployment and the running-allocation snapshot
+
+A later report of the same detach-kill symptom had a different cause: the fix
+was already merged, but the deployed copies disagreed.
+
+- The installed client was many revisions behind the default branch and matched
+  no revision in history. The checkout was also behind and carried uncommitted
+  edits that duplicated an already-merged change.
+- The running allocation was submitted before the fix merged. Its spooled batch
+  script had no supervision and no readiness marker, so the attach client had
+  created the server inside its own step. Detaching still ended that step and
+  killed the session.
+- The updated client waited for a readiness marker that the old allocation never
+  wrote, then attached anyway after the timeout. The attach succeeded, but the
+  server was still in a step cgroup. A successful attach was not evidence that
+  the fix applied.
+
+The recovery sequence is: compare the installed hash with the default branch,
+install the default-branch artifact, restart the allocation once, then require
+`step_batch` in `/proc/<pid>/cgroup` and an unchanged server PID across a
+detach/reattach cycle. No new code change was needed.
+
+## Server disappears from the durable step
+
+On the same allocation, the batch-step server was gone while the batch script
+loop was still alive. The batch task cgroup reported `oom_kill 1` in
+`memory.events.local`, and the allocation was close to its memory limit. A
+one-time create leaves every later attach with no server, so the durable step
+must recreate the session on an interval. The same recovery covers a last-shell
+exit, because `exit-empty` ends a server with no sessions.
