@@ -3,7 +3,7 @@ name: git-worktree-parallel-execution-lifecycle
 description: "Use when parallel agents need isolated Git state; one issue is split across disjoint owners; worktree creation races across processes; branch ownership, stale, locked, dirty, submodule, or foreign-repository worktrees must be classified; or cleanup is constrained by preservation and destructive-action policy."
 category: tooling
 date: 2026-08-06
-version: "2.0.0"
+version: "2.1.0"
 license: BSD-3-Clause
 verification: unverified
 user-invocable: false
@@ -43,6 +43,8 @@ The complete superseded source is in
 - Worktree creation races even though an in-process `threading.Lock` exists.
 - Cleanup would require discarding uncommitted work, force-removing a worktree, or deleting a
   branch.
+- A write or directory create fails with "No space left on device" while `df` reports ample free
+  space, and the worktree root holds hundreds of worktrees.
 
 ## Verified Workflow
 
@@ -170,6 +172,21 @@ operation rather than a casual cleanup step.
 If policy blocks `reset --hard`, `clean -fd`, `worktree remove --force`, `rm -rf`, or `branch -D`,
 do not work around the guard. Present exact, fully resolved commands and evidence to the user.
 
+#### Capacity failure caused by accumulated worktrees
+
+Use this branch when a write fails with a no-space error but `df -h` shows ample free bytes.
+
+1. Check `df -i` and probe with a small `mkdir` plus `rmdir` in the worktree root. A failed probe
+   with free bytes and free inodes points to a per-user, per-directory, or entry-count limit. Name
+   the limit as unconfirmed until a quota query proves it.
+2. Run the classified cleanup of step 6. Remove only clean worktrees whose work has landed. Keep
+   dirty worktrees. Do not hand-delete release or evidence directories to gain space.
+3. Removal on a network filesystem is slow. A foreground run can reach the command time limit
+   after a small share of the work. Each removal is independent, so a partial result is safe.
+   Probe the write again. Then run the remainder in the background with output in a log file.
+4. Before any retry, list the worktrees again. Do not repeat a removal from an old list.
+5. Check that unrelated running services were not affected before you report the repair.
+
 ### 7. Recover contamination or stranded work
 
 When commits leaked between branches, identify each owner's commits and rebuild from the intended
@@ -195,6 +212,7 @@ changes unexpectedly.
 | Word-splitting porcelain output | Word-splitting porcelain output | Corrupts paths and record associations | Parse `--porcelain -z` statefully |
 | Blind cleanup under build directories | Blind cleanup under build directories | May target another repository | Verify remote and worktree membership |
 | Force cleanup of dirty/submodule worktrees | Force cleanup of dirty/submodule worktrees | Destructive and often policy-blocked | Preserve, classify, and hand off exact commands |
+| Foreground cleanup of hundreds of worktrees on a network filesystem | Ran the full cleanup in one command with a time limit | The limit ended the run after a few removals | Probe the write, then run the rest in the background and re-list before a retry |
 | Branch reuse for a second logical issue | Branch reuse for a second logical issue | Creates two writers for one head | First writer wins; later item is superseded |
 
 ## Results & Parameters
