@@ -36,6 +36,13 @@ The branch-ownership and delimiter-safe parser entries are design reviews. Their
 kept in the main because omitting them changes implementation decisions, but their unverified status
 must remain visible until a shipped implementation and behavior tests exist.
 
+The capacity-failure case came from a long-lived agent home with several hundred worktrees. Writes
+failed with a no-space error while the filesystem reported terabytes free. The first delegated
+cleanup removed about 20 clean, landed worktrees before it reached a 10-minute command limit. After
+that, directory creation worked again, and the remainder ran in the background. The evidence shows
+a correlation only: no quota query was run, so the exact limit stays unconfirmed. Running services
+kept fresh status records during the failure, so the failure did not stop them.
+
 ## Provenance
 
 - Superseded main SHA-256:
