@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Inspect an authorized PR backlog across repositories when review alone leaves checks, conflicts, or review threads unresolved. Select repairs from live policy and actual blockers."
 category: tooling
 date: 2026-06-28
-version: "1.4.0"
+version: "1.5.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -91,6 +91,25 @@ needed. Do not rebase and push solely to test whether a PR is redundant. Compare
 intended change with the target and preserve ambiguous work.
 
 **CI-THROUGHPUT CEILING:** force-pushing ~80 PRs saturates GitHub's runner pool — armed PRs sit `BLOCKED` with all checks **QUEUED** (not stuck, just waiting); auto-merge fires as runners free up. This is the real rate limit once structural blockers are gone.
+
+### Label-gated CI: a skipped check is not a pass
+
+When the repository starts CI only after a human or review-set label, a PR without that label
+fails one gate check and every other check shows `skipping`. Treat this as "no CI evidence",
+not as green and not as a code failure.
+
+- Classify each PR by its failing checks first. If the only failure is the label gate, the
+  worker rebases and re-signs, runs the narrow local tests for the changed paths, pushes with
+  a pinned lease, and reports the label as the remaining blocker. Workers must not set or
+  remove the label or arm auto-merge; the coordinator does that after review.
+- A rebase can expose real failures that the old head never showed: a new file on trunk that
+  an invariant check must now cover (manifest entry, allowlist entry, line-length limit).
+  Reproduce these locally with the repository's own check and fix them in the rebased branch.
+- A force-push to a PR that already holds a review verdict invalidates the verdict. Push only
+  when the rebase is needed (trunk moved in files the PR touches) and report the new head.
+- Cap concurrent workers at the host's subagent limit. Launch the rest as slots free up.
+- If a rebase shows a design conflict (trunk gained behavior that the PR's replacement code
+  lacks), abort, push nothing, and escalate the choice. Do not merge the semantics by guess.
 
 ### Parallel-sweep coordination rules
 
