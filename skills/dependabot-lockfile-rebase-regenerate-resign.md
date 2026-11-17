@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Resolve dependency-bot manifest and lock conflicts by preserving intended constraints, regenerating locks, and following repository signing policy."
 category: ci-cd
 date: 2026-06-11
-version: "1.1.1"
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -25,6 +25,8 @@ tags:
   - conflict-resolution
   - constraint
   - mypy
+  - force-with-lease
+  - stale-info
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/dependabot-lockfile-rebase-regenerate-resign.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -47,6 +49,7 @@ history-cleanup-date: "2026-09-20"
 - main has REFACTORED the dependency layout since the bot opened the PR (e.g. moved a dep out of separate `[feature.dev.dependencies]`/`[feature.lint.dependencies]` blocks into a consolidated `[feature.shared.dependencies]` block), so the PR's stale edit targets a location that no longer exists.
 - You hit a `pixi.lock` merge conflict and are tempted to `--ours`/`--theirs`/hand-edit it — don't; regenerate.
 - pr-policy requires every commit cryptographically signed with the committer email matching a UID on your GPG key (NOT the bot's noreply email), and the bot's commits are signed by the bot.
+- Your rebased bot branch fails to push with `stale info` although the lease was fresh when you fetched — the bot force-updated its own remote branch while you worked.
 
 Do not rebase a bot PR merely because it is old. After task completion, rebase
 only to resolve a reported merge conflict; repository CI/CD owns other main
@@ -98,6 +101,17 @@ git push --force-with-lease origin HEAD:"$BRANCH"
 5. **Never hand-merge `pixi.lock`.** It encodes resolved versions + hashes; any manual/`--ours`/`--theirs` merged result is invalid. Take main's lock and REGENERATE with `pixi lock` (or `pixi install`). If the already-resolved version satisfies the widened constraint (e.g. mypy 1.20.2 satisfies `<3`), `pixi lock` reports "Lock-file was already up-to-date" and the lock is unchanged — that's correct, not a failure.
 6. **Validate `--locked` before pushing.** Run `pixi install --locked`; it must succeed. This proves the lock matches the manifest and mirrors CI's `--locked` gate — a mismatched lock fails CI.
 7. **Force-push lease-safe and let auto-merge finish.** `git push --force-with-lease`. The PR retains its `state:implementation-go` label and armed auto-merge, so it lands once CI re-runs green.
+8. **If the push reports `stale info`, compare before you retry — never force a stale copy over the bot's newer branch.** The bot can regenerate its branch while you rebase (a scheduled re-run, a new dependency group resolution, or a manual re-create). Re-fetch and compare:
+
+   ```bash
+   git fetch origin "$BRANCH"
+   git log --oneline -3 "origin/$BRANCH"
+   git merge-base --is-ancestor origin/main "origin/$BRANCH" && echo "bot head is based on the current trunk tip"
+   ```
+
+   - If the bot's new head is **already based on the current trunk tip**, its regenerated bump is newer evidence of the same intent and supersedes your rebase. Discard your local copy (`git reset --hard "origin/$BRANCH"` in the worktree) and push nothing. The bot's own commit signature shows `%G?` `E` locally because your trust ring cannot check the bot's key; the forge verifies it, so do not "fix" it.
+   - If the bot's new head is **not** based on the current trunk tip, redo the rebase from its new head (steps 1–7).
+   - A blind retry after a re-fetch can overwrite the bot's newer bump with your older resolution. Compare first; push only when your rebased head is the content that must land.
 
 ## Failed Attempts
 
@@ -108,6 +122,7 @@ git push --force-with-lease origin HEAD:"$BRANCH"
 | Hand-merge the lockfile | Tried to resolve `pixi.lock` conflict markers / use `--ours`/`--theirs` | A merged generated lock encodes inconsistent resolved versions + hashes → invalid → CI `--locked` gate fails | Never hand-merge `pixi.lock`; take main's lock and regenerate with `pixi lock` |
 | Keep the bot's signature | Left Dependabot's commits as-is after rebase | pr-policy requires every commit signed with a key UID email matching the committer; the bot's signature/email don't match your key | Re-sign every commit during rebase via `--exec` with `-S --reset-author` and `user.email=<your key email>` |
 | Edit only one manifest | Updated the mypy constraint in `pyproject.toml` only | `test_dependency_floor_consistency.py` asserts `pyproject.toml` and `pixi.toml` agree | Update BOTH manifests in lockstep for any cross-referenced constraint |
+| Push past a moved bot branch | Rebasing a batch of PRs, pushed the rebased bot branch with `git push --force-with-lease` | The push rejected with `stale info`: the bot had force-updated its own remote branch between the initial fetch and the push, regenerating the bump on the current trunk tip | Re-fetch, compare the bot's head against the trunk tip, and discard the local rebase when the bot's head supersedes it; the bot's regenerated bump is the newer intent, and a retry would clobber it |
 
 ## Results & Parameters
 
@@ -128,6 +143,20 @@ Push:          git push --force-with-lease
 Result:        auto-merge retained (state:implementation-go); CI green; MERGED
 ```
 
-Core lesson: a dependency-bump conflict is a **constraint edit + lock regeneration**, NOT a 3-way merge of the lockfile — and bot PRs are invisible to `@me`-scoped fleet tooling, so they need a hand pass.
+Second verified instance (v1.2.0, verified-local; batch rebase of five open PRs
+in one session, one of them a dependency-bot branch):
+
+```text
+Trigger:       git push --force-with-lease rejected with "stale info"
+Cause:         the bot force-updated its remote branch during the batch;
+               its regenerated bump was already based on the trunk tip
+Action:        re-fetch, compare bases, reset the worktree branch to the
+               bot's head, push nothing
+Signature:     the bot's own head shows %G? E locally; the forge verifies it
+Outcome:       PR stayed mergeable with the bot's own head; the other four
+               rewritten branches re-signed clean during their rebases
+```
+
+Core lesson: a dependency-bump conflict is a **constraint edit + lock regeneration**, NOT a 3-way merge of the lockfile — and bot PRs are invisible to `@me`-scoped fleet tooling, so they need a hand pass. When the bot's own branch moves under you, its regenerated head supersedes your local rebase; compare bases before any retry push.
 
 **Related skills:** `pr-rebase-conflict-resolution-patterns` (general rebase/conflict playbook) and `dependency-update-automation-bot-prs` (Renovate config + bot-PR scope/drift review). This skill is the Dependabot-lockfile-specific rebase case.
