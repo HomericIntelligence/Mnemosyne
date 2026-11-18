@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Create a GitHub pull request and link an existing tracking issue when appropriate."
 category: ci-cd
 date: 2026-03-19
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/gh-create-pr-linked.history"
 history-cleanup-date: "2026-09-20"
@@ -45,6 +45,21 @@ gh issue view <issue-number>  # Check Development section
 - Branch has upstream tracking
 - Clear, descriptive title
 - If no tracking issue exists, a self-contained PR description can state the problem and verification
+
+## Closes vs Refs
+
+A closing keyword (`Closes`, `Fixes`, `Resolves`) closes the issue on merge and claims a fix.
+Choose the keyword from what the change proves, not from habit.
+
+| Change | Body keyword | After merge |
+| -------- | -------------- | ------------- |
+| Fixes the cause of the issue | `Closes #N` | The issue closes itself. |
+| Adds only diagnostics or evidence; the cause is not proven (for example an intermittent failure whose log lacks timestamps or the failing stage) | `Refs #N` | Comment what evidence now exists and what to watch for. Move the issue to the next milestone. Do not close it. A later failure then names the stage, and the real fix gets its own PR. |
+| Fixes only some items listed in the issue | `Refs #N` | Move the uncovered items to a follow-up issue with its own milestone before the PR merges. |
+| Last open child of a tracker or release epic | `Closes #N` on the child | Close the tracker only when its last open child is closed. |
+
+Failure mode: a diagnostics-only PR that said `Closes` was flagged as a major finding, because
+the issue would close with the cause unknown.
 
 ## Error Handling
 
