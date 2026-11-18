@@ -1,10 +1,10 @@
 ---
 name: replace-forked-dependency-with-upstream
 license: BSD-3-Clause
-description: "Move one consumer off an organization fork of a dependency while the fork stays in use by other consumers. Use when: (1) you must stop consuming a fork without archiving or changing it, (2) an engine, library, or service is pinned to a fork revision that has fallen behind upstream, (3) you must decide whether to re-base the fork, refresh its deploy automation, or adopt a pinned upstream revision plus a thin patch stack, (4) several releases must each retire one fork dependency."
+description: "Move one consumer off an organization fork of a dependency while the fork stays in use by other consumers. Use when: (1) you must stop consuming a fork without archiving or changing it, (2) an engine, library, or service is pinned to a fork revision that has fallen behind upstream, (3) you must decide whether to re-base the fork, refresh its deploy automation, or adopt a pinned upstream revision plus a thin patch stack, (4) several releases must each retire one fork dependency, (5) a defect fix already exists only in a fork that the consumer no longer builds from."
 category: architecture
 date: 2026-11-04
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [fork-retirement, upstream-pin, vendored-dependency, patch-stack, dependency-lag, consumer-boundary, release-sequencing, supply-chain, version-gap]
@@ -85,6 +85,20 @@ you choose a migration shape.
 
    Keep patches only for behavior that upstream does not have. Prefer an upstream
    contribution so the stack shrinks.
+7a. Retarget a fix that exists only in the fork. A fix merged or proposed in a fork
+    does not reach a consumer that builds from upstream. Before you carry it over:
+    - Read the defect on the current upstream default branch. Do not trust the issue text.
+      Search open and closed upstream issues and PRs for a duplicate or a fix.
+    - Read the revision that the consumer actually deploys. It can be a fork-only revision
+      that upstream does not contain. Base the patch on the pinned upstream tag.
+    - Port the change. A plain apply of the fork commit can fail because the code paths and
+      test layout differ at the pinned tag. Check the patch with `git apply --check` on a
+      clean tree at the pin, then build and run its tests.
+    - Keep the patch in the consumer's patch stack, and report the defect upstream with a
+      minimal reproducer. See
+      [third-party-contribution-follow-target-repo-rules](third-party-contribution-follow-target-repo-rules.md).
+    - Treat the build wiring as a separate step. A patch file that the build does not apply
+      changes nothing in the deployed artifact. Name the artifact check as open work.
 8. Make "stop using" a separate outcome from "retire the fork". State the
    non-goals in the tracking artifact: no archival, no branch deletion, no change
    to fork CI, and no change to records that other teams own.
@@ -115,6 +129,7 @@ you choose a migration shape.
 | Compare the fork head with upstream | Treated a current fork as an acceptable target | The deployed artifact was many releases behind its own fork | Measure the lag against the consumer's pin |
 | Plan fork retirement from "stop using" | Listed archival, branch deletion, and other consumers' tracking records as plan steps | Other teams still use the fork. The request was to stop consuming it, not to end it | Set the outcome boundary at the consumer and state the non-goals |
 | Assume the fork is the only divergence | Planned to re-base the fork | The consumed branch added only deploy automation over upstream. A pin plus a small patch stack replaced it | Classify the added commits before you choose the shape |
+| Merge the fix in the fork | Reviewed and merged the defect fix in the fork that the consumer had left | The consumer builds from upstream, so the fix never reached the deployed artifact. Plain apply of the commit also failed at the pinned upstream tag | Retarget the fix to the consumer patch stack at the pin. Report the defect upstream |
 | Sequence releases opportunistically | Compared convenience of the dependency list | Shared test and qualification capacity is the real constraint, and live-path risk forces the last slot | Use a gapless ordering, additive work first, live-path change last |
 
 ## Results & Parameters
