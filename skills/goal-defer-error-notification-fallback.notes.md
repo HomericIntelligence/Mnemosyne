@@ -39,3 +39,14 @@ This entry does not relax the deferral rule. When the deferral call works, regis
 The fallback covers the error and limit cases only. It also does not certify that a
 lost notification never happens; if the shell is gone and no notification arrives, the goal
 state query exposes the stale awaited-shell record for the release call.
+
+## Second observed case: human-blocked completion gate (generalized)
+
+A coordination goal needed another party to complete a privileged step on a shared host, which
+the session could not perform. The session posted the exact action once. Its completion gate
+then re-fired for several hundred turns, and the session repeated an unchanged status check
+and an unchanged status line each time. No state changed until the end of the observation. A
+self-contained watcher that exited on a state change had already worked earlier in the same
+session, so a cheap event wake-up was available. The amended entry records the rule: one
+precise ask, no repeated identical checks, an event-driven watcher, and no success claim
+without the other party's own report.
