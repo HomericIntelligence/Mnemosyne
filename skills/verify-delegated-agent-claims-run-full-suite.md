@@ -1,10 +1,10 @@
 ---
 name: verify-delegated-agent-claims-run-full-suite
 license: BSD-3-Clause
-description: "Verify consequential delegated-work claims against source and execution evidence. Use for rebases, missing symbols, behavior changes, review scores that rest on delegated inventories, and tests that may run from the wrong checkout."
+description: "Verify consequential delegated-work claims against source and execution evidence. Use for rebases, missing symbols, behavior changes, review scores that rest on delegated inventories, a fix report that says a review finding is fixed, and tests that may run from the wrong checkout."
 category: tooling
 date: 2026-06-27
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-ci
 tags: [delegation, sub-agent, rebase, verification, full-suite, worktree, merge-base, ci-cost, review-scoring, inventory-claims]
@@ -30,6 +30,7 @@ history-cleanup-date: "2026-09-20"
 - You are about to validate a merge candidate by running only the specific tests you THINK are affected.
 - A path-relative test produces a false failure because the full suite was run from the main repo root instead of the worktree root.
 - A review or audit session delegates inventory work (file counts, existence checks, classification) to sub-agents, and the published verdict, grade, or finding list will rest on those claims.
+- A fix report says a review finding is "fixed", and the finding concerns a count, an order, or a side effect on a path that has more than one step.
 - A delegated claim is decisive: if the claim were false, a score, grade, or finding severity would change.
 
 ## Verified Workflow
@@ -61,6 +62,7 @@ cd <worktree-root> && pixi run pytest tests/unit/ -q --no-cov -p no:cacheprovide
 4. **Select verification for the changed surface.** Broad rebases and refactors can justify the full suite because focused tests may miss stale assertions. Use the authorized validation environment, record the tested revision, and avoid repeating equivalent checks without new changes or unresolved failures.
 5. **Run from cwd == the worktree root**, never the main repo root, so path-relative tests (`Path(__file__).parents[N]`) resolve against the correct checkout instead of giving a false failure.
 6. **Verify every verdict-decisive delegated claim directly.** When a published verdict or score rests on delegated inventory claims, enumerate the decisive claims — those whose refutation would change a score, grade, or finding. Verify each with the cheapest read-only command (`git ls-files | wc -l` for counts, `test -f` or `ls` for existence, direct reads for classification). Record which claims were verified and which were trusted. If a check refutes a claim, recompute the affected score and correct the finding before publication. An unverified decisive claim is not evidence.
+7. **Check a "fixed" review finding on the whole call path.** A report that a finding is fixed is not evidence. Trace the path from its entry point to the effect. List every step on the path that can cause the effect, not only the step that the fix changed. For a duplicate-write or ordering finding, write one test that drives the highest function that can run without external systems. Assert the total count or the order at the sink. A test that calls only the changed function cannot show that the finding is closed, because an earlier step on the path can still cause the effect.
 
 ## Failed Attempts
 
@@ -69,6 +71,7 @@ cd <worktree-root> && pixi run pytest tests/unit/ -q --no-cov -p no:cacheprovide
 | Trusted the agent's report | Trusted a sub-agent's "rebased onto main, force-pushed, all green" report and waited on CI | The rebase had not re-parented (merge-base still stale) / had a half-applied regression; CI failed; multiple wasted ~20-min CI rounds | Independently re-verify a delegated agent's structural claims (merge-base, main-only symbol present, actual return values) before believing "success" |
 | Tested only the affected subset | Validated each fix by running only the SPECIFIC tests I thought were affected | Each CI round failed on a DIFFERENT stale test I hadn't run locally (test_planner_loop, then test_implementer, ...) | Before pushing a merge candidate, run the FULL unit suite once from the worktree cwd; partial subsets hide stale tests and turn one local run into N CI round-trips |
 | Ran full suite from wrong cwd | Ran the full suite but from the MAIN repo root | A worktree-relative path test gave a false failure (parents[N] resolved to the wrong checkout) | Run the full suite with cwd == the worktree root so path-relative tests scan the right tree |
+| Accepted a "fixed" report for a duplicate write | A finding said a command wrote each event twice. The fix changed one call site. Its test called only that function. | An earlier helper on the same path also wrote the event. The first write was missed, and the next review round found the finding still open. | Drive the whole path through its highest testable function and assert the write count. |
 
 ## Results & Parameters
 
