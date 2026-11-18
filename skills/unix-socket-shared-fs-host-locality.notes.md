@@ -96,3 +96,20 @@ product client paths. It has no live run.
 6. Test the step offline by sourcing the shared library and stubbing the
    client function in each case: the allocation guard, the accepted reply, the
    context mismatch, the wrong cluster, and the two-log failure tail.
+
+## Cross-host diagnostic and record-naming branch (2026-11)
+
+This branch comes from a live admin-client failure on a login host that was not the serving host. The change was message text and documentation only. No test was added.
+
+### Observed
+
+- The client tried the local socket first. The socket path was on shared storage, but the daemon ran on another host. The connect failed.
+- The client then looked for a published remote route. The endpoint record had a null remote block, so none existed. The remote listener is optional, and the documented admin route for the lane was to run on the serving host.
+- The error told the user to select the serving host with the host flag. The flag only picked a per-host socket path on the current host. It did not forward the request. The hint could not work.
+- A placement table in the documentation named a fixed host and job identifier. The record had moved to another host, so the table was stale.
+
+### Rules that the fix used
+
+1. Read the owning documentation before you plan a production change for an unset optional feature.
+2. In the cross-host error, name the serving host from the record and say to run the command there. Do not suggest the host flag.
+3. In the placement table, point to the field of the runtime record that names the host.

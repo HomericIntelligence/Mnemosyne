@@ -1,10 +1,10 @@
 ---
 name: unix-socket-shared-fs-host-locality
 license: BSD-3-Clause
-description: "Diagnose connection-refused on a Unix-domain socket whose path exists on shared cluster storage, and plan where the client must run. Use when the socket file is visible to every host but only the host that bound it can serve clients, when an operator step or runbook schedules an operator-bound command on a scheduler node, or when a readiness gate passes on one host but another host must act. Covers the remote-host refusal guard, pre-failure evidence as the wrong-host proof for a cold start, and reply readiness versus fleet health."
+description: "Diagnose connection-refused on a Unix-domain socket whose path exists on shared cluster storage, and plan where the client must run. Use when the socket file is visible to every host but only the host that bound it can serve clients, when an operator step or runbook schedules an operator-bound command on a scheduler node, or when a readiness gate passes on one host but another host must act. Covers the remote-host refusal guard, pre-failure evidence as the wrong-host proof for a cold start, reply readiness versus fleet health, and cross-host error text and docs that name the serving host from its runtime record."
 category: debugging
 date: 2026-10-19
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-live
 tags:
@@ -63,6 +63,8 @@ stat -c '%y %n' "$SOCK" "${SOCK%/*}/audit.log" 2>/dev/null
 6. **Keep operator-bound commands on the binding host.** The local-socket verbs, the operator start and stop, and the migrations that the operator gates all need that kernel. State this rule in the header of each step that uses them. A scheduler allocation is not the binding host.
 7. **Refuse a remote host before any effect.** At step start, test the scheduler allocation variable and exit nonzero before any filesystem, database, or service change. A rule that only the header states is not a guard. On a cold start, the database reachability proof also fails from a remote host, because the local forward exists only on the binding host. Use that failure as a second proof, not as the guard.
 8. **Gate on a reply, not on fleet health.** A readiness gate that exits nonzero for a degraded pool reports a serving operator as absent. Gate on a request that the registered context admits. Then read the reply fields. A dead listener gives a no-reply error. A wrong host or context gives a context-mismatch error. Both are the failure that the gate must report.
+9. **Write a cross-host diagnostic that can work.** A host-selection flag only picks a socket path on the current host. It does not forward a request. When the service record names another host, the error text must say to run the command on that host. It must not suggest the flag for that host. If an optional remote route exists, name it as the only other path. When no remote route is published, say so. That state is the documented default, not a defect. Do not ask the user for remote-route inputs or change production before you read the owning documentation.
+10. **Name the record, not the host.** The serving host moves. In docs and messages, point to the runtime record that holds it, such as an endpoint or heartbeat record. Do not write a fixed host name or job identifier in a placement table. The record is the source of truth.
 
 ## Failed Attempts
 
@@ -74,6 +76,9 @@ stat -c '%y %n' "$SOCK" "${SOCK%/*}/audit.log" 2>/dev/null
 | Blaming permissions first | Considered ownership and mode faults because the socket was group-restricted | The refusal came from absence, not authorization. The file survived the process | Rule out a dead listener before a permission change |
 | Readiness gate on a fleet report verb | Ran the status verb that reports pool health and required exit 0 | That verb exits 1 when a pool is degraded. A serving operator with one bad pool looked absent | Gate on the reply that proves the context, not on fleet health |
 | Heartbeat gate alone | Waited for a fresh heartbeat of the launched pid | The heartbeat proves that the process writes state. It does not prove that a client reaches the socket with the registered context | Add one reply probe after the heartbeat gate |
+| Host flag in a cross-host error | An error told the user to select the other host with the host flag | The flag selects a path on the current host. The socket on the other host is still unreachable | Tell the user to run the command on the serving host |
+| Fixed host in a placement table | A runbook table named the serving host and its job identifier | The operator moved and the table went stale | Point to the runtime record that holds the serving host |
+| Treating an unpublished remote route as a defect | Read a null remote block in the endpoint record as a fault and planned a production change | The remote route is optional. The documented admin route is to run on the serving host | Read the owning documentation first |
 
 ## Results & Parameters
 
@@ -106,6 +111,7 @@ readiness:
 - A liveness signal that is a connect probe, not directory metadata.
 - A step header and a code guard that keep every operator-bound command on the binding host.
 - A readiness result that separates "not reachable" from "wrong context", and that ignores pool health.
+- A cross-host error that names the serving host from its record and says to run the command there, with no host-flag hint for another host.
 
 ## Verified On
 
