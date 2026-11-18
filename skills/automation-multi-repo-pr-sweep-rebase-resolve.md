@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Inspect an authorized PR backlog across repositories when review alone leaves checks, conflicts, or review threads unresolved. Select repairs from live policy and actual blockers."
 category: tooling
 date: 2026-06-28
-version: "1.5.0"
+version: "1.6.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -107,6 +107,13 @@ not as green and not as a code failure.
   Reproduce these locally with the repository's own check and fix them in the rebased branch.
 - A force-push to a PR that already holds a review verdict invalidates the verdict. Push only
   when the rebase is needed (trunk moved in files the PR touches) and report the new head.
+- Give each worker the PR number or branch name, not a head sha from an earlier report. A
+  branch can move between sweeps, and a stale sha makes the worker rebase or describe the
+  wrong head. The worker reads the live head first and reports old and new sha.
+- A worker shell can inherit scheduler variables from a finished job (for example stale
+  `SLURM_*` values) and a cluster launch then hangs with no output. Unset them before the
+  launch. When a local test run stalls on environment sync, kill it and report "no local
+  evidence". Do not report it as a test failure; the remote CI covers the PR.
 - Cap concurrent workers at the host's subagent limit. Launch the rest as slots free up.
 - If a rebase shows a design conflict (trunk gained behavior that the PR's replacement code
   lacks), abort, push nothing, and escalate the choice. Do not merge the semantics by guess.
