@@ -1,16 +1,16 @@
 ---
 name: git-worktree-parallel-execution-lifecycle
-description: "Use when parallel agents need isolated Git state; one issue is split across disjoint owners; worktree creation races across processes; branch ownership, stale, locked, dirty, submodule, or foreign-repository worktrees must be classified; or cleanup is constrained by preservation and destructive-action policy."
+description: "Use when parallel agents need isolated Git state; one issue is split across disjoint owners; worktree creation races across processes; branch ownership, stale, locked, dirty, submodule, or foreign-repository worktrees must be classified; hundreds of stale worktrees need a bulk audit and removal; or cleanup is constrained by preservation and destructive-action policy."
 category: tooling
 date: 2026-08-06
-version: "2.1.0"
+version: "2.2.0"
 license: BSD-3-Clause
 verification: unverified
 user-invocable: false
 tags: [worktree, git, parallel-agents, wave-execution, cleanup, branch-collision, contamination,
   locked-worktree, staged-files, rebase-merge, myrmidon, safety-net, lifecycle, submodule,
   squash-merge, hand-to-user, first-writer-wins, branch-ownership, superseded, porcelain,
-  nul-delimited, path-safety]
+  nul-delimited, path-safety, bulk-cleanup, dry-run, archive]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-worktree-parallel-execution-lifecycle.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -45,6 +45,8 @@ The complete superseded source is in
   branch.
 - A write or directory create fails with "No space left on device" while `df` reports ample free
   space, and the worktree root holds hundreds of worktrees.
+- Hundreds of worktrees accumulated and only a few dozen have an open pull request.
+- Old release trees or evidence directories must be retired by age.
 
 ## Verified Workflow
 
@@ -186,6 +188,48 @@ Use this branch when a write fails with a no-space error but `df -h` shows ample
    Probe the write again. Then run the remainder in the background with output in a log file.
 4. Before any retry, list the worktrees again. Do not repeat a removal from an old list.
 5. Check that unrelated running services were not affected before you report the repair.
+
+#### Bulk cleanup of hundreds of stale worktrees
+
+Use this branch when hundreds of worktrees accumulated and only a few dozen have an open pull
+request. Do an audit first. Remove nothing until a dry-run list exists.
+
+1. Audit read-only with a script, not by hand. Make one `gh pr list --state all --limit <N> --json
+   headRefName,state,number` call. Then, for each worktree, record the branch, the dirty-file
+   count, and the PR states. Put each worktree in one class: open PR (keep), merged, closed, no PR,
+   or detached HEAD. Print the dry-run list before any removal. Run long removals in the background.
+   A bulk tidy tool can exceed a foreground time limit on hundreds of worktrees. A stale-worktree
+   mode can need Git 2.36 or newer. Check `git --version` first. If it is older, use your own
+   script. An old Git can also reject `git worktree list --porcelain -z`.
+2. Removal of a worktree does not delete its branch, so committed work stays safe. Only two items
+   are at risk: uncommitted content, and a detached HEAD that no remote branch contains. For such a
+   detached HEAD, write a hidden ref before removal:
+   `git update-ref refs/archive/<name> <sha>`.
+3. Archive the diff of a dirty worktree only if its content is not on trunk. For each changed or
+   untracked file, compare `git hash-object <file>` with `git rev-parse origin/main:<path>`.
+   Ignore cache and build files (`__pycache__`, `.venv`, `node_modules`, `*.pyc`, `*.log`). If every
+   file matches trunk, remove the worktree and keep no archive. If some files differ, save
+   `git diff HEAD` and the small untracked files (set size caps) to an archive directory. Then remove
+   the worktree. Limit: an equality check misses a squash-merged change that differs a little, so
+   some stale archives remain. Offer a follow-up prune of the archives.
+4. Guards. Skip each of these:
+   - a worktree with recent Git activity (`HEAD` or index mtime within about 2 hours);
+   - a locked worktree (do not unlock it without the owner's decision);
+   - a release, stage, or deployed tree, and any tree that a running process uses
+     (`pgrep -f <path>`);
+   - the main checkout and your own worktree.
+
+   Check that each directory still exists when the loop reaches it, because another tool can remove
+   it during the run. Do not run `pkill -f <script>` from a shell whose own command line contains
+   the pattern. The command kills its own shell.
+5. Retire old release trees and evidence by version or date against a cutoff. Keep the current
+   release and the previous release, and keep anything unclear near the cutoff. List the candidates
+   with their sizes and get approval before you delete. Delete in a background script that logs each
+   failure. A directory that another user owns with mode 0700 returns "Permission denied" even for
+   a listing. Do not use `chmod` or `sudo` to get around it. Give the exact `rm` command to the
+   owner, and verify afterward that the directory is empty.
+
+Measured case: see the notes companion.
 
 ### 7. Recover contamination or stranded work
 

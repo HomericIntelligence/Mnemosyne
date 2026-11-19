@@ -43,6 +43,18 @@ that, directory creation worked again, and the remainder ran in the background. 
 a correlation only: no quota query was run, so the exact limit stays unconfirmed. Running services
 kept fresh status records during the failure, so the failure did not stop them.
 
+The bulk-cleanup case came from a long-lived agent home with about 445 worktrees and a few dozen
+open pull requests. A read-only audit script classified every worktree, and a dry-run list was
+reviewed before removal. The removals ran in the background. About 68 worktrees remained afterward:
+open-PR trees, locked trees, trees with recent activity, release trees, and the owner's own tree.
+About 64 dirty worktrees had content that differed from trunk, so they received an archive. The
+others matched trunk and received none. Some archives came from squash-merged work that differed a
+little from trunk, so a follow-up prune stays useful. The tidy tool for this job exceeded a
+foreground time limit, and the installed Git was older than the stale-worktree mode needs, so a
+script did the work. Separately, 169 old record directories belonged to another user with mode 0700.
+They returned "Permission denied", so the owner received the exact `rm` command, and the empty
+state was verified afterward. The counts are approximate and come from one session.
+
 ## Provenance
 
 - Superseded main SHA-256:
