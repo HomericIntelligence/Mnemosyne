@@ -1,13 +1,13 @@
 ---
 name: goal-defer-error-notification-fallback
 license: BSD-3-Clause
-description: "End a goal-driven turn safely when the shell-deferral call errors or the goal is already in a limit state and a background shell holds the pending result. Use when: (1) the deferral tool call returns an error state, (2) the goal flips to a token or usage limit between turns while a watcher shell runs, (3) you are tempted to poll the shell output or to re-issue the deferral in a loop, or (4) you are unsure whether the native completion notification arrives without a successful deferral."
+description: "End a goal-driven turn safely when the shell-deferral call errors or the goal is already in a limit state and a background shell holds the pending result. Use when: (1) the deferral tool call returns an error state, (2) the goal flips to a token or usage limit between turns while a watcher shell runs, (3) you are tempted to poll the shell output or to re-issue the deferral in a loop, (4) you are unsure whether the native completion notification arrives without a successful deferral, or (5) the goal's completion gate keeps re-firing while its pending condition is another party's action that you cannot perform and each status check finds no change."
 category: tooling
 date: 2026-11-07
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
-tags: [goal-mode, deferral, background-shell, budget-limit, native-notification, fallback, opencode]
+tags: [goal-mode, deferral, background-shell, budget-limit, native-notification, fallback, opencode, human-blocked, completion-gate]
 ---
 
 # Goal Defer Error Notification Fallback
@@ -27,6 +27,7 @@ tags: [goal-mode, deferral, background-shell, budget-limit, native-notification,
 - The goal moves to a budget or usage limit while the turn that holds the deferral call is still running, so no further deferral attempt is possible.
 - A watcher shell whose result the goal needs runs in the background, and you consider polling its output file to pass the time.
 - You are deciding whether to retry the deferral call, relaunch the watcher, or declare the goal blocked when only the deferral failed.
+- The goal gate blocks every stop while the pending condition is a human-only action (for example, a privileged step on another host), and repeated status checks keep returning "no change".
 
 ## Verified Workflow
 
@@ -70,6 +71,24 @@ This fallback concerns continuity, not correctness of the pending work. The defe
 condition still gates the goal: a shell result that does not satisfy it resumes only for
 reporting, not for claiming completion.
 
+### Pending condition is another party's action
+
+Use this branch when no watcher result is pending. The gate needs an action that only another
+party can perform, and you have already asked for it.
+
+1. Name the exact action, the actor, and the check that proves it once, in one `needs input`
+   line. Repeat that line unchanged on a forced turn. Do not add new analysis.
+2. Count a status check as evidence only if its answer can differ. Repeating an identical
+   check in the same minute adds no information. Run one check per forced turn at most, and
+   skip it when the previous check is recent.
+3. Put the check in a self-contained watcher that exits when the external state changes
+   (a new comment, a changed label, a merged request). Its exit is the wake-up signal.
+   Give it a long timeout. Do not start a new watcher for each forced turn.
+4. Never report success on your own advice or posts. Success needs the other party's own
+   report or an independent state change.
+5. If the action is outside your authority or tools, do not look for a workaround. Ask the
+   user to act or to clear the goal.
+
 ### If a step is unavailable
 
 - The goal query itself is unavailable: keep summaries in the transcript and wait for the
@@ -82,6 +101,7 @@ reporting, not for claiming completion.
 | Loop the deferral call in one turn | Re-issued the deferral after its error state | The same error state repeated; the goal then moved to a budget limit, so no further call was possible | One failed deferral is terminal for the turn; end with a named-pending summary instead |
 | End the turn with no resume contract | Considered stopping after the errored deferral without a summary | A later resume turn starts with fresh context and no plan; the watcher result has no consumer | The summary is the resume contract: shell identifier, pending condition, next action |
 | Poll the watcher output to stay productive | Read the shell output while limited | Each poll spends the scarce turns and returns an unfinished result | Wait for the native completion notification; it resumes the session without a deferral |
+| Re-check external state on every forced turn | Ran the same status query each time the gate re-fired while waiting for a human-only action | Several hundred identical checks, each with the same unchanged result and the same status line | One precise `needs input` line, then an event-driven watcher; spend a turn on a check only when the answer can change |
 
 ## Results & Parameters
 
