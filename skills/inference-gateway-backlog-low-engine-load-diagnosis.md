@@ -1,10 +1,10 @@
 ---
 name: inference-gateway-backlog-low-engine-load-diagnosis
 license: BSD-3-Clause
-description: "Find why an LLM inference gateway rejects or queues requests while dashboards show low engine load. Use when: (1) clients get 429, 408, or 503 from the router, (2) engine load or capacity panels look low or empty, or (3) per-user throughput looks unfair."
+description: "Find why an LLM inference gateway rejects or queues requests while dashboards show low engine load. Use when: (1) clients get 429, 408, or 503 from the router, (2) engine load or capacity panels look low or empty, or (3) per-user throughput looks unfair, or (4) a latency-sensitive class is rejected while a bulk class holds nearly all slots."
 category: debugging
 date: 2026-11-04
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [inference, gateway, router, admission, queue, "429", "503", dashboard, stale-telemetry, dead-workers, fair-share, gpu-utilization, read-only]
@@ -45,6 +45,7 @@ Check these in order. Each check is read-only. Do not restart anything before yo
 - **Dead registrations.** Dead workers inflate the registered count, hide real load behind `-1` metrics, and produce `no_available_workers` or upstream 500 responses when the router picks them. The fix owner is the component that deregisters on job end. Check why health eviction did not remove them.
 - **Real saturation.** Compare running requests per replica with the learned knee (the router metric for requests per replica at best throughput). If replicas run at the knee with 100% GPU use, the backlog is a true capacity shortage. Count the replicas that wait in the scheduler queue. Low KV-cache use does not show idle compute.
 - **Admission limits.** A 429 that returns in microseconds is an admission rejection, not engine work. Read the queue limit for the request class. A low class limit (for example, the bulk class) rejects work while other classes and the partition have free slots. Models without their own partition share one default partition, so one heavy user can fill it.
+- **Priority classes do not protect a class from a full shared queue.** Read in-flight and queue depth per class and partition. If the bulk class holds nearly all slots and its queue depth exceeds its own class limit, the class limits are soft shares of one queue. A request of any class is rejected when the queue is full, and priority only orders requests that are already waiting. Reservations and a smaller bulk queue limit helped only a little in a scaled test. A separate partition with its own concurrency and queue budget gave a hard guarantee. Bound the bulk class before the shared queue instead when the replicas cannot be split: a per-model in-flight limit at the proxy that answers 429 with a retry delay, plus a client window that backs off. Test the choice first with a real router and mock workers in a scaled partition, with a bulk load far above capacity and a light protected load, and compare the admitted fraction of the protected class.
 - **Per-user fairness.** Check that policy keys match the live pool names. A policy for a pool with zero replicas does not apply to live traffic. Check that the allocator status lists the live models, and that the runtime policy file matches the deployed configuration.
 - **Log volume.** Count lines by pattern before you read them. Per-request INFO lines for a polled route and repeated reconcile or deadline lines can make up most of a multi-gigabyte log. Record the dominant pattern and fix it separately.
 - If you cannot read a protected route or metric, state the gap and use the open metrics port or the log counters instead. Do not search for credentials.
@@ -56,6 +57,7 @@ Check these in order. Each check is read-only. Do not restart anything before yo
 | Read the load panels | Treated low engine load and low capacity on the dashboard as the cause of the backlog. | The state files had stopped refreshing, 20 of 31 workers reported `-1`, and uploads timed out. | Check data age and worker validity before you read load. |
 | Read the first 429 reason | Assumed that a global concurrency cap caused the rejects. | The global cap was far above the load. The class queue limit and real saturation caused them. | Read per-class and per-partition outcome counters. |
 | SSH to a compute node | Opened a shell on the node to read GPU state. | Key-based access was refused. | Use the scheduler's overlap exec inside the job allocation. |
+| Send the protected class with a higher priority header | Expected the higher class to be admitted ahead of bulk. | Bulk filled the whole queue, and the new request was rejected as queue full, with the same result as the default class. | Priority orders waiters; it does not make room. Bound bulk first or give the class its own budget. |
 | Count log lines in a huge file | Ran a full-file scan. | The command passed the tool timeout. | Take a bounded tail, or run the scan in the background. |
 
 ## Results & Parameters
