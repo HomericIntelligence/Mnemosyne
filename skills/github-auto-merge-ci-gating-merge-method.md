@@ -12,14 +12,15 @@ description: >-
   unverified commit, when a reviewer must decide whether to set the GO label
   after a required check was claimed as a success before that check ran, or when
   an armed request waits with zero check runs because a trigger label that starts
-  CI was never applied.
+  CI was never applied, or when the required gate check itself concludes `cancelled` on the
+  current head while every other check is green.
 category: ci-cd
 date: 2026-07-30
-version: "2.11.0"
+version: "2.12.0"
 user-invocable: false
 verification: verified-ci
 license: BSD-3-Clause
-tags: [auto-merge, github, ci-cd, merge-method, required-checks, rulesets, review-threads, current-head-checks, merge-queue, toctou, armed-merge-race, ceremony-ordering, label-gating, cancelled-leg, checkless-rule, required-signatures, commit-verification, claim-before-check, verdict-time-check-state, stale-check-claim, trigger-label, zero-check-runs]
+tags: [auto-merge, github, ci-cd, merge-method, required-checks, rulesets, review-threads, current-head-checks, merge-queue, toctou, armed-merge-race, ceremony-ordering, label-gating, cancelled-leg, cancelled-gate-check, checkless-rule, required-signatures, commit-verification, claim-before-check, verdict-time-check-state, stale-check-claim, trigger-label, zero-check-runs]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/github-auto-merge-ci-gating-merge-method.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -66,6 +67,7 @@ repository-specific policy transitions are `verified-local`; their boundaries ar
 - A decorative state label shows a non-mergeable verdict while the armed merge stays pending, and you must decide whether that label gates the merge.
 - A verdict comment reports a required check as a success, but that run started after the comment, and the GO label decision depends on which result is real.
 - An armed request stays open with merge state `UNKNOWN` or `BLOCKED` and the head has no check runs at all because a trigger label that starts CI was never applied.
+- Every check on the head is green or skipped, but the required label gate's newest run concluded `cancelled`, and the merge state stays `BLOCKED`.
 
 ## Verified Workflow
 
@@ -178,6 +180,33 @@ Classify a label-gate failure before you touch content:
    or edit a label only to force an event when a valid same-head run can supply the evidence.
 
 A draft pull request cannot receive the state label, so a gate that needs the label does not start. Mark the pull request ready first.
+
+### Cancelled gate check on the head
+
+A required gate run can end `cancelled` on the current head — for example, cancelled by a
+concurrent label operation or a run-management race. The signature: every other check on the
+head is green or skipped, the required gate's newest run is `cancelled`, and the merge state
+stays `BLOCKED`. No completed gate run exists on the head, so neither recovery above applies:
+an event-payload gate has no failed job set that a rerun can select, and an old-head run is
+never evidence.
+
+A pass/skip filter over the check list hides a cancelled conclusion. Query the head directly:
+
+```bash
+gh api repos/<OWNER>/<REPO>/commits/<HEAD>/check-runs \
+  --jq '.check_runs[] | select(.conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral" and .conclusion != null) | {name, status, conclusion}'
+```
+
+Repair by re-firing the gate's event: remove the trigger or policy label, confirm the removal,
+then re-add it. The fresh `labeled` event starts a new run on the same head with the current
+label set. This recovery is label-source-agnostic — it works for an event-payload gate and for
+a live-label query — which makes it the safe choice when the gate's label source is unknown or
+a rerun cannot supply the evidence. Verify that the new gate run on the head concludes
+`success` before you read the merge state again. The label cycle also restarts the normal CI
+workflows on that head.
+
+Do not use this repair when a completed gate run already exists on the head and only its
+verdict is stale: the event-payload/live-label classification above governs that case.
 
 CI checks out the pull request head, not a merge with the base. If the base branch merged a new CI script after the branch point, the head lacks that script and lint fails. Merge the base branch into the head. That push moves the head and voids an earlier GO, so review the new head again.
 
@@ -369,6 +398,7 @@ a check to turn green, because no check exists to turn green.
 | Re-run an event-payload label gate | Applied the required label, then ran `gh run rerun <run-id> --failed` on the pre-label run | The re-run replayed the original event payload, so the gate step read the superseded label set from `env` and failed again | For a payload gate, require success from the run whose `created_at` follows the label mutation; do not apply this rule to a gate that queries live labels |
 | Accept a verdict's check claim of success | A reviewer comment reported `Required check: success` and a lane set the GO label. The check run started after the comment and concluded `failure` | The claim had no result behind it. Two lanes reviewed one head, so the GO decision rested on a claim, not on the check result | Read the check results at the head, compare their `created_at` with the comment `createdAt`, and state the real result. Report unmet label conditions to the owner |
 | Wait on an armed request with no check runs | Auto-merge was armed and left overnight; merge state stayed `UNKNOWN` for more than a day; the head had zero check runs | No workflow had started, because the trigger label that gates CI was never applied. Waiting could not produce a run, and no failing check existed to diagnose | Classify labels as policy, decorative, or trigger; when a trigger label is absent, apply it within authority and verify a run starts on the current head |
+| Wait on a cancelled gate check | Every check on the head was green or skipped except the required label gate, whose newest run was `cancelled`; the merge state stayed `BLOCKED` | A cancelled run never completes, so waiting produces nothing and a failed-job rerun has no completed gate run to repair | Remove and re-add the label to fire a fresh `labeled` event; verify the new gate run on the same head concludes `success` |
 
 ## Results & Parameters
 
@@ -389,6 +419,7 @@ a check to turn green, because no check exists to turn green.
 | Label gating | Only policy-required labels block; decorative state labels do not |
 | Trigger labels | Start CI. An absent trigger label yields zero check runs, not zero results; apply it within authority and verify a run starts on the current head |
 | Label-gate recovery | Inspect whether the gate reads event labels or queries live labels. Use a fresh label-event run for the payload case; use a same-head rerun for the live-query case after confirming current labels and head. Never substitute an old-head run |
+| Cancelled gate check | No completed gate run exists on the head, so rerun and wait cannot repair it. Remove and re-add the label to fire a fresh `labeled` event; source-agnostic recovery when the gate's label source is unknown |
 | Verdict check claim | Accept a required-check result only from a run whose `created_at` precedes the verdict comment; a later run cannot support the claim |
 | Label authority | Set the GO label only on a clean GO with passing required checks at the reviewed head; report an unmet condition instead of removing a foreign label |
 | Verification | Read back request/result and continue current-head monitoring |
