@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Decide whether a zero-output background agent lane is load-slowed or wedged before replacing it. Use when an autonomous lane shows no file edits, commits, or processes for tens of minutes on a loaded agent host."
 category: tooling
 date: 2026-10-25
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -65,6 +65,7 @@ Decision rules:
 - **Wait below the budget.** Do not replace a lane inside the silence budget.
 - **Beyond the budget with no host-side generation, escalate first** when an external decision is valid; replace only as a last action, never push over the old lane, and give the replacement a duplicate-PR guard.
 - **A held lane can wake on its own background shell.** A self-driving lane can park on its own long-running shell (for example a test suite) and auto-resume on the native shell-completion notification. A completion notification that carries an interim structured status and a pending shell is flow, not failure.
+- **A lane that ended its turn to wait is not parked.** A delegated agent that ends its turn to wait for a long background build, job, or test run has already sent its one-shot handback. Output after that point never reaches the coordinator, and the lane does not wake on its own. Read the state directly: job state, branch head, and logs. Then resume the same agent by message with the observed state and the remaining step. Ask it to answer by message, not by a new handback, and to keep its turn open while it waits when the host allows. Do this only for a lane that has ended; a lane that still runs follows the passive-sampling rule above.
 - **After a completion notification, trust but verify.** Check the pull request file set, the review trail, the labels, and the merge state against the plan. Do not trust report text alone.
 
 When this skill does not apply: a completion notification whose result field reports an API or connection error is a silent failure that looks like completion; recover per [agent-background-task-failure-recovery](agent-background-task-failure-recovery.md). Orchestration of the full lane set stays with [clear-open-issue-backlog-myrmidon-swarm](clear-open-issue-backlog-myrmidon-swarm.md).
@@ -73,6 +74,7 @@ When this skill does not apply: a completion notification whose result field rep
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
+| Wait for a handback after the agent ended its turn on a build | The coordinator waited for the final report of an agent that had ended its turn to wait for a long background build | The handback was already sent and was one-shot. The build finished later and nothing reached the coordinator. | Verify job state, branch head, and logs directly. Resume the agent by message and ask for a message reply. |
 | Replace after ≈45 min of zero output | Two implementation lanes each showed ≥45 minutes with no edits, no commits, and no processes; replacement was prepared and started | Both lanes were load-slowed, not wedged: each completed normally in ≈5.5 hours and delivered a merge-grade pull request; the replacement produced a duplicate pull request against the same plan, closed as superseded, and doubled the review effort | Zero output close to the host load noise level is normal, not a stall; measure the silence budget from completed siblings before any replacement |
 | Frequent active polling of the lane | Status probes each 1-2 minutes | Each probe confirms only the last state and costs a full orchestration turn; it never accelerates the lane | Sample at 10-15 minute intervals; act only at a material state change (new artifact, commit, PR, or completion notification) |
 
