@@ -3,7 +3,7 @@ name: shared-fs-group-directory-provisioning
 description: "Provision the right shared-filesystem directory mode, and place user-owned entries below it correctly. Use when: (1) a team needs a shared drop area on a cluster or shared filesystem, (2) ownership or write failures occur for group members, (3) the service account must read files that another user wrote, (4) per-user entries share one parent with service-private records, (5) a declared path manifest or an inventory check must accept the new entries, or (6) you must size available capacity before team use."
 category: tooling
 date: 2026-10-21
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 tags: [posix, permissions, setgid, sticky, group, shared-storage, provisioning, umask, quota, per-user, path-manifest, identity-encapsulation]
 ---
@@ -25,6 +25,7 @@ tags: [posix, permissions, setgid, sticky, group, shared-storage, provisioning, 
 - A service account cannot read files that users write, or it reads a file that another user must not overwrite.
 - Several users stage entries in one parent that also holds service-private records.
 - A declared path manifest, attestation, or repair tool must accept the new entries.
+- A group member who is not the entry owner must repair modes or ownership of existing entries, and the change fails.
 - Answer a capacity question for a directory before large artifacts move in.
 
 ## Verified Workflow
@@ -60,6 +61,7 @@ ls -ld PATH PARENT/USER        # expect drwxrwsr-x, or drwxrws-wt, or drwxr-s---
 7. Keep service-private records out of the shared parent. A private record directory below the same parent keeps mode `0700` and its own owner. Only the parent changes mode. Change the mode check that runs for the parent, not the one for the private records.
 8. Update the declared path manifest and the inventory or attestation tool together with the mode. Use one component token for a user name in a glob-style manifest, not a pattern that also matches the private record names. A token that cannot overlap another pattern prevents an ambiguous-policy refusal. The token must also refuse a name that starts a segment with a dot, `.intake*`, or `../`.
 9. Verify with `ls -ld` and with the tool that consumes the path. Expect `drwxrwsr-x` for `2775`, `drwxrws-wt` for `3733`, and `drwxr-s---` for `2750`.
+10. Run mode repairs as the entry owner. On cluster filesystems, a group member with write access still cannot change the mode or owner of an entry that another account owns: the change tool returns `Operation not permitted` (`EPERM`). Plan the bulk repair to run as the owning service account, or an administrator, on a host where that account can run commands. Verify with `stat -c '%a %U %G %n'` on one entry after the repair.
 10. For a capacity question, inspect the mount, not the directory. `df -h PATH` and `stat -f PATH` show mount capacity. A directory has no size limit of its own unless the filesystem enforces tree or user quotas.
 
 Keep these failure modes in view:
@@ -69,6 +71,7 @@ Keep these failure modes in view:
 - Group changes do not reach existing sessions. Start a new session or run `newgrp TEAM_GROUP`.
 - A mode check that demands `0700` and owner equality on the shared parent rejects every user-written parent. Update that check with the mode change.
 - A path manifest that lists only service-owned names refuses the new user entries, and an ambiguous match stops the attestation. Change the manifest in the same change.
+- Expecting a group member to repair foreign-owned entries. Group write lets members create and remove their own entries. It does not allow `chmod` or `chown` on an entry that another account owns; that fails with `Operation not permitted`. Only the entry owner or an administrator can change modes.
 
 ## Failed Attempts
 
@@ -77,6 +80,7 @@ Keep these failure modes in view:
 | Setgid alone for many users | Used `2775` for a parent that many users and one service account share. | The group write lets one user delete or rename another user's entry. Group read also reveals the names of other users' entries. | Add the sticky bit for many writers. Use `3733` to hide the names without stopping the service account. |
 | Entry mode `0700` | Gave each user a private entry below a group-writable parent. | The service account is not the entry owner, so it cannot traverse the entry, and every read fails. | Use group-execute for the reader: `2750` with the service group. |
 | Manifest unchanged | Changed the directory mode but kept the manifest patterns for service-owned names only. | The attestation and repair path classified the new entries as unknown or ambiguous and refused the tree. | Update the manifest, the token, and the mode check in one change. |
+| Group member ran the bulk mode repair | A group member tried to make thousands of foreign-owned entries world-readable. | Every `chmod` on an entry owned by the service account returned `Operation not permitted`; nothing changed. | Run the repair as the owning service account, or an administrator, and verify a sample entry afterward. |
 
 ## Results & Parameters
 
@@ -91,6 +95,8 @@ many_user_parent:
   entry_mode: 0o2750      # owner is the user, group is the service group
 service_private_child:
   mode: 0o700
+repair_executor:
+  who: entry-owner-or-administrator  # a group member cannot chmod foreign-owned entries
 ```
 
 ### Expected Output
@@ -107,6 +113,7 @@ service_private_child:
 | --------- | --------- | --------- |
 | Anonymized shared-storage deployments | Team artifact directory provisioned with mode `2775`. Capacity question answered from the mount, which had no visible per-user quota tooling. | See [notes.md](shared-fs-group-directory-provisioning.notes.md). |
 | Anonymized service deployment | Many-user staging parent changed to mode `3733`, with private record directories kept at mode `0700` and the path manifest updated in the same change. | See [notes.md](shared-fs-group-directory-provisioning.notes.md). |
+| Anonymized multi-terabyte artifact store | A group member could not `chmod` service-owned entries (`Operation not permitted`); the owning service account ran `find`-scoped mode repairs over the store and made every service-owned entry world-readable. | See [notes.md](shared-fs-group-directory-provisioning.notes.md). |
 
 ## References
 

@@ -1,9 +1,9 @@
 ---
 name: borrowed-python-env-runs-wrong-worktree
-description: "Detect that test failures come from a foreign Python environment, not from your change. Use when a worktree has no virtual environment and you run the suite with an interpreter from a sibling worktree; the suite reports missing attributes, missing functions, or import errors for code you just added; an import resolves to another checkout; or you are about to report a failure count before you confirm which package the interpreter loads."
+description: "Detect that test failures come from a foreign Python environment, not from your change. Use when a worktree has no virtual environment and you run the suite with an interpreter from a sibling worktree; the suite reports missing attributes, missing functions, or import errors for code you just added; the suite hangs or starts real staging or publishing work instead of failing, because guard code from your change is absent in the imported package; an import resolves to another checkout; you consider a PYTHONPATH override instead of a new environment; or you are about to report a failure count before you confirm which package the interpreter loads."
 category: testing
 date: 2026-10-24
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -38,6 +38,8 @@ code that you added, and it looks like a defect in your change.
 - A new worktree has no `.venv`, and you borrow the interpreter of another worktree.
 - The suite reports `AttributeError` for a name that exists in your edited file.
 - The suite reports import errors for a function or module that you just added.
+- The suite does not fail; it hangs, or it starts long real work such as staging, copying, or publishing, because a guard or precondition from your change is absent in the imported package.
+- Recreating a virtual environment is not practical, and you consider a `PYTHONPATH` override with the borrowed interpreter.
 - You are about to report a failure count, or a defect, for a change in a fresh worktree.
 - Two worktrees disagree about the same test on the same commit.
 
@@ -52,8 +54,10 @@ Confirm which package the interpreter loads **before** you read a failure count:
 <borrowed-or-local>/.venv/bin/python -c "import <package>; print(<package>.__file__)"
 ```
 
-If the path is in a different checkout, do not use that interpreter. Create an
-environment in the worktree:
+If the path is in a different checkout, do not use that interpreter unchecked.
+Repair the environment. Two repairs exist:
+
+Create an environment in the worktree:
 
 ```bash
 cd <worktree>
@@ -62,10 +66,20 @@ uv pip install --python .venv/bin/python -e '.[dev]'
 .venv/bin/python -c "import <package>; print(<package>.__file__)"   # must be <worktree>/src/...
 ```
 
+Or prepend the worktree source with `PYTHONPATH` when you cannot create an
+environment. This works for a source-layout repository (`src/<package>`). After
+you set it, run the same import check and confirm the path is inside the
+worktree. If an editable-install finder still wins, `PYTHONPATH` does not help;
+fall back to a worktree environment. Treat the override as unverified until the
+import check passes.
+
 ### Suggested Approach
 
 1. **Resolve the package path first.** Run the one-line import check. This takes
-   one second and makes the whole failure count trustworthy.
+   one second and makes the whole failure count trustworthy. Run it before any
+   test that can touch shared storage, staging areas, or other real resources.
+   A foreign package lacks your new guards, so the suite can start real work
+   instead of failing.
 2. **Read the first cause.** A message such as `module '<pkg>' has no attribute
    '<name>'` for a name that exists in your file is a resolution symptom, not a
    code defect. Confirm the name exists in the worktree source before you debug it.
@@ -92,6 +106,7 @@ Do not repair this condition by changing the working directory.
 | Reuse a sibling worktree's interpreter | Ran the new worktree's tests with a neighbouring worktree's `.venv` | The editable install resolved the package to the neighbouring tree, so every new symbol was missing | Resolve the package path before the run |
 | Read the failure count as a code result | Treated 14 failures as defects in the change | All 14 came from the foreign package; none came from the change | Check the import path before you attribute failures |
 | Change the working directory | Ran from the correct worktree root with the borrowed interpreter | The working directory does not change which installed package the interpreter loads | Repair the environment, not the working directory |
+| Trust a hang as a slow suite | The borrowed interpreter ran the suite and it hung in real staging work against a shared store | The missing guard from the change was absent in the foreign package, so staging proceeded instead of refusing; the hang was a resolution symptom, and the run did real work | Treat a hang or unexpected long-running real work as a foreign-environment symptom; check the import path before any run that can mutate real resources |
 | Blame the change for the last 2 failures | Assumed the remaining failures were caused by the change | The same tests failed on the unmodified base commit on the same host | Baseline each remainder on the base commit |
 
 ## Results & Parameters
@@ -100,6 +115,8 @@ Do not repair this condition by changing the working directory.
 | --- | --- |
 | Pre-run proof | `import <package>; <package>.__file__` is inside the worktree under test |
 | Foreign-environment symptom | `AttributeError` or import error for code that exists in the worktree |
+| Foreign-environment symptom without failure | A hang, or real staging, copy, or publish work that your guard should have refused |
+| `PYTHONPATH` remedy | `PYTHONPATH=<worktree>/src`, then re-run the import check; unverified until the path shows the worktree |
 | Local re-creation | `uv venv` then `uv pip install -e '.[dev]'` inside the worktree |
 | Remainder classification | Reproduced on the unmodified base commit means pre-existing |
 | Final authority | Continuous integration on the exact head |
@@ -112,3 +129,4 @@ record a failure count before the import-path check.
 | Project | Context | Details |
 | --- | --- | --- |
 | An operator-service repository | One session, one worktree | A borrowed environment reported 14 failures. The local environment reported 2 failures. Both failed on the unmodified base commit and passed in continuous integration. |
+| A serving-platform repository | One worktree, two test runs | The borrowed interpreter ran the suite into real staging against a shared store because a new workspace guard was absent from the imported package. `PYTHONPATH` bound the worktree source after the import check passed, and the guarded tests passed. See [notes](../skills/borrowed-python-env-runs-wrong-worktree.notes.md). |
