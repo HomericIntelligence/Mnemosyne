@@ -3,7 +3,7 @@ name: rm-permission-denied-owner-readonly-repair
 description: "Finish a partially failed bulk deletion: owner-owned read-only files (0444) and search-only directories (0555) make rm -rf fail with 'Permission denied'. Use when: (1) rm -rf of your own scratch, cache, or run trees reports 'cannot remove ... Permission denied' although you own the entries, (2) container test fixtures, package caches, or model-hub caches left read-only modes behind, or (3) a keep-filter protected live directories on the first pass but a later unfiltered pass deleted them."
 category: tooling
 date: 2026-10-30
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [filesystem, permissions, chmod, rm, cleanup, shared-storage, network-filesystem]
@@ -25,6 +25,7 @@ tags: [filesystem, permissions, chmod, rm, cleanup, shared-storage, network-file
 - The failed entries are mode `0444` files or `0555` directories, typical after container test runs, model-hub or package caches, or backup tools that set read-only modes.
 - A cleanup chain stopped at its first failure, so later independent deletion steps never ran.
 - A keep-filter, by age or by name, protected live directories on the first pass, and a later unfiltered pass removed them.
+- The in-tree deletion succeeds, but an empty top-level directory shell remains because its parent directory is owned by another account, and you cannot unlink your shell from that parent.
 
 ## Verified Workflow
 
@@ -43,6 +44,7 @@ find ROOT -mindepth 1 -maxdepth 1 ! -name 'KEEP-*' -exec rm -rf {} +
 3. **Re-run the deletion without chaining independent steps.** Run each independent deletion as its own command, or join them with `;`. A `cmd1 && cmd2` chain stops at the first nonzero exit, and the remaining cleanup silently does not run.
 4. **Apply every keep-filter to every pass.** Directories modified within the last day can belong to live jobs. Give the first pass, the mode-repair pass, and each delete pass the same `! -name 'KEEP-*'` or `-mmin +1440` expression. Do not finish with an unfiltered glob.
 5. **Verify completion.** Count the remaining entries and confirm the keep targets exist: `find ROOT -mindepth 1 -maxdepth 1 | wc -l`, then list the keep matches.
+6. **Finish a foreign-owned parent shell.** An in-tree delete cannot remove the deleted tree's own top directory when the parent is owned by another account: unlinking an entry needs write permission on the parent, not on the entry. The shell stays behind as an empty directory. Confirm it is empty (`ls -A <shell>`), then ask the parent's owner, the owning service account, or an administrator to run `rmdir <shell>`. Re-list the parent to confirm the shell is gone.
 
 For irreplaceable data, archive and verify before any deletion. See
 [slurm-shared-storage-artifact-relocation](slurm-shared-storage-artifact-relocation.md) and
@@ -55,6 +57,7 @@ For irreplaceable data, archive and verify before any deletion. See
 | 1 | Plain `rm -rf` over mixed cleanup trees | `rm` skipped entries with read-only modes and exited nonzero, so some trees stayed behind | Repair modes with `chmod -R u+rwX`, then delete again |
 | 2 | Chained independent deletions with `&&` | The first `Permission denied` exit stopped the chain; later independent steps never ran | Run independent destructive steps separately; collect failures, repair, and re-run |
 | 3 | Age-filtered first pass, then a final unfiltered glob delete | The glob deleted three recent scratch directories that the filter had kept; live jobs may have used them | Put the keep-filter in every pass, including the last one |
+| 4 | Read the leftover empty directory as a failed deletion | Every entry inside was gone; only the top-level shell remained, and `rmdir` on it failed because the parent directory belongs to the store's owning account | Unlink rights come from the parent. Route the final `rmdir` of the shell to the parent's owner |
 
 ## Results & Parameters
 
@@ -65,6 +68,7 @@ For irreplaceable data, archive and verify before any deletion. See
 | Mode repair | `chmod -R u+rwX` | Owner write everywhere; execute or search permission only where it already exists |
 | Keep-filter | `! -name 'KEEP-*'`, `-mmin +1440` | Name or age guard; use the same expression in every pass |
 | Scope | One subtree per command | Avoids weak-server metadata overload and mixed-ownership widening |
+| Shell cleanup | `ls -A <shell>`, then `rmdir <shell>` by the parent's owner | Unlink of the deleted tree's top directory needs write on the foreign-owned parent |
 
 ### Expected Output
 
@@ -76,6 +80,7 @@ For irreplaceable data, archive and verify before any deletion. See
 | Project | Context | Details |
 | ------- | ------- | ------- |
 | Parallel shared-filesystem cleanup session | Deleted compiler temps, scratch directories, and archived run trees after mode repair | See [notes](../skills/rm-permission-denied-owner-readonly-repair.notes.md) |
+| A shared artifact-store cleanup session | A foreign build workspace (tens of gigabytes, many private-mode files) was repaired with `chmod -R u+rwX` and deleted; the empty shell was removed later by a parent-owner `rmdir` | See [notes](../skills/rm-permission-denied-owner-readonly-repair.notes.md) |
 
 ## References
 
