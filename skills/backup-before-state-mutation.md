@@ -1,10 +1,10 @@
 ---
 name: backup-before-state-mutation
 license: BSD-3-Clause
-description: "Never mutate shared persistent state without a verified restorable snapshot of the affected scope first; when a full dump is impractical, snapshot exactly the mutation's effect surface with a manifest and restore instructions. Use before database writes, bulk deletes, revocations, or migrations, especially when full-backup tooling or volume makes naive dumps infeasible."
+description: "Never mutate shared persistent state without a verified restorable snapshot of the affected scope first; when a full dump is impractical, snapshot exactly the mutation's effect surface with a manifest and restore instructions. Use before database writes, bulk deletes, revocations, or migrations, especially when full-backup tooling or volume makes naive dumps infeasible. Also use when a delete is justified by a claim that the data already lives in another location: verify that copy's coverage before deleting the original."
 category: architecture
 date: 2026-10-23
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 tags:
 - backup
@@ -31,6 +31,7 @@ Use this skill when:
 - You are about to run a mutating command against shared or persistent state: database writes, bulk deletes, credential revocations, migrations, queue surgery.
 - A revert path may be needed (incident response, first-time procedure, manually assisted recovery).
 - A full backup is impractical: the datastore's volume is dominated by history you will not touch, the platform's dump client is not installed on your access nodes, or credentials for the backup tool are unavailable — but the mutation touches a small, identifiable scope.
+- The user or a note says the data is "already backed up" elsewhere and you are about to delete the original (space cleanup, retiring a directory).
 - A standing rule applies: "no changes without a backup." Treat the gate as part of the mutation, not optional prep.
 
 ## Verified Workflow
@@ -59,12 +60,23 @@ Make restoration executable, not aspirational. Put the exact restore commands (o
 
 Verify before you depend. Check decompression integrity and parity of counts against live objects. Then mutate, and leave the coupling record: snapshot id ↔ mutation id, in whichever log is canonical for the operation. See [notes](backup-before-state-mutation.notes.md) for the generalized procedure, manifest fields, and verification checklist used in production.
 
+### Verify a claimed existing copy before deleting the original
+
+A statement that data is "already backed up elsewhere" is a claim, not a snapshot. Check it before the delete:
+
+1. Compare coverage, not just existence: the date or ID range, the file count, and the total size of the claimed copy against the original. A destination that holds an older period or a different subset is not a backup of the newer data.
+2. Do not match by filename alone. The copy may use another layout or naming scheme, so a zero-match name search does not prove the copy is missing. Match by directory layout, date folders, or a content identifier from a few sampled originals.
+3. A search that times out on a large tree proves nothing in either direction. Narrow it (list date folders, sample a few items) instead of widening it.
+4. If coverage is not confirmed, delete only the items that need no copy (rebuildable caches, build outputs, duplicates of data that remains). Keep the unconfirmed original. Report what you checked, what you found, and ask for the true location or an explicit "delete anyway".
+5. Run a bulk delete on a slow shared filesystem as a background job with a log, and confirm its end marker before you report freed space.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
 | Full-dump plan | Default first plan: take a complete dump before a targeted single-row revocation | No platform dump client existed on the access nodes, and the datastore volume (~0.4 TB) was ~99% history tables outside the mutation path; a full dump would have been the slowest, most fragile, least restorable option | Feasibility of the naive plan must be checked before promising it; volume dominated by unrelated history is itself the scoping signal |
 | Unverified write path | First snapshot run crashed mid-write (text/binary mode mismatch in the compression writer) | Caught only because verification ran before the mutation; had the crash happened silently, the gate would have existed on paper with a corrupt snapshot behind it | Run verification as part of the gate, and re-run the whole snapshot from scratch rather than resuming a partial dump into the same directory |
+| Trusting a stated backup | User said old logs were "in the archive directory"; first search looked for one filename there | A filename search found nothing because the archive used a different layout, and a broad content search timed out; the archive's date folders ended months before the originals' dates | Compare date range and counts of the claimed copy first; keep the original until coverage is confirmed |
 
 ## Results & Parameters
 

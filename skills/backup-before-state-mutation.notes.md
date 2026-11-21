@@ -64,3 +64,23 @@ the mutation could not proceed without it.
 - Restore executability is tested cheaply (format + counts), not by actually
   restoring into production; a fuller restore drill belongs in scheduled
   maintenance, not in the pre-mutation gate.
+
+## Added evidence: claimed copy did not cover the originals
+
+A space-cleanup request listed several large directories for deletion and said
+one set of agent session logs was "already in the shared archive". The archive
+held a per-machine tree organised by year, month and day, and a second
+directory of hash-named trace files. Checks that were run, in order:
+
+- A search for one original filename in the archive found no match.
+- Sampling 20 originals by filename found 0 matches.
+- Listing the archive's date folders showed months 03-06; the originals were
+  from months 08-09, so the archive did not cover them.
+- A content search for session identifiers across the hash-named directory
+  (about 97 GB) timed out, so it was neither a positive nor a negative result.
+
+Outcome: all rebuildable items (image build output, dataset cache, old release
+and proof directories, a merged worktree, old job folders) were deleted; the
+unconfirmed originals (about 8 GB) were kept and the user was asked for the
+real copy location. The home directory fell from about 230 GB to 68 GB.
+The large delete ran as a background job with a log file and an end marker.
