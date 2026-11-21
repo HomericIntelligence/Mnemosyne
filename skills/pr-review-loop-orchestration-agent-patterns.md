@@ -3,7 +3,7 @@ name: pr-review-loop-orchestration-agent-patterns
 description: "Use when implementing or debugging an agent-driven PR review/fix loop: progress must be commit-gated, GO convergence bounded, inline comments diff-valid, review evidence fully paginated, branch/head identity live-bound, non-blocking threads correctly dispositioned, and merge conditional on the reviewed head."
 category: ci-cd
 date: 2026-08-08
-version: "2.1.1"
+version: "2.2.0"
 license: BSD-3-Clause
 verification: verified-ci
 user-invocable: false
@@ -103,7 +103,7 @@ For each bounded iteration:
 
 1. Snapshot the current head and unresolved blocking threads.
 2. Run the reviewer and parse an explicit GO, NO-GO, or AMBIGUOUS verdict.
-3. If GO, ensure required checks and head-binding conditions are satisfied.
+3. If GO, ensure required checks and head-binding conditions are satisfied. Before a coordinator issues GO, run the fast checks that CI enforces without a long build, or require the reviewer to list them: test-tier or shard registration of new tests, allowlist counts, command and binary documentation tables, formatter, and type check. A GO that skips these costs an extra CI round on most pull requests when one coordinator batches many review-and-babysit jobs in parallel.
 4. If non-GO with blocking threads, dispatch the fixer with their verbatim bodies and IDs.
 5. Compare the repository head before and after the fixer.
 6. Resolve only threads whose disposition is supported by the resulting commit or an accepted
@@ -162,6 +162,20 @@ If it reports a merge conflict after review, use the host-owned bounded rebase p
 writer checkout, re-run validations, and re-enter review. If it is only behind, let CI/CD or the
 merge queue integrate the base update. Enforce a conflict/retry budget; remote-head drift must not
 become an unbounded force-push loop.
+
+A push does not clear an armed auto-merge request or a state label. Both survive a rebase or a
+small follow-up commit, so no mechanism blocks a merge on a head that no reviewer has seen. After
+such a push, require a fresh review of the new head before you trust the earlier GO. The review can
+be short when the change is a rebase plus a mechanical edit (for example a registry-only change):
+check the range-diff or the new commit, and name the new head in the verdict.
+
+### 10. Take over a draft PR
+
+Before you rebase, fix, or mark a draft PR ready, read its body and comments to learn why it is a
+draft. Common reasons are a pending dependency, an unfinished plan, and an author who still
+works on it. Check that the author's worktree or session is idle (recent commits, a lock, or a
+claim comment). Only then rebase, fix, review the new head, and mark the PR ready. If the author
+is active or the reason is unresolved, report that to the coordinator and do not take over.
 
 Merge evidence includes the reviewed head, final head, required check conclusions, merge commit or
 squash OID, and complete thread disposition snapshot.
