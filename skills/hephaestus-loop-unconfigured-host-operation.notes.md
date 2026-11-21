@@ -241,3 +241,23 @@ umask 002 from its parent.
   common directory from a foreign clone; this row rejects a directory that the loop's own
   intake just created. The 0755 floor is the same. The owner and the durable prevention
   differ.
+
+## Run evidence (2026-11-20 planning/review wave, row-18 receipt mismatch)
+
+A new planning/review wave stopped during repository checkout preparation. Two clone
+attempts failed with `repository-intake receipt and worktree registration do not match`;
+the summary recorded no agent jobs.
+
+- The intake receipt named a worktree path that was absent from disk. The same path was
+  absent from `git worktree list --porcelain`. This distinguished the failure from a
+  present dirty worktree and from an unsafe directory mode.
+- Diagnosis did not change the receipt, the worktree registration, or automation source.
+- Before relaunch, inspection of active loop scopes found overlapping explicit items. The
+  new wave used only the remaining items and left the existing loops unchanged.
+- A launch with a new empty isolated `<projects-dir>` completed isolated intake
+  preparation and entered planning and plan review. The stale shared intake state remained
+  untouched.
+
+Evidence boundary: this was a new run with no unique worker output. It verifies the fresh
+projects-directory recovery, not receipt deletion or reconstruction. An interrupted run
+with unique worker output requires output salvage before a new run root is selected.
