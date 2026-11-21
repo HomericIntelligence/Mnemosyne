@@ -1,4 +1,4 @@
-# Notes: Descriptor-Digest Re-Admission vs Exclusion After Additive Fields
+# Notes: Descriptor-Digest Re-Admission, Exclusion, and Selected Variants
 
 Supporting evidence for `descriptor-digest-readmission-additive-fields`. Internal
 identifiers, digest values, and paths are generalized; the decision rule is the
@@ -130,3 +130,51 @@ artifact.
 - Verification: the focused identity and policy suites passed, the generated
   schema showed only the new field, and the full repository checks passed in
   CI.
+
+## Selected variants and carried provenance (v1.3.0, 2026-11-19)
+
+Privacy-safe evidence from a deployment-runtime repository: project and
+organization names, issue and pull-request identifiers, local paths, benchmark
+measurements, and implementation-specific identifiers are excluded.
+
+### Defects and decision branch
+
+- A serializer excluded the selected-variant marker to keep compatibility
+  read-admission simple. A non-default variant with an empty override then
+  produced the same digest as the default variant. The default digest needed
+  byte stability, but the empty non-default variant still needed a distinct
+  operational identity.
+- Production loaded the selected variant, but adoption, staging, and status
+  recomputation loaded the default. The non-default selection either produced
+  false drift or retained the default identity.
+- A repair path reused carried provenance when the selected variant changed.
+  It could keep a stale non-default marker after a return to the default
+  variant.
+- A seal job omitted the selected variant from its command arguments. The job
+  could seal the default recipe while the deployment used another variant.
+
+The new decision rule is to add the marker only for a non-default selection.
+Keep the default marker absent for compatibility. Thread the selection through
+each producer and recomputation consumer. Replace carried marker metadata in
+both directions, including removal of a stale non-default marker.
+
+### Behavior-first verification
+
+The implementation first reproduced the missing behavior with focused tests.
+The final behavior checks covered default byte stability, distinct identity
+for an empty non-default override, marker presence and absence, adoption,
+override status, staging without false drift, seal-job arguments, and both
+carried-provenance transitions. The focused behavior set and affected suite
+passed, with documented unrelated environment exclusions. One unrelated
+transient timeout passed on isolated and grouped reruns. Repository checks and
+continuous integration passed, and independent review reported no findings.
+
+Documentation changed content that already belonged to an included recipe
+payload. The affected concrete digests rotated deliberately. This is distinct
+from the code-induced rotation that the default-byte-stability check prevents.
+
+### Local validation
+
+Validation commands and results for this knowledge amendment are recorded in
+its delivery pull request. No source command, internal path, or repository
+identifier is copied into these notes.

@@ -1,7 +1,7 @@
 ---
 name: inference-gateway-backlog-low-engine-load-diagnosis
 license: BSD-3-Clause
-description: "Find why an LLM inference gateway rejects or queues requests while dashboards show low engine load. Use when: (1) clients get 429, 408, or 503 from the router, (2) engine load or capacity panels look low or empty, or (3) per-user throughput looks unfair."
+description: "Find why an LLM inference gateway rejects or queues requests while dashboards show low engine load. Use when: (1) clients get 429, 408, or 503 from the router, (2) engine load or capacity panels look low or empty, or (3) per-user throughput looks unfair, or (4) a latency-sensitive class is rejected while a bulk class holds nearly all slots."
 category: debugging
 date: 2026-11-04
 version: "1.1.0"
@@ -59,6 +59,7 @@ Check these in order. Each check is read-only. Do not restart anything before yo
   - Limit: if the router accepts only one global cap value, a partition queue smaller than that value stays fillable by one tenant. Read the router's own option list or source to see whether a per-partition cap exists. Do not invent a flag.
   - Roll the change out through the gateway's hot (blue/green) reload path, not a cold restart. A running gateway keeps the old value until the reload.
   - Example: a cap of 64 on a partition queue of 32 admits one tenant to 100% of that queue. At 75 percent it becomes 24 for that queue.
+- **Priority classes do not protect a class from a full shared queue.** Read in-flight and queue depth per class and partition. If the bulk class holds nearly all slots and its queue depth exceeds its own class limit, the class limits are soft shares of one queue. A request of any class is rejected when the queue is full, and priority only orders requests that are already waiting. Reservations and a smaller bulk queue limit helped only a little in a scaled test. A separate partition with its own concurrency and queue budget gave a hard guarantee. Bound the bulk class before the shared queue instead when the replicas cannot be split: a per-model in-flight limit at the proxy that answers 429 with a retry delay, plus a client window that backs off. Test the choice first with a real router and mock workers in a scaled partition, with a bulk load far above capacity and a light protected load, and compare the admitted fraction of the protected class.
 - **Per-user fairness.** Check that policy keys match the live pool names. A policy for a pool with zero replicas does not apply to live traffic. Check that the allocator status lists the live models, and that the runtime policy file matches the deployed configuration.
 - **Log volume.** Count lines by pattern before you read them. Per-request INFO lines for a polled route and repeated reconcile or deadline lines can make up most of a multi-gigabyte log. Record the dominant pattern and fix it separately.
 - If you cannot read a protected route or metric, state the gap and use the open metrics port or the log counters instead. Do not search for credentials.
@@ -72,6 +73,7 @@ Check these in order. Each check is read-only. Do not restart anything before yo
 | SSH to a compute node | Opened a shell on the node to read GPU state. | Key-based access was refused. | Use the scheduler's overlap exec inside the job allocation. |
 | Read the router counters as the failure rate | Used the admit, interrupted, and success rates of the router to size the failures. | The counters disagreed with the delivered 200 responses, and the real failures were 408 timeouts from a queue that waited for missing replicas. | Use the status-code table for the rate. Use the replica fleet record to find the cause. |
 | Raise capacity or weights for a starved tenant | Treated one tenant filling the shared queue as a shortage of capacity or a weight error. | The per-tenant cap was an absolute count larger than the queue, so it limited nothing. | Compare the cap with each queue size first. Store it as a percentage. |
+| Send the protected class with a higher priority header | Expected the higher class to be admitted ahead of bulk. | Bulk filled the whole queue, and the new request was rejected as queue full, with the same result as the default class. | Priority orders waiters; it does not make room. Bound bulk first or give the class its own budget. |
 | Count log lines in a huge file | Ran a full-file scan. | The command passed the tool timeout. | Take a bounded tail, or run the scan in the background. |
 
 ## Results & Parameters

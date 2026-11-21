@@ -313,3 +313,31 @@ Sequence of the repair and the two false failures:
 Unrelated, but easy to confuse with the same log: `no worker available for
 model ...; retry when a replica is ready` means the model backend has no ready
 replica. It is not a database fault.
+
+## Stale `-shm` checkpoint on shared storage (v2.2.7)
+
+Evidence for step 13 of the main file. Hosts, paths, and identifiers are generalized.
+
+- Setting: WAL-mode `opencode.db` (about 1.2 GB) on a network filesystem that
+  several compute hosts mount. A reader had a stale `-shm` that claimed 33 WAL
+  frames that were not valid.
+- Failure: stopping the service ran its exit checkpoint. The checkpoint wrote
+  the stale pages into the main file and destroyed page 1, which holds the
+  header and `sqlite_master`. The pre-stop state was not copied first, so the
+  damage was not reversible.
+- Repair: the old pages still held copies of the schema rows. The rows were
+  written back into a copy as a new `sqlite_master`. `.recover` on that copy
+  was piped into a new database. The first attempt wrote a 1 GB dump and filled
+  the account quota (writes failed for about one minute until the space was
+  freed); the piped run made no intermediate file and ended with no errors.
+- Result: `integrity_check` ok. Sessions 1,483 of 1,483; `session_message`
+  166,028 of 166,394 (366 lost); `event_sequence` 1,423 of 1,497 (74 lost).
+  `project` came back empty (22 rows before). The 11 projects that sessions
+  use were created from `session_v2.project_id` and the most common session
+  directory; names and icons stayed empty. `foreign_key_check` then listed
+  1,676 child rows (mostly `session_message`) whose sessions were gone; they
+  were left in place.
+- Product read: `opencode session list` returned sessions with no new
+  `malformed` entry in the log after the swap.
+- Process error that this entry now prevents: the service was stopped before
+  the three files were copied and before the `-shm` was removed.
