@@ -241,3 +241,34 @@ umask 002 from its parent.
   common directory from a foreign clone; this row rejects a directory that the loop's own
   intake just created. The 0755 floor is the same. The owner and the durable prevention
   differ.
+
+## Run evidence (2026-11-21 multi-worker wave, row-18 throttle branch)
+
+Several plan-discovery lanes ended with `comment_journal_read_error` and
+`implementation_plan_scope_unavailable`. Their inner error was
+`Command 'GitHub throttle deadline' timed out after 0 seconds`. Account core and GraphQL
+quotas remained healthy. The launcher explicitly configured a shared rate of 0.2 tokens per
+second with four workers, and the persisted bucket was almost empty.
+
+A controlled probe used the installed throttle implementation, an isolated node-local
+bucket with zero initial tokens, and a two-second deadline:
+
+- At 0.2 tokens per second, acquisition raised `TimeoutExpired` after 2.000 seconds. One
+  refill requires five seconds at this rate.
+- At 0.694444 tokens per second, acquisition succeeded after 1.441 seconds. This rate is
+  approximately half of a 5000-request hourly budget.
+- The launcher rate and burst were then set explicitly. Shell syntax and static checks
+  passed. A complete issue wave was not rerun, so this evidence verifies the throttle
+  behavior, not end-to-end recovery.
+
+The same implementation stores its cross-process bucket below `TMPDIR` and guards updates
+with `fcntl.flock`. The host's configured temporary directory was on shared storage. This
+is a separate lock-boundary risk: the probe did not measure lock waits, and the zero-second
+deadline evidence does not prove that `flock` caused the observed timeouts. Configured
+bucket starvation is sufficient to explain those timeouts.
+
+The agent-wide temporary directory was not moved. A sandbox wrapper used that directory for
+parent/agent temporary-file sharing, so relocation needs a separate consumer and budget-
+scope analysis. A node-local bucket was suitable for the isolated probe, not automatically
+for independent production agents that must share one account budget. The shared-storage
+lock defect requires a state-owner repair; the launcher rate change does not repair it.
