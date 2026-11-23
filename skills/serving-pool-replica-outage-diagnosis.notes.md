@@ -153,3 +153,27 @@ Decision value beyond the earlier startup branch:
   paths, hostnames, and exact operational identifiers are omitted. No secret, credential,
   regulated record, or erasure-requested material appears in the selected current or prior
   content inspected at the delivery base.
+
+## Amendment record (1.5.0)
+
+- Disposition `amend`, version 1.4.0 to 1.5.0, on the same canonical entry.
+- Trigger: a multi-node replica launch ended in an unhandled distributed-initialization error.
+  The error message named a diagnostic flag, and the per-rank logs did not contain the
+  underlying cause.
+- Decision value added: add the named flag to one isolated development launch only; read the
+  first underlying cause from the verbose trace; keep the flag out of the production recipe
+  and out of the fix; re-stage the development lane from clean fixed source before using it
+  as proof.
+- Supporting evidence: the verbose trace named a missing shared library used for topology
+  resolution. A direct host-file mount was refused as an unapproved mount source. A read-only
+  copy staged under an approved artifact root resolved the failure. The clean fix carried only
+  the artifact mount and the loader path.
+- Delivery base: `71dbe93d2d375236feaca6760e53e37e9bb3bb44` of the knowledge repository.
+- Duplicate search: no open pull request changed this canonical entry. The nearest entries
+  covered startup-failure classification from existing per-rank logs and canary parity with
+  the production recipe; neither covered instrumenting one isolated lane when the error itself
+  names the missing diagnostic flag.
+- Privacy review: project names, model names, node names, job identifiers, internal paths,
+  hostnames, and issue numbers are omitted. The library class and the artifact-root rule are
+  described generically. No secret, credential, regulated record, or erasure-requested material
+  appears in the selected current or prior content inspected at the delivery base.
