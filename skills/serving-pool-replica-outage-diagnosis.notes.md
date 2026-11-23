@@ -177,3 +177,49 @@ Decision value beyond the earlier startup branch:
   hostnames, and issue numbers are omitted. The library class and the artifact-root rule are
   described generically. No secret, credential, regulated record, or erasure-requested material
   appears in the selected current or prior content inspected at the delivery base.
+
+## Requeue-versus-preemption evidence (2026-11-23)
+
+Three multi-node replicas of one serving pool left RUNNING and returned to PENDING
+under the same job IDs at the same second. The current records showed `PENDING`,
+`Reason=Priority`, `Restarts=2`, `RunTime=00:00:00`, and `PreemptTime=None`.
+`scontrol show job` and `sacct` without `--duplicates` showed only the reset
+record. The service logs were not readable to the operator.
+
+`sacct --duplicates` showed that each prior incarnation ended `PREEMPTED` at
+the same second that several one-node jobs in a higher-tier partition started.
+The two partitions covered the same full node set and differed in priority tier.
+The jobs that started on the freed nodes were in the low-tier partition and
+started about one minute after the preemption. They were occupants, not
+preemptors. The controller log was root-only, so the exact preemptor identity
+was not available. The start-time match and the partition tier comparison
+established the preemption wave.
+
+The first analysis classified the event as an explicit requeue. It used only the
+current record and the victims' partition. That classification was wrong.
+`sacct --duplicates` and the cross-partition start-time comparison corrected it.
+
+## Amendment record (1.6.0)
+
+- Disposition `amend`, version 1.5.0 to 1.6.0, on the same canonical entry.
+- Trigger: a running job returned to PENDING under the same job ID, and the
+  current record hid the prior terminal state.
+- Decision value added: read each prior incarnation with `sacct --duplicates`
+  before you classify the cause; a prior `PREEMPTED` state is direct evidence of
+  scheduler preemption; compare every partition that shares the node set, because
+  a higher-tier preemptor can be in a different partition; the jobs that start on
+  the freed nodes later are occupants, not preemptors.
+- Supporting evidence: three serving replicas returned to PENDING at the same
+  second. Their prior incarnations ended `PREEMPTED` when higher-tier jobs
+  started. The later occupants were in the low tier and started about one minute
+  later. The service logs were not readable. See the section above.
+- Delivery base: `b832e3a8b86af5ee31d0186f4f1ceda9fb321807` of the knowledge repository.
+- Duplicate search: no open pull request changed this canonical entry. The nearest
+  merged entries covered drain-versus-completion classification and preemptible
+  capacity accounting; neither covered the hidden prior incarnation or the
+  cross-partition preemptor check.
+- Privacy review: project names, model names, node names, job identifiers, account
+  names, user names, internal paths, and hostnames are omitted. The counts and
+  scheduler fields are described generically. No secret, credential, regulated
+  record, or erasure-requested material appears in the selected current or prior
+  content inspected at the delivery base.

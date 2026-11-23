@@ -1,10 +1,10 @@
 ---
 name: serving-pool-replica-outage-diagnosis
 license: BSD-3-Clause
-description: "Classify serving-pool replica loss from scheduler and engine evidence before incident response, and audit recovery placement and startup validators. Use when: (1) replicas fail together, (2) replacement jobs do not register, (3) you are about to attribute outage to hardware, (4) a multi-node launch reports a rendezvous timeout or a validator uses a hand-copied subset of the production launch recipe, (5) a startup failure names a flag that the source repository already fixed, or (6) an error names a diagnostic flag but the current logs do not show the underlying cause."
+description: "Classify serving-pool replica loss from scheduler and engine evidence before incident response, and audit recovery placement and startup validators. Use when: (1) replicas fail together, (2) replacement jobs do not register, (3) you are about to attribute outage to hardware, (4) a multi-node launch reports a rendezvous timeout or a validator uses a hand-copied subset of the production launch recipe, (5) a startup failure names a flag that the source repository already fixed, (6) an error names a diagnostic flag but the current logs do not show the underlying cause, or (7) a running job returns to PENDING under the same job ID and the current record hides the prior terminal state."
 category: debugging
 date: 2026-10-26
-version: "1.5.0"
+version: "1.6.0"
 user-invocable: false
 tags: [stale-deployed-recipe, serving, outage-diagnosis, replica, poison-request, preemption, slurm, sacct, recovery-placement, gateway-registration, startup-failure, distributed-startup, rendezvous-timeout, canary-parity, container-mount, engine-arguments, failure-breaker, diagnostic-verbosity]
 ---
@@ -25,6 +25,8 @@ tags: [stale-deployed-recipe, serving, outage-diagnosis, replica, poison-request
 - The same exception, traceback, or termination banner appears in more than one replica log.
 - Replacement jobs show submission activity, but the pool does not return to registered and healthy.
 - Final accounting for a replacement job shows no start time and no node list, yet job log files exist for it.
+- A running replica returns to PENDING under the same job ID, and its current record resets submit time, run time, and preemption time.
+- You must distinguish scheduler preemption from an explicit requeue, or name the jobs that displaced a replica.
 - You are about to attribute the event to node hardware, or to open a hardware ticket.
 - New replicas reach RUNNING, then end FAILED within seconds to about fifteen minutes, with no registration, and every resubmission ends the same way.
 - A multi-node engine launch ends in a distributed rendezvous timeout, or its shared log does not preserve each node's initialization failure.
@@ -39,6 +41,17 @@ tags: [stale-deployed-recipe, serving, outage-diagnosis, replica, poison-request
 # Accounting for every dead job comes before any node or hardware hypothesis.
 sacct -j <job-id-1>[,<job-id-2>,...] \
   -o JobID,Partition,QOS,Account,State,ExitCode,Submit,Start,End,Elapsed,NodeList
+
+# A job that returns to PENDING hides the prior incarnation in its current
+# record. Read every incarnation before you classify the cause.
+sacct --duplicates -j <job-id> \
+  -o JobID,State,Submit,Start,End,Elapsed,NodeList,Restarts
+# Prior state PREEMPTED -> scheduler preemption. Find the wave that started
+# at the prior end time, across all partitions.
+sacct -a --duplicates -S <prior-end-minus-1m> -E <prior-end-plus-2m> \
+  -o JobID,Partition,State,Start,End,NodeList
+# A preemptor can be in another partition. Compare tier and node set:
+scontrol show partition <name> | grep -E 'PriorityTier|PreemptMode|Nodes'
 
 # FAILED + nonzero exit + the identical traceback in each replica log
 #   -> engine crash from one poison request class, retried across replicas.
@@ -65,7 +78,11 @@ scontrol write batch_script <job-id> -
 1. Treat the simultaneous loss of one pool as one incident with one cause until the evidence disagrees. N independent hardware failures within minutes on one pool is the least likely explanation.
 2. Pull scheduler accounting for every dead job first: state, exit code, partition, QoS, account, submit, start, end, elapsed, and node list. Do not open service logs before this step.
 3. Engine-crash branch: compare the tails of every dead replica log. An identical application exception, minutes apart in each replica, means one poison request class: the first crash moves the traffic, and the retry kills the surviving replica. The correction is request validation or error containment in the engine, not node repair. Record the request class. Then identify sibling pools that load the same engine model code. The same request class is lethal to those pools even when they stayed up, because only traffic selection protected them.
-4. Reclamation branch: a job on a preemptible partition or QoS that ends PREEMPTED, or whose log shows a preemption banner close to its start, was reclaimed by higher-priority work. That is the placement contract, not a defect. A requeued job resets its summary row: final accounting can show no start and no node list while the job log artifacts show several brief earlier runs. Read the job log files and the full step records, not only the final summary row.
+4. Reclamation branch: a job on a preemptible partition or QoS that ends PREEMPTED, or whose log shows a preemption banner close to its start, was reclaimed by higher-priority work. That is the placement contract, not a defect.
+   - A requeued job returns to PENDING under the same job ID. The current record resets `SubmitTime`, `RunTime`, and `PreemptTime`. `scontrol show job` and `sacct` without `--duplicates` show only that current record. Read each prior incarnation with `sacct --duplicates -j <job-id>` before you classify the cause. A prior state of `PREEMPTED` is direct evidence of scheduler preemption. A prior state of `REQUEUED` shows an explicit requeue. When the state does not name the actor, read the controller log.
+   - Do not exclude preemption because the victim and its neighbors share one partition. A preemptor in a different partition with a higher `PriorityTier` can preempt the job when both partitions cover the same nodes. Compare every partition's `PriorityTier`, `PreemptMode`, and node set. Then find the jobs whose start time equals the victim's prior end time.
+   - The jobs that start on the freed nodes later are occupants. They are not the preemptors. When the scheduler frees more resources than one job needs, report a preemption wave and do not invent a one-to-one victim-to-preemptor mapping.
+   - A requeued job also resets its summary row: final accounting can show no start and no node list while the job log artifacts show several brief earlier runs. Read the job log files and the full step records, not only the final summary row.
 5. Recovery-placement audit: compare the partition, QoS, and account of each replacement job with the placement that the pool's protected floor uses. Replacement jobs on the preemptible tier can start, be preempted repeatedly, and then sit pending for hours while status views show only that replacements were submitted. Resubmit the floor replicas to the protected placement. Do not resubmit to the same tier and wait again.
 6. Recovery is registration, not submission. A large checkpoint can need tens of minutes of engine startup after the job state becomes RUNNING. Declare the pool recovered only when the replacements register with the gateway or control plane and answer health checks.
 7. Startup-failure branch: use it when new replicas end FAILED before they register and every submission fails the same way. Preserve one engine log per node or rank. Read the earliest initialization error across those logs, not only the supervisor summary or the lowest-numbered rank. A line such as "rank 0 exited first with status 137" reports the kill of the other processes after the first failure; the cause is above it. A distributed rendezvous timeout is also secondary until you exclude an earlier rank-local failure: a rank can exit during model initialization while its peers continue to wait for the endpoint. Then classify the earliest error:
@@ -92,6 +109,7 @@ scontrol write batch_script <job-id> -
 | Attempt 7 | Treated a startup crash as an open defect because the source recipe already had the fix. | The launcher read the recipe copy in an older deployed release. The engine log showed the old argument values, and every new job repeated the crash. | Compare the engine's logged effective arguments with the source recipe before you write a fix. When they differ, the deployed copy is the defect. |
 | Attempt 8 | Read the source of the image that the recipe named to find a memory-peak cause. | The running replica used another image build with another code path. | Take the artifact from the running job's replica record, not from the recipe. |
 | Attempt 9 | Resubmitted the unchanged launch because the error only reported an unhandled system error. | The message named a diagnostic flag but did not contain the underlying cause. Repeated launches wasted allocation time. | Add the named flag to one isolated development launch. Read the verbose trace, then build the fix without the flag and re-stage the lane from clean source. |
+| Attempt 10 | Classified three replicas that returned to PENDING as an explicit requeue because the current records showed `PENDING`, `PreemptTime=None`, and every visible candidate occupant was in the victims' partition. | `sacct --duplicates` showed each prior incarnation ended `PREEMPTED` at the same second that jobs in a higher-tier partition started. The later occupants started about one minute after the victims and were not the preemptors. | Read the prior incarnation and compare every partition that shares the node set. The victim's tier alone does not exclude preemption, and the next occupant is not the preemptor. |
 
 ## Results & Parameters
 
@@ -102,6 +120,12 @@ outage_diagnosis:
   accounting_fields: [JobID, Partition, QOS, Account, State, ExitCode, Submit, Start, End, Elapsed, NodeList]
   crash_signature: identical application traceback in two or more dead replica logs, minutes apart
   reclamation_signature: [PREEMPTED state, preemption banner in job log, start-to-cancel in seconds-to-minutes]
+  requeue_vs_preemption:
+    current_record: [PENDING, SubmitTime reset, RunTime 00:00:00, PreemptTime None]
+    prior_incarnation: sacct --duplicates -j <job-id>
+    terminal_state: {PREEMPTED: scheduler preemption, REQUEUED: explicit requeue, NODE_FAIL: node failure}
+    preemptor_search: [all partition PriorityTier values, shared node set, jobs with Start equal to the prior End]
+    occupant_rule: jobs that start on freed nodes later are not the preemptors
   hardware_signature: [NODE_FAIL state, node Reason set, different failure modes per replica]
   startup_failure:
     signature: [FAILED within seconds to ~15 minutes, no registration, same first error on each submission]
@@ -132,6 +156,7 @@ outage_diagnosis:
 - A recovery declaration bound to gateway registration and health answers, not to job submission.
 - For a startup failure: the earliest per-node or per-rank error, its class (missing mount source, model-initialization refusal, or engine argument conflict), the allowed flag combinations, and the single replica that proves the fix, and whether the effective arguments came from the source recipe or from an older deployed copy.
 - For distributed validation: per-node logs, a validator derived from each maintained production recipe variant, and a separate record of pending live proof when the scheduler cannot supply an allocation.
+- For a job that returned to PENDING: the prior incarnation's terminal state, the preemption wave's start time, and the partition tier and node-set comparison that explain it.
 
 ## Verified On
 
@@ -139,9 +164,11 @@ outage_diagnosis:
 | --------- | --------- | --------- |
 | Production GPU model-serving fleet on a Slurm-style scheduler | Two-replica pool loss within two minutes; identical unhandled application exception in each replica log; three preempted replacement runs; a recovery gap of about two hours closed in minutes by protected-tier submission | Generalized coordinates. See [notes](serving-pool-replica-outage-diagnosis.notes.md). |
 | Private multi-node model-serving validation | Several maintained recipe variants sharing one engine image | Per-node logs separated a custom-code initialization refusal from the downstream rendezvous timeout. Validators were changed to consume the full production recipe. Focused static and rendering checks passed; complete live revalidation was still queued when this lesson was captured. See [notes](serving-pool-replica-outage-diagnosis.notes.md). |
+| Shared GPU cluster with overlapping partitions | Three multi-node serving replicas returned to PENDING at the same second; prior incarnations were PREEMPTED when higher-tier jobs started; the later occupants were unrelated | The current record and default accounting hid the preemption. See [notes](serving-pool-replica-outage-diagnosis.notes.md). |
 
 ## References
 
 - [Slurm walltime expiry outage diagnosis](slurm-walltime-expiry-outage-diagnosis.md): the single-job disappearance branch, planned drain versus crash.
+- [Slurm cluster drain release vs completion](slurm-cluster-drain-release-vs-completion.md): the drain-versus-preemption wave branch.
 - [Serving-lane zero-floor demotion](serving-lane-zero-floor-demotion.md): replica floor and ceiling policy that defines the protected placement.
 - [serving-pool-replica-outage-diagnosis.notes.md](serving-pool-replica-outage-diagnosis.notes.md): privacy-safe source evidence.
