@@ -169,6 +169,11 @@ such a push, require a fresh review of the new head before you trust the earlier
 be short when the change is a rebase plus a mechanical edit (for example a registry-only change):
 check the range-diff or the new commit, and name the new head in the verdict.
 
+A state label is not a review. A pull request can carry the GO label with no review comment at all,
+because a person, a script, or an earlier head set the label. Before you rely on an armed
+auto-merge, list the review comments and find one that names the current head. If none exists,
+review the diff and post the verdict first. Do not treat the label as the review record.
+
 ### 10. Take over a draft PR
 
 Before you rebase, fix, or mark a draft PR ready, read its body and comments to learn why it is a
