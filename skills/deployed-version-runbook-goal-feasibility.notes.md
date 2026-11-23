@@ -57,3 +57,10 @@ K2-Horizon BF16 enablement campaign on LLM360/comet M2 prod, October 2026.
 - The correction cost was one comment cycle plus a re-sequenced campaign.
   The avoided cost was six failed service-account seal attempts against an
   incapable release, each of which would have looked like a data defect.
+- The same gate applies to an interactive capability question. In one later
+  engagement, a user asked whether a deployed command could dynamically
+  register a pool. The deployed release tree did not contain the module
+  that implemented the capability, while the default branch did. The
+  command returned a stable refusal code. The deployed-tree code read alone
+  was enough to answer that the capability was unavailable and that the
+  interactive command could not yet self-register the pool.

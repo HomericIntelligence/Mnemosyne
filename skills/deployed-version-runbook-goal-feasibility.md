@@ -1,10 +1,10 @@
 ---
 name: deployed-version-runbook-goal-feasibility
 license: BSD-3-Clause
-description: "Verify that operator directions keyed to a deployed version can reach their terminal goal on that deployed version before publication. Use when each step of a runbook was validated against a live deployment, when the deployed release is older than main, when an upgrade or promotion is in flight, or when the terminal step is a named operation (seal, activate, migrate, enroll) whose availability depends on the release."
+description: "Verify that operator directions keyed to a deployed version can reach their terminal goal on that deployed version before publication. Use when each step of a runbook was validated against a live deployment, when the deployed release is older than main, when an upgrade or promotion is in flight, when the terminal step is a named operation (seal, activate, migrate, enroll) whose availability depends on the release, or when a user asks whether an interactive command on the deployed release can perform a capability."
 category: documentation
 date: 2026-10-24
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags: [runbook, operator-directions, deployed-version, goal-feasibility, version-drift, promotion-ordering, release-precondition, comet]
@@ -39,6 +39,9 @@ Use this skill when one of these conditions applies:
   not. Code read on `main` is not evidence of the deployed behavior.
 - A promotion or upgrade is in flight, and the order of other work depends
   on the capabilities of the current release.
+- A user asks whether an interactive command on the deployed release can
+  perform a capability, especially when a newer branch already has the
+  implementation.
 
 ## Verified Workflow
 
@@ -59,6 +62,10 @@ Do these checks before you publish version-keyed directions:
 
 - Validate the steps against the deployment. Validate the goal against the
   deployed ref. Both checks are necessary. Neither check implies the other.
+- For an interactive capability question, inspect the command's deployed
+  code path before you answer. A capability that exists on `main` is not
+  evidence of capability on the deployed release. Record the deployed
+  refusal code and the carrying change.
 - Search the goal path at the deployed ref for refusal classes. Typical
   signs: names that contain `Unavailable`, `NotImplemented` errors,
   placeholder implementations, and feature flags that default to off.
