@@ -59,6 +59,49 @@ Focused test suites for the change, all green unless stated:
    them without a log search. A log-only warning does not survive a process
    restart.
 
+## Follow-up source case: typed optional-record gaps
+
+A later adoption boundary identified optional embedded-record gaps by searching
+exception messages for marker text. The producer already raised a dedicated
+exception type for an absent, unreadable, schema-invalid, or differently pinned
+optional record. The consumer discarded that identity and reconstructed the
+classification from strings.
+
+An unrelated verification exception containing the same marker then selected
+digest-only adoption. The independently verified content digest was valid, but
+the unrelated failure was not an optional-record gap and the adoption should
+have left registration unchanged.
+
+The correction used the producer-owned exception type at the adoption boundary.
+It did not add a second artifact walk or wrap unrelated errors in the optional
+record type. The resulting contract was:
+
+| Case | Outcome |
+| --- | --- |
+| Typed optional record absent or differently pinned, with independent content-digest verification | Adopt digest-only and record the gap |
+| Unrelated verification exception containing the optional-record marker | Refuse and leave registration unchanged |
+| Required receipt pins different content bytes | Refuse |
+| Artifact bytes unreadable or unhashable | Refuse |
+
+This distinction depends on the evidence role. A differently pinned optional
+trace record is a provenance gap only when the independent required content
+check still succeeds. A mismatch in a required trust receipt remains fatal.
+
+## Follow-up verification evidence
+
+The marker-lookalike regression first ran against message classification:
+
+- Focused adoption suite: 10 passed, 1 failed. The failure was the expected
+  missing refusal: the unrelated lookalike incorrectly adopted.
+
+After the classifier changed to producer-owned exception identity:
+
+- Focused adoption suite: 11 passed, 0 failed.
+- Related admission, receipt, and registration suites: 115 passed, 0 failed.
+- Independent review confirmed that typed optional gaps still adopt, unrelated
+  and required-trust failures still refuse, and no second artifact walk was
+  introduced.
+
 ## Test-environment caveat
 
 A default temp directory that exceeds a unix socket path bound emitted one
