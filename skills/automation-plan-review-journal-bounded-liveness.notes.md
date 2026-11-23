@@ -26,3 +26,25 @@ comments, each actor-owned, each bearing the `issue-review` marker.
   the migration dry-run/apply surface of the same guard ("a malformed marker or
   conflicting legacy identity fails only that issue"). This case is the admission and
   review-routing surface of the same guard, observed live outside any migration.
+
+## Plan-size decomposition evidence (2026-11-23)
+
+A documentation-only model-enablement plan was 12,479 payload characters after an
+amendment. The plan review had one real NOGO. The stage requested lossless
+decomposition with trigger `lossless-size` and posted a four-unit draft.
+
+The draft used these verification commands:
+
+- a formatter check on a Markdown file;
+- a named documentation recipe in a repository that had no recipe runner.
+
+The decomposition grammar accepts both command forms syntactically, so generation
+passed. The independent review rejected the draft because the commands were not
+executable for the work. Three generation rounds were rejected. The lane ended
+`BLOCKED:plan_decomposition_generation_exhausted` with exit code 1.
+
+Recovery: rewrite the canonical plan to 9,287 payload characters. The rewrite kept
+every requirement and every review fix. The plan was then below the observed
+12,000-character canonical-plan context limit, so the size check no longer requested
+decomposition. Re-run planning and plan review; planning fast-forwards when a canonical
+plan exists.

@@ -1,10 +1,10 @@
 ---
 name: automation-plan-review-journal-bounded-liveness
 license: BSD-3-Clause
-description: "Keep issue-based plan/review loops compact and live. Use when: (1) an issue has canonical plan and review comments, (2) review amendments risk growing the timeline, (3) repeated plans must stop without oscillation, (4) migration must remove old actor-owned raw reviews and diffs safely, or (5) plan admission or review routing fails closed with 'plan marker identity conflict: ambiguous actor-owned comment aliases' on an issue that carries legacy comment history."
+description: "Keep issue-based plan/review loops compact and live. Use when: (1) an issue has canonical plan and review comments, (2) review amendments risk growing the timeline, (3) repeated plans must stop without oscillation, (4) migration must remove old actor-owned raw reviews and diffs safely, (5) plan admission or review routing fails closed with 'plan marker identity conflict: ambiguous actor-owned comment aliases' on an issue that carries legacy comment history, or (6) a plan above the canonical-plan context limit triggers a lossless decomposition that cannot produce an executable work unit for documentation-only work."
 category: architecture
 date: 2026-07-21
-version: "2.1.0"
+version: "2.2.0"
 user-invocable: false
 verification: verified
 tags:
@@ -38,6 +38,7 @@ tags:
 - An amendment can repeat the immediately prior plan or oscillate back to an older one.
 - Legacy issues contain archived full plans, raw plan diffs, old reviews, skip-reason comments, or reply-recovery records.
 - A run log shows `FAIL:plan admission failed: plan marker identity conflict: ambiguous actor-owned comment aliases for '<marker>'; manual recovery is required` on an issue whose timeline carries several historical comments with the same marker.
+- A review run ends with `BLOCKED:plan_decomposition_generation_exhausted` on a plan above the canonical-plan context limit, especially when the work is documentation-only.
 
 ## Verified Workflow
 
@@ -91,6 +92,20 @@ The same ambiguous-identity guard also runs at plan admission and review routing
 
 8. Test observable behavior: canonical comment count remains two across amendments, raw patches never publish, repeated plans block, foreign marker comments remain inert, dry-run performs no writes, apply is idempotent, and restart repairs a stale canonical review without appending history.
 
+9. Treat the canonical-plan context limit as a hard input to the planner. When a plan exceeds the limit and the stage reports a lossless-size decomposition, shrink the plan below the limit instead of relying on decomposition for non-code work. The decomposition grammar accepts only focused test, lint, type, pre-commit, or named selector commands; a documentation-only plan has none of these. Do not add a selector recipe or a fake lint target only to pass the grammar. See "Plan-size decomposition dead end" below.
+
+## Plan-size decomposition dead end
+
+A plan-review stage can treat an oversized canonical plan as a request for lossless decomposition when at least one NOGO exists. The decomposition path is built for code changes: each work unit must name repository paths and at least one verification command from a closed grammar (`uv run pytest`, `uv run ruff check`, `uv run ruff format --check`, `uv run mypy`, `uv run pre-commit run`, or a named `just` recipe). A documentation-only plan has no such command. If the plan is over the observed 12,000-character limit, the path can exhaust its generation budget and end in `BLOCKED:plan_decomposition_generation_exhausted`.
+
+Recovery:
+
+1. Read the current canonical plan and confirm its payload length is over the limit.
+2. Rewrite the plan below the limit. Keep every requirement and every review fix. Remove duplicated evidence, verbose templates, and sections that do not change a decision.
+3. Do not add a `just` recipe, a Markdown lint target, or a test file only to satisfy the grammar. That changes the repository to satisfy a tool, not the task.
+4. Re-run planning and plan review. The planning stage fast-forwards when a canonical plan exists; the review then sees the smaller plan.
+5. Keep the plan small on later amendments. A review amendment can expand the plan past the limit again; state the size limit in the plan's review-response section.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -100,6 +115,7 @@ The same ambiguous-identity guard also runs at plan admission and review routing
 | Delete every marker-bearing comment | Considered marker prefixes sufficient proof of automation ownership. | A human or another actor can quote the same marker, making prefix-only deletion destructive. | Require GitHub-authenticated ownership plus an exact recognized format before mutation. |
 | Treat only reviewer-emitted `BLOCKED` as no progress | NOGO amendments continued until the fixed iteration budget even when the planner returned the same plan. | The loop re-reviewed identical work and could oscillate between old plans. | Compare normalized current and bounded prior fingerprints before publication and enter the durable blocked path immediately. |
 | Compare raw stored comment bodies | Compared generated comment text directly. | Revision markers and wrappers made equivalent plans look different. | Normalize to plan payload before hashing or equality checks. |
+| Use lossless decomposition for a documentation-only plan | A NOGO review on a plan above the canonical-plan context limit triggered decomposition. The generated work units used a selector recipe that did not exist and a formatter check on a Markdown file. | The grammar admitted the commands syntactically, but the work units were not executable. Three generation rounds were rejected, and the lane ended `BLOCKED:plan_decomposition_generation_exhausted`. | Keep a documentation-only plan below the limit and use its real documentation checks outside the decomposition grammar. Do not add a selector or a fake lint target. |
 
 ## Results & Parameters
 
@@ -116,6 +132,8 @@ The same ambiguous-identity guard also runs at plan admission and review routing
 | Mutation authority | Exact recognized format plus authenticated actor ownership. |
 | Apply verification | Re-read every changed issue and require idempotent two-comment convergence. |
 | Ambiguous marker identity | Fail closed at admission, review routing, and migration; manual disambiguation per the step-7 recovery; never delete on the marker prefix alone. |
+| Plan-size trigger | A NOGO plus a canonical plan over the resolved context limit can start lossless decomposition. Keep the plan under the limit when the work has no test, lint, type, or selector command. |
+| Decomposition verification grammar | Only focused `uv run pytest`, `uv run ruff check`, `uv run ruff format --check`, `uv run mypy`, `uv run pre-commit run`, or a named `just` recipe. A command can pass the grammar and still be non-executable for the work. |
 
 ## Verified On
 
@@ -124,3 +142,4 @@ The same ambiguous-identity guard also runs at plan admission and review routing
 | ProjectHephaestus | Issue #2719 implementation | Canonical replacement, bounded fingerprints, patch guard, PR-scoped handoff journal, strict migration planner/CLI, docs/ADR, and full unit suite (7,017 passed). |
 | ProjectHephaestus | Live dry-run on issue #2363 | Proposed one canonical metadata update and deletion of three obsolete actor-owned artifacts; zero failures and no writes. |
 | ProjectHephaestus | 50-issue wave, live admission failure on a legacy comment-heavy issue (2026-10-28) | [notes.md](automation-plan-review-journal-bounded-liveness.notes.md) |
+| Automation planning run | Documentation-only enablement plan, 12,479 characters, one NOGO (2026-11-23) | Lossless decomposition was requested; three drafts were rejected; the lane ended `BLOCKED:plan_decomposition_generation_exhausted`. A 9,287-character rewrite removed the size trigger. [notes.md](automation-plan-review-journal-bounded-liveness.notes.md) |
