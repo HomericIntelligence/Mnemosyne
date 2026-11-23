@@ -1,13 +1,13 @@
 ---
 name: pytest-coverage-threshold-and-enforcement
-description: "Use when consolidating pytest coverage thresholds, diagnosing local-versus-CI coverage drift, adding Cobertura-backed per-module floors, raising a floor with targeted branch tests, securing report parsing, backstopping intentionally omitted modules, unlocking optional-dependency tests, or repairing lcov/geninfo CI. Keep one aggregate source of truth; measure branch_rate from XML before setting module floors; treat existing-but-unusable reports as failures; and distinguish a subset run's aggregate-gate failure from test failure."
+description: "Use when consolidating pytest coverage thresholds, diagnosing local-versus-CI coverage drift, adding Cobertura-backed per-module floors, raising a floor with targeted branch tests, sharding one coverage run across pytest invocations, securing report parsing, backstopping intentionally omitted modules, unlocking optional-dependency tests, or repairing lcov/geninfo CI. Keep one aggregate source of truth; keep one final aggregate gate after sharding; measure branch_rate from XML before setting module floors; treat existing-but-unusable reports as failures; and distinguish a subset run's aggregate-gate failure from test failure."
 category: testing
 date: 2026-08-05
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 license: BSD-3-Clause
 verification: mixed
-tags: [pytest, coverage, branch-coverage, fail-under, cobertura, per-module-floor, secure-xml, ci, lcov, optional-dependencies]
+tags: [pytest, coverage, branch-coverage, fail-under, cobertura, per-module-floor, secure-xml, ci, lcov, optional-dependencies, coverage-sharding, cov-append, aggregate-gate]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pytest-coverage-threshold-and-enforcement.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -22,8 +22,9 @@ canonical workflow below covers consolidation, merge-preview drift, branch-floor
 omitted-module backstops, optional dependencies, and native lcov collection.
 
 Verification remains `mixed`: the core and v1.2/v1.3 additions are verified in CI, the v1.4
-branch-floor raise is verified locally, and the v1.5 fail-closed Cobertura-loader design remains
-unverified. Project-specific results and commands are indexed in
+branch-floor raise is verified locally, the v2.1 sharded aggregate gate is verified in a hosted
+nightly run, and the v1.5 fail-closed Cobertura-loader design remains unverified. Project-specific
+results and commands are indexed in
 [the notes](./pytest-coverage-threshold-and-enforcement.notes.md); exact prior content is in
 [history](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/pytest-coverage-threshold-and-enforcement.history).
 
@@ -35,6 +36,7 @@ unverified. Project-specific results and commands are indexed in
 - Aggregate coverage hides a critical module with weak tests.
 - A per-module floor needs to be raised through tests rather than by guessing a percentage.
 - A subset run says “required coverage not reached” even though all selected tests passed.
+- One long coverage run is split into shards to bound memory, and a secondary checker must not replace the aggregate gate.
 - A coverage validator passes when XML is missing, malformed, unsafe to parse, or lacks required
   class/line/branch data.
 - Live CLI/TTY modules are intentionally omitted and need an import/integration backstop.
@@ -53,6 +55,12 @@ rg -n 'cov-fail-under|fail_under|override-ini=addopts' \
 # Full repository run: keep this as the aggregate source-of-truth path.
 pytest --cov=<package> --cov-report=term-missing \
   --cov-report=xml:coverage.xml --cov-report=html
+
+# Sharded run: collect every shard, then gate the combined result once.
+coverage erase
+pytest tests/part_a --cov=<package> --cov-append --cov-fail-under=0 --cov-report=
+pytest tests/part_b --cov=<package> --cov-append --cov-fail-under=0 --cov-report=xml
+coverage report --fail-under=<floor>
 
 # Isolated module measurement without the repository aggregate gate.
 pytest -o addopts='' tests/path/test_target.py \
@@ -81,7 +89,25 @@ Also trace documentation/config consistency checks before assuming removal is va
 accept absence of the redundant flag but separately require a documented `<N>%+ test coverage`
 pattern. Treat isolated test-fixture values as test inputs, not snapshots of live configuration.
 
-### 2. Produce explicit reports and diagnose preview-tree drift
+### 2. Keep one aggregate gate when coverage is sharded
+
+Shard a long test run to bound memory, not to split coverage policy. Keep coverage collection on in
+every shard. Erase old data before the first shard. Run the shards sequentially against one data file
+with `--cov-append`, and set `--cov-fail-under=0` on each shard so a partial run does not enforce the
+whole-project floor. Run exactly one final aggregate gate on the combined data, with the same
+threshold and metric as the unsharded run.
+
+Do not treat a separate per-module or line-only checker as the aggregate gate. It can report a higher
+rate and pass while the combined percentage is below the floor. In the verified case, the aggregate
+gate measured 84.85% and failed while the line-only checker reported 87.47% and passed. The pipeline
+was green only after the missing tests raised the aggregate to 85.27% and the final gate passed.
+
+If shards run in parallel jobs, give each job a separate `COVERAGE_FILE` and combine the data before
+the aggregate gate. Do not append concurrently to one file. Prove the final gate is non-vacuous by
+feeding it a synthetic below-floor report and confirming a nonzero exit. Prove test-selection
+equivalence separately; coverage accounting and test selection are different proofs.
+
+### 3. Produce explicit reports and diagnose preview-tree drift
 
 Configure terminal, XML, and HTML reports deliberately. Coverage on a pull request may run against
 GitHub's synthetic merge of PR head and current main. A main-only executable module can lower the
@@ -92,7 +118,7 @@ Adding a genuinely non-measured file to `[tool.coverage.run].omit` can be correc
 only after merging with main and already covered by another backstop. Record why. Do not use omit to
 hide an ordinary under-tested module.
 
-### 3. Add per-module floors from Cobertura
+### 4. Add per-module floors from Cobertura
 
 Parse Cobertura `<class>` entries into normalized repository-relative file names and their
 `branch-rate` and `line-rate`. Match configured files exactly, fail when a configured module is
@@ -103,7 +129,7 @@ Set an initial floor several percentage points below a repeatedly measured stabl
 is regression protection. The original cases used a 3–4 percentage-point margin. This is a heuristic,
 not a universal constant; highly deterministic modules may justify tighter bounds.
 
-### 4. Raise a floor by testing uncovered branches
+### 5. Raise a floor by testing uncovered branches
 
 First disable global `addopts` for the isolated measurement. Otherwise an aggregate floor can print
 `FAIL Required test coverage ...` after all selected tests pass and obscure the relevant module.
@@ -115,7 +141,7 @@ branch, so write a test that exercises that condition rather than adding arbitra
 same isolated command, read the new XML, then set the floor no higher than the measured branch rate.
 Finally run the full suite and the module-floor checker.
 
-### 5. Fail closed on unusable reports
+### 6. Fail closed on unusable reports
 
 This design is proposed and remains unverified. One loader should serve aggregate and module parsing
 and use a hardened XML implementation. Model at least these distinct failures:
@@ -136,7 +162,7 @@ Use stable machine codes such as `coverage_file_missing`, `parser_unavailable`,
 secure parser to the standard XML parser when the dependency is missing; return actionable install
 guidance instead.
 
-### 6. Backstop omissions and optional dependencies
+### 7. Backstop omissions and optional dependencies
 
 For an intentionally omitted live CLI/TTY module, add an integration test that imports it and checks
 critical startup wiring under realistic dependencies. Omission is not exemption from regression
@@ -150,7 +176,7 @@ Search for `pytest.importorskip`. Install the appropriate optional group in the 
 those tests as coverage. Then add targeted tests for the newly reachable branches. A passing run that
 skips the optional path is not evidence that the path works.
 
-### 7. Repair native lcov/geninfo collection sequentially
+### 8. Repair native lcov/geninfo collection sequentially
 
 Resolve and pass canonical absolute `PROJECT_ROOT` and `BUILD_DIR` values. Configure CMake from the
 actual source directory, choose the gcov binary matching the compiler used to produce `.gcno/.gcda`,
@@ -162,7 +188,7 @@ The cited Ubuntu 24.04/lcov 2.0 case ultimately required
 `--ignore-errors negative,mismatch,version,gcov` after those root causes were established. Copy that
 list only for the same diagnosed toolchain conditions.
 
-### 8. End-to-end acceptance
+### 9. End-to-end acceptance
 
 1. Full tests pass at the aggregate floor.
 2. XML/HTML/terminal reports are produced at the declared paths.
@@ -179,6 +205,7 @@ list only for the same diagnosed toolchain conditions.
 | Duplicate gates | Thresholds in workflow, `addopts`, and coverage config | Values drifted and diagnostics disagreed | Keep one aggregate source of truth |
 | Guess a new floor | Used terminal combined percentage | Policy compares branch rate, which differed | Read Cobertura `branch-rate` first |
 | Trust subset exit status | Selected tests passed but aggregate gate failed | Global `addopts` measured the whole-package policy on a subset | Use `-o addopts=''` for diagnosis, then run full gates |
+| Split the gate with the run | Added `--cov-fail-under=0` per shard but left the old separate checker as the only final gate | The checker measured line rate only and passed at 87.47% while the combined coverage gate was 84.85% and failed | Keep per-shard collection, but run one final aggregate gate with the same metric and floor as the unsharded run |
 | Skip malformed reports | Treated parser failure as no data | Broken evidence passed policy | Use one secure loader and fail closed |
 | Omit without a backstop | Excluded live/TTY modules | Import-time regressions became invisible | Add integration coverage for omitted code |
 | Ignore optional skips | Counted a green suite as path coverage | `importorskip` never exercised the feature | Install the optional group and target its branches |
@@ -189,6 +216,10 @@ list only for the same diagnosed toolchain conditions.
 | Parameter | Rule |
 | --- | --- |
 | Aggregate floor | `[tool.coverage.report].fail_under` only |
+| Sharded collection | `coverage erase`, then `--cov-append --cov-fail-under=0` on every sequential shard |
+| Final sharded gate | One aggregate check on combined data with the canonical metric and floor |
+| Parallel shards | Unique `COVERAGE_FILE` per shard; combine before the gate |
+| Secondary checker | Never substitute for the aggregate gate; compare its metric and scope |
 | Isolated diagnosis | `pytest -o addopts='' ... --cov-branch --cov-report=xml:<path>` |
 | Module metric | Cobertura `branch-rate`; fall back to line rate only without branch data |
 | Floor selection | At or below measured rate; 3–4 pp margin was stable in cited cases |
@@ -202,6 +233,9 @@ list only for the same diagnosed toolchain conditions.
 - 2026-08-05 and earlier cited cases: consolidation, per-module measurement, optional-dependency,
   and CI remediation evidence ranged from local to CI as indexed in
   [the notes](./pytest-coverage-threshold-and-enforcement.notes.md).
+- 2026-11-23: a hosted nightly unit job split one coverage run into three sequential shards; a
+  separate line-only checker masked a below-floor combined rate until one final aggregate gate was
+  added. See [the notes](./pytest-coverage-threshold-and-enforcement.notes.md).
 - The proposed unified secure-loader contract remains unverified.
 
 ## Companions

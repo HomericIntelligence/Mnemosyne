@@ -15,6 +15,7 @@ exact prior main is in [history](https://github.com/HomericIntelligence/Mnemosyn
 | Fail-closed secure XML loader | [immutable source](https://github.com/HomericIntelligence/Mnemosyne/blob/e7f342098c41f3d5fda1bf7c7fedf754abdaaad2/skills/pytest-coverage-threshold-and-enforcement.md) | unverified | Retained as proposed, not shipped |
 | Optional dependency and omitted-module backstops | [immutable source](https://github.com/HomericIntelligence/Mnemosyne/blob/e7f342098c41f3d5fda1bf7c7fedf754abdaaad2/skills/pytest-coverage-threshold-and-enforcement.md) | verified-ci | Kept install/no-skip and integration-backstop rules |
 | Native lcov/geninfo repair | [immutable source](https://github.com/HomericIntelligence/Mnemosyne/blob/e7f342098c41f3d5fda1bf7c7fedf754abdaaad2/skills/pytest-coverage-threshold-and-enforcement.md) | verified-local | Kept sequential path/toolchain diagnosis; exact logs archived |
+| Sharded coverage gate | Hosted nightly unit job, 2026-11-23 | verified-ci | Kept per-shard append, one final aggregate gate, and separate selection proof |
 
 ## Case Details
 
@@ -44,6 +45,29 @@ The proposed loader unifies aggregate and module parsing and distinguishes missi
 secure parser, malformed/prohibited XML, invalid rate, absent module, and ambiguous normalized path.
 The source described parser- and CLI-boundary tests, including JSON `passed: false`. No downstream
 implementation evidence was supplied, so status stays unverified.
+
+### Sharded coverage gate
+
+A full unit job stopped near the middle with no pytest summary. The cause was memory exhaustion,
+not a test hang. The run was split into three sequential pytest invocations over disjoint test
+roots. Coverage data was erased once before the first shard. Each shard used `--cov-append` and
+`--cov-fail-under=0`; the final shard wrote the XML report. One final
+`coverage report --fail-under=85` step used the combined data.
+
+Before the missing module tests, the shards passed and a separate per-module checker reported
+87.47% line coverage and passed. The combined gate measured 84.85% and exited 2. The checker did not
+enforce the aggregate metric, so it could not substitute for the final gate.
+
+After adding the tests for the under-covered module, the combined gate measured 85.23% locally and
+85.27% in the hosted run. The per-module checker reported 87.89% to 87.93%, and the nightly run was
+green.
+
+Test-selection equivalence was checked separately. The three shard selectors covered the same
+13,479 node IDs as one unsharded collection, with no missing, extra, or duplicate nodes. That check
+proves suite selection, not coverage accounting. Both checks are needed.
+
+Boundary: this case used sequential shards in one job. Concurrent shards need separate
+`COVERAGE_FILE` values and a combine step. Do not append concurrently to one data file.
 
 ### lcov sequence
 
