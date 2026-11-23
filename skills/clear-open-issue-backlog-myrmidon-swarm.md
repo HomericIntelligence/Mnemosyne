@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Coordinate an authorized issue backlog with live issue triage, explicit edit ownership, dependency-aware parallel work, and evidence-based delivery."
 category: tooling
 date: 2026-05-28
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -104,6 +104,8 @@ Issue text reflects filing-time state, not current repo state. Before dispatchin
   - **KEEP**: Issue is still valid and unaddressed. Action: dispatch agent.
   - **MOOT**: The issue no longer describes useful work. Record the evidence; close it when issue management is authorized, or report the proposed disposition.
 
+A merged PR that only references an issue ("Part of #N") is not evidence that the issue is done. Check each acceptance criterion against the default branch, including operational and external ones (a tag, a live run, a change in another repository). Treat a "probably done" triage verdict as unverified until every criterion has cited evidence; when one fails, classify the issue PARTIAL or blocked and report the owner decision instead of closing it.
+
 Real examples from 2026-05-28 session:
 - A "revert OS matrix" issue was already done in main → DONE-ALREADY, closed with no PR
 - A "decompose 1912-line God Class" issue: file was now 872 lines with 21/40 methods being delegation shims → MOOT, posted evidence, did not dispatch
@@ -135,6 +137,8 @@ Before dispatch, list every file each KEEP/PARTIAL issue touches. Detect collisi
 Agent dispatch parameters:
 - Select available agents and concurrency to match task complexity and host limits.
 - Prefer isolated worktrees for independent edits and state file ownership clearly.
+- Give each agent a unique local branch name. Branch refs are shared by every worktree of one repository, so agents that all create the same local branch name move each other's branch and index. Tell each agent to confirm `git rev-parse HEAD` and `git diff <remote-branch>..HEAD` show only its own change before every push, and to push `HEAD:<remote-branch>` as a fast-forward.
+- Tell an agent to write `Part of #N`, not `Closes #N`, when it delivers only part of the plan scope.
 - Describe the expected result and relevant design constraints, rather than a fixed line budget.
 - Follow the target repository's commit-signing policy.
 - If a check stalls, diagnose it or use an authorized alternative; report missing coverage.
@@ -165,7 +169,7 @@ gh pr view <#> --json state,autoMergeRequest,additions,deletions,files,body
 
 Verify:
 1. `autoMergeRequest` is non-null and method is `SQUASH` (not null / not REBASE)
-2. The literal `Closes #N` line(s) are present in `.body` (capital C, no colon, on its own line)
+2. The literal `Closes #N` line(s) are present in `.body` (capital C, no colon, on its own line) only for issues whose whole plan scope the PR delivers. When the agent reports unfinished scope, the body must say `Part of #N`: the forge closes the issue when a `Closes` PR merges, and the remaining work then has no open record. Edit the body before merge if the agent used `Closes` on a partial slice.
 3. The `.files` list matches the agent's declared file ownership (catches scope creep or collision)
 4. `state` is `OPEN` (not DRAFT, not already merged by accident)
 
@@ -195,6 +199,9 @@ pixi run mypy
 | Dispatching a worktree agent for branch-ruleset edit | Tried to have an agent fix a branch protection ruleset | Agent lacked repo-admin permission; operation requires GitHub org admin | Flag admin/env/high-risk items to the user; only dispatch what a worktree agent can safely do |
 | Dispatching a "moot" refactor because issue was open | Was about to dispatch a God-Class decomposition agent | File had already been restructured (1912 → 872 lines, 21/40 methods delegation shims); agent would have created churn on top of completed work | Re-grade confirms DONE-ALREADY/MOOT before dispatch, even if the issue is legitimately filed |
 | Trusting serial order for name-space collisions | Assumed issue-N+1-after-issue-N ordering resolved two approved plans that each registered the same verbs on the same five surfaces; both plans had verified the names free at planning time | Implementing the later plan as written would have duplicated the earlier plan's registrations once it merged (duplicate keys/commands); serial order fixes file writes, not name claims | Cross-grep adjacent in-flight plans' delivered-name claims against each other; assign single ownership of the shared names and rebind the dependent plan to compose over the owner's registrations, re-reviewed to GO before implementation |
+
+| Letting parallel fix agents share one local branch name | Several agents, each in its own worktree, ran `checkout -B <same-name>` on different PR heads | The branch ref is shared across worktrees; one agent's HEAD and staged files changed under another, and a push of `HEAD:<pr-branch>` could have published the wrong commit | Unique local branch per agent; verify HEAD and the diff against the remote branch before each push; after the wave, check every pushed PR head holds only its agent's commit |
+| Accepting an agent's own plan review as the gate | The agent that wrote a plan also ran the review and labeled it GO | The review was not independent, so the GO carried no extra assurance | Mark such a verdict provisional and route the PR to an independent reviewer before the implementation label |
 
 ## Results & Parameters
 
