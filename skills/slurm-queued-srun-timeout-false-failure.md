@@ -3,7 +3,7 @@ name: slurm-queued-srun-timeout-false-failure
 description: "Run a validation command on a busy Slurm partition without a false result. Use when: (1) a command is wrapped as `timeout N srun ...` and exits 143 or prints nothing, (2) srun reports 'queued and waiting for resources' and your wall-clock limit expires, (3) a job queue holds many pending jobs and you need a test result from a compute node, (4) the estimated start of your pending job is hours or days away and a review, merge, or hand-off waits for the test result."
 category: tooling
 date: 2026-11-04
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 tags: ["slurm", "srun", "sbatch", "timeout", "queue-wait", "validation", "ci-gate", "unverified-results"]
 ---
@@ -24,6 +24,7 @@ tags: ["slurm", "srun", "sbatch", "timeout", "queue-wait", "validation", "ci-gat
 - `srun` prints "queued and waiting for resources" and no payload output.
 - The partition has many pending jobs, so the queue wait can be longer than your limit.
 - An agent or script ran a check and the result looks like a pass, but the payload never started.
+- A batch job shows `COMPLETED` but its output file is missing or empty on the submit host.
 - The estimated start of a pending job (`squeue --start`) is hours or days away, and a review, a merge, or a hand-off waits for that result.
 
 ## Verified Workflow
@@ -42,7 +43,7 @@ squeue -h -j <JOBID> -o "%T"      # PENDING, RUNNING, or empty when done
 
 1. Check the queue first: `squeue -h -p <PARTITION> -t PD | wc -l`. A long list means a long wait.
 2. Put the payload in a script. Set the Slurm time limit (`-t`) for the run time only.
-3. Write job output to a file in a job-specific directory. Do not use a shared temporary directory.
+3. Write job output to a file in a job-specific directory that the submit host can read. Do not use a shared temporary directory. Do not leave the output path or a redirect inside the script under a node-local `/tmp`: the job then completes, the submit host sees no file, and a resubmission costs a second queue wait. Check the `-o` path and any `TMPDIR` or log redirect on shared storage before the first submit.
 4. Run the submission in the background or poll `squeue`. Do not put a wall-clock `timeout` around the submit step.
 5. Treat a result as valid only when the output file contains the payload's own pass or fail line. A killed or pending job is "not run", not a pass and not a failure.
 6. If the same check also runs in CI, you can cancel the batch job after CI passes (`scancel <JOBID>`). Keep CI as the proof.
@@ -69,6 +70,7 @@ A batch submission fixes the false result but not the delay. When `squeue --star
 | 3 | Restarting `srun` in the background after a session restart | The background process ended with the session, and the job stayed in the queue. | A job tied to a client session is lost with it. A batch job is not. |
 | 4 | Each reviewer and each writer queued a test job and waited for it | The estimated starts were days away. Reviews stalled, and the jobs would have started later and run for nothing. | Decide early not to wait, cancel your own pending jobs, and move the proof to the required CI. |
 | 5 | Wrote "N tests passed" in a review from a hand-off report | The writer's own run had also never started. The number had no observer. | State the true source of each test claim. |
+| 6 | Several writers each submitted a test job with its output under a node-local `/tmp` | The jobs completed, but the submit host had no output file. Each writer submitted a second job and waited again. | A completed job with no readable output is an output-path error, not a test result. Fix the path on shared storage, then resubmit once. |
 
 ## Results & Parameters
 
