@@ -113,3 +113,58 @@ One session on OpenCode v2.2.5 (log entries dated 2026-11-04) supplies the evide
   the package route restores payload delivery without a manual install. Verify the
   installed version with `opencode plugin list` after the update, then restart the
   service (or start a standalone server) to load the refreshed plugin.
+
+## Session evidence: in-place V1-to-V2 adaptation of a local-only bundle (2026-11-23)
+
+One session supplies the evidence. Public software: OpenCode v2.2.5 and its plugin
+loader (`packages/core/src/plugin/module.ts`), which decodes the namespace `default`
+against `{ id, effect } | { id, setup }`. Internal plugin, host, and path names are
+generalized; no account or credential evidence is stored.
+
+- Install form: a single TypeScript bundle in the user plugins directory. The daemon
+  injected it as a managed absolute file entrypoint on every reload. It was not an
+  npm package and not a Git package specification.
+- Log evidence: one `level=WARN message="failed to load plugin"` entry per daemon
+  start after the host upgraded past v2.1.1, each with
+  `cause="Cause([Fail(PluginModule.LoadError: Plugin must export a default definition
+  with an id and an effect or setup function. (cause: SchemaError(Expected object
+  at [\"default\"])))])"` and a new `ref=err_<hex>`. The loader validates only the
+  export shape, before any plugin code runs.
+- Diagnosis: `Expected object at ["default"]` names a factory default export (`var
+  plugin = async () => ({ ... })`), not the `{ id, server: fn }` record of the older
+  notes. The three sibling plugin files in the same directory loaded without error,
+  which confined the cause to this file.
+- No upgrade route: the bundle source exists in no npm release and no upstream
+  repository. The ecosystem registry contains only a skills-delivery plugin, and it
+  loads without error. The bundle was the only source of its function.
+- Adaptation (see the main entry for the branch): a backup copy preserved the
+  original tail; `export default { id, setup }` replaced the factory export. `setup`
+  builds a compat client, registers the legacy hook surface on V2 domains
+  (`tool.transform`, `command.transform` for 21 command names, `session.hook` for
+  prompt and compaction, `tool.hook` for execute before/after), and consumes
+  `context.event.subscribe()` with a `data`-to-`properties` wire mapping. Removed
+  legacy types were synthesized from their V2 successors:
+  `session.compacted` from `session.compaction.ended`, and
+  `server.instance.disposed` from `global.disposed`. `tool()` records registered
+  with the host charset rule `^[A-Za-z0-9_-]+$`; the declared input schema decodes
+  arguments in the host path, so no plugin-side re-parse is needed.
+- Validation: `node --experimental-strip-types` on a harness that imports the real
+  file, asserts the default export against the loader schema, runs `setup` with a
+  stub V2 Context, and executes one registered goal tool end to end (21 checks
+  passed). `node --experimental-strip-types --check` validated syntax. Deferred
+  service restarts were not needed because the daemon watcher reloads the entrypoint.
+- Failure modes found during adaptation and fixed before validation: a typo in the
+  prompt text mapper, two hook mappers that referenced helpers never defined, a
+  redundant client literal, a floating command handle, one dead constant, and an
+  argument-validation branch written for zod that rejected every call for
+  effect-shaped schemas. Each of these loads cleanly; the harness caught them.
+  A clean load is not evidence that registrations work.
+- Live confirmation: the server log shows `msg="loading plugin"` with the entrypoint
+  path at the edit time of the adapted file, followed by no `failed to load plugin`
+  entry. The pre-fix identical failures remain the log record; no identical
+  `cause` string appears after the adaptation.
+- Decision detail: for a local-only bundle, adaptation in place is faster than a
+  fork or a port request that no publisher can merge, and it preserves the exact
+  runtime behavior the rest of the ecosystem already exercised (tool registrations,
+  command handlers, event consumers). When a publisher exists, prefer the published
+  port route.

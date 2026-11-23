@@ -1,9 +1,9 @@
 ---
 name: tooling-opencode-v2-invalid-server-plugin
-description: "Diagnose and resolve the OpenCode V2 server plugin error `Plugin must export a default definition with an id and an effect or setup function`. Use when: (1) a plugin shows `Server plugin error` with `Runtime: server` and a reference `err_*`, (2) a V1-era server plugin must work in OpenCode V2, (3) you must choose between removal, an upstream V2 port, or a replacement, (4) the newest published npm package has a V1 shape but the upstream repository can have an unreleased V2 port, (5) a Git-installed plugin loads without an error but has no effect."
+description: "Diagnose and resolve the OpenCode V2 server plugin error `Plugin must export a default definition with an id and an effect or setup function`. Use when: (1) a plugin shows `Server plugin error` with `Runtime: server` and a reference `err_*`, (2) a V1-era server plugin must work in OpenCode V2, (3) you must choose between removal, an upstream V2 port, or a replacement, (4) the newest published npm package has a V1 shape but the upstream repository can have an unreleased V2 port, (5) a Git-installed plugin loads without an error but has no effect, (6) a unique locally installed plugin bundle has no published or upstream V2 port and you adapt the module in place."
 category: tooling
-date: 2026-10-13
-version: "1.2.0"
+date: 2026-11-23
+version: "1.3.0"
 user-invocable: false
 tags: [opencode, plugin, server, api-migration, package-compatibility]
 ---
@@ -36,6 +36,10 @@ tags: [opencode, plugin, server, api-migration, package-compatibility]
   `failed to load plugin` entry in the log, but its documented effect is absent.
 - The plugin function is static payload delivery, for example a copy of a skill corpus
   into a harness directory.
+- The plugin is a locally installed bundle: no npm release or upstream repository
+  contains the source, and the plugin function is unique, so removal loses real
+  capability. The recovery is an in-place V1-to-V2 adaptation of the module file, not
+  an update, a replacement, or a removal.
 
 ## Verified Workflow
 
@@ -73,6 +77,13 @@ A V1-era server plugin exports a definition of the form
 of the default export at module load time, so the failure occurs before any plugin
 code runs and repeats at every load cycle with a new reference.
 
+The cause string names the exact defect. `SchemaError(Missing key at
+["default"]["effect"] ... ["default"]["setup"])` means the definition object lacks
+the hook function. `SchemaError(Expected object at ["default"])` means the default
+export is a factory function, for example `var plugin = async () => ({ ... })`, and
+not an object at all. A successful module load proves only the export shape: hook
+registrations and tool calls can still fail at run time.
+
 A Git package specification installation can succeed at module load time but have no
 effect. A publish workflow can generate the package payload, for example a bundled
 skills directory, and the Git tag does not contain that payload. A plugin that catches
@@ -106,11 +117,36 @@ error-free load has no effect.
    - Remove the plugin from `plugins` in the applicable `opencode.json(c)` when the
      function is not required.
    - Use a V2-compatible replacement plugin when one provides the function.
+   - Adapt the module in place when the function is unique and no published or
+     upstream V2 port exists. A bundled legacy plugin installed as a local file
+     entrypoint can have no update route. Work from a backup of the original file.
+     (a) Replace the export tail with a V2 definition,
+     `export default { id, setup }`; never export a factory again. `setup` hydrates
+     the V2 plugin Context into the legacy input contract: a compat client maps
+     `session.get/list/prompt/command/abort` to the V2 promise-session API and keeps
+     the guarded throws for surface methods with no V2 equivalent. Register the
+     legacy hook surface on the V2 domains: tools via `context.tool.transform`,
+     commands via `context.command.transform`, `chat.message` via
+     `context.session.hook("prompt")`,
+     `experimental.session.compacting` via `context.session.hook("compaction")`, and
+     `tool.execute.before/after` via `context.tool.hook`. Run the consumer event hook
+     from `context.event.subscribe()` and map the V2 `data` wire to the legacy
+     `properties` shape; synthesize removed legacy types from their V2 successors
+     (`session.compacted` from `session.compaction.ended`, and
+     `server.instance.disposed` from `global.disposed`). Keep every legacy failure
+     path guarded so `setup` never rejects. (b) Validate before you trust the
+     watcher reload: run `node --experimental-strip-types` on a harness that imports
+     the real file, asserts the default export against the loader schema, calls
+     `setup` with a stub V2 Context, and executes one registered tool. The loader
+     does not test registrations, so a clean load can hide latent bugs. (c) Confirm
+     the watcher reload in the server log: `msg="loading plugin"` for the entrypoint
+     with no following `message="failed to load plugin"`.
    - When the function is static payload delivery, install the payload directly from
      an immutable tag or commit. Remove the dead plugin entry from the configuration.
      Verify that the harness discovers the payload.
-   - When the function is unique, request an upstream port to `@opencode/plugin`.
-     OpenCode V2 does not run V1 plugin implementations.
+   - When the function is unique and the plugin has a publisher, request an upstream
+     port to `@opencode/plugin`. OpenCode V2 does not run V1 plugin implementations.
+     For a local-only bundle, use the in-place adaptation branch above.
 5. Restart the service to apply the change: `opencode service restart`. Deleting the
    stale cache directory `~/.cache/opencode/npm/<name>@latest/` prevents a reinstall
    attempt on restart.
@@ -139,6 +175,8 @@ error-free load has no effect.
 - The loader does not report `failed to load plugin` for the removed entry after the
   next service start.
 - Other plugin entries continue to load.
+- After an in-place adaptation, the watcher reloads the entrypoint with
+  `msg="loading plugin"` and no new `failed to load plugin` reference follows.
 - After a direct payload installation, the harness discovers the payload. For OpenCode
   skills, the new skills appear in the harness skill list. A restart is not necessary
   when the harness watches the skills directory.
@@ -150,6 +188,7 @@ error-free load has no effect.
 | OpenCode v2.0.26 (public release) | Load failure of the public `oh-my-openagent` server plugin (5.1.29 cached, 5.1.30 newest published at the time); diagnosis and removal | [notes.md](../skills/tooling-opencode-v2-invalid-server-plugin.notes.md) |
 | OpenCode v2.0.27 (public release) | V1-only published npm release 0.5.3 of a skills-delivery plugin; V2-compatible module at unreleased upstream tag v0.6.0; payload absent from the Git installation route; direct corpus installation from the tag | [notes.md](../skills/tooling-opencode-v2-invalid-server-plugin.notes.md) |
 | OpenCode v2.2.5 (public release) | Cached npm release 0.5.3 was incompatible with the V2 module schema; published release 0.6.0 had the V2 shape; `opencode plugin update` refreshed the cache and the plugin loaded | [notes.md](../skills/tooling-opencode-v2-invalid-server-plugin.notes.md) |
+| OpenCode v2.2.5 (public release) | In-place V1-to-V2 adaptation of a unique locally installed plugin bundle with no published or upstream source; node-harness and live server-log verification (2026-11-23) | [notes.md](../skills/tooling-opencode-v2-invalid-server-plugin.notes.md) |
 
 ## References
 
@@ -158,3 +197,4 @@ error-free load has no effect.
 - [OpenCode V2 troubleshooting](https://opencode.ai/v2/docs/troubleshooting)
 - [Related skill: tooling-opencode-v2-invalid-tui-plugin](tooling-opencode-v2-invalid-tui-plugin.md)
 - [Related skill: tooling-opencode-v2-plugin-install-compat](tooling-opencode-v2-plugin-install-compat.md)
+- [Related skill: tooling-opencode-v2-local-plugin-loading](tooling-opencode-v2-local-plugin-loading.md)
