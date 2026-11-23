@@ -60,3 +60,18 @@ stat -c '%a %U %G %n' PATH  # exact octal mode for a mode check
 - The many-user parent evidence is from planning against an existing mode check
   and manifest validator. Confirm the modes on the target filesystem before you
   rely on them.
+
+## Repair-executor amendment evidence (v1.2.0)
+
+- Source operation: a multi-terabyte shared model and image store whose service-owned
+  entries had drifted from the declared mode. Thousands of directories and hundreds of
+  files were not world-readable, and a few were not traversable.
+- A group member (a member of the store's group, but not the entry owner) ran `chmod`
+  on a foreign-owned entry and received `Operation not permitted`. No passwordless
+  administrator access existed on the store host.
+- The owning service account executed the repair on a cluster node where it can run
+  commands: `chmod` on the store top, then `find`-scoped repairs (directories to the
+  declared setgid mode, files with an add-read repair), setgid bits preserved.
+- Verification: `find` over both trees counted zero service-owned entries without the
+  intended access after the repair; `ls -ld` confirmed the tops. User-owned scratch
+  entries in the same trees were deliberately left private.
