@@ -1,12 +1,12 @@
 ---
 name: pr-backlog-drain-merge-queue
 license: BSD-3-Clause
-description: "Drain a large backlog of open pull requests in a repository whose default branch merges through a merge queue. Use when the same required check fails on every open PR, when a PR stays BLOCKED although every check is green, when a merge command is rejected because the queue owns the merge method, or when an automated merge loop must survive a moving default branch."
+description: "Drain a large backlog of open pull requests in a repository whose default branch merges through a merge queue. Use when the same required check fails on every open PR, when a PR stays BLOCKED although every check is green, when a merge command is rejected because the queue owns the merge method, when two open PRs change the same files so only one can merge first, or when an automated merge loop must survive a moving default branch."
 category: ci-cd
 date: 2026-11-19
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
-tags: [pr-backlog, merge-queue, fleet-triage, update-branch, ci-fan-out, main-red, enqueue, blocked-state, behind-base, bounded-loop, gh-cli, contested-amendments]
+tags: [pr-backlog, merge-queue, fleet-triage, update-branch, ci-fan-out, main-red, enqueue, blocked-state, behind-base, bounded-loop, gh-cli, contested-amendments, additive-amendments]
 ---
 
 # PR Backlog Drain Under a Merge Queue
@@ -17,7 +17,7 @@ tags: [pr-backlog, merge-queue, fleet-triage, update-branch, ci-fan-out, main-re
 | ------- | ------- |
 | **Date** | 2026-11-19 |
 | **Objective** | Move a fleet of open pull requests to green and merged, without merging a defect and without losing a contested change |
-| **Outcome** | Successful — a sweep of 46 open PRs ended with every PR merged or correctly stacked. The sweep survived a red default branch, one infrastructure flake, and a default branch that moved while the fleet drained |
+| **Outcome** | Successful — a sweep of 46 open PRs ended with every PR merged or correctly stacked. The sweep survived a red default branch, one infrastructure flake, and a default branch that moved while the fleet drained. A later 32-PR drain found one additive overlap before enqueue, held the second PR, and merged both lessons into one artifact set with no loss |
 | **Verification** | verified-ci |
 
 ## When to Use
@@ -27,6 +27,8 @@ tags: [pr-backlog, merge-queue, fleet-triage, update-branch, ci-fan-out, main-re
 - A PR shows `BLOCKED` although every check is green.
 - A merge command is rejected with "The merge strategy for main is set by the merge queue".
 - An automated loop enqueued a PR many times, and the PR still did not merge.
+- Two or more open PRs change the same skill files, and only one can merge before
+  the other is rebased.
 
 Do not use this skill to classify one failing check on one PR. Use
 [pr-ci-failure-triage-preexisting-vs-introduced](pr-ci-failure-triage-preexisting-vs-introduced.md)
@@ -58,13 +60,26 @@ gh pr merge <number> --squash
 2. **Classify each remaining failure per PR.** Separate product defect,
    environment failure, and flake. Rerun a classified infrastructure flake with
    `gh run rerun <run-id> --failed`. Record what you reran and why.
-3. **Fix PR-specific defects on their own branches.** When two PRs amend the
-   same skill with opposite rules, do not force one rule over the other. Stack
-   the amendments, give each branch its own version bump, and record a
-   discriminator that tells a reader which branch applies.
-4. **Update every mergeable branch, then queue.** `gh pr update-branch <n>`
-   removes the behind-base blocker and starts fresh CI. Then queue with plain
-   `gh pr merge <n> --squash`.
+3. **Group PRs by changed path before you queue anything.** Build the map from
+   `gh pr list --json files`. Confirm a suspected overlap with
+   `git merge-tree --write-tree --merge-base <base> <head-a> <head-b>`. Two
+   PRs that change the same files cannot both enter the queue in that state.
+   The first merge makes the second `DIRTY`, GitHub builds no merge commit, and
+   no pull-request checks start. Select the applicable branch:
+   - **Opposite rules, no decisive evidence:** do not force one rule over the
+     other. Stack the amendments, give each branch its own version bump, and
+     record a discriminator that tells a reader which branch applies.
+   - **Compatible additive changes:** serialize the work. Queue one PR first and
+     hold the other out of the queue. After the first PR merges, fetch the new
+     default branch and rebase the held PR onto it. Combine both additions in
+     the same artifact set, renumber each cross-reference (table rows, notes
+     section titles, and lesson pointers), and bump the version past both.
+     Validate and sign the commit again, then force-push with a lease bound to
+     the old head. Confirm that the held PR's diff against the new default
+     branch holds only its own delta before you queue it.
+4. **Update every non-held mergeable branch, then queue.**
+   `gh pr update-branch <n>` removes the behind-base blocker and starts fresh
+   CI. Then queue with plain `gh pr merge <n> --squash`.
 5. **Run a bounded loop that re-updates branches in every round.** The default
    branch moves while the fleet drains. A PR that was green can fall behind and
    block again. When checks are green but the state is `BLOCKED`, compare
@@ -134,6 +149,7 @@ Notes on the parameters:
 | Project | Context | Details |
 | ------- | ------- | ------- |
 | Mnemosyne | Fleet sweep of 46 open PRs under a merge queue, 2026-10-29 to 2026-10-30 | All PRs merged; one mirror-sync flake reran green; two contested amendments stayed stacked with a discriminator |
+| Mnemosyne | 32-PR drain with one additive overlap; one PR held, rebased after the first merge, and both lessons combined (2026-11-23) | [notes.md](pr-backlog-drain-merge-queue.notes.md) |
 
 ## References
 
