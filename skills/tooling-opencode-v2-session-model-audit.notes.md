@@ -36,11 +36,34 @@ behavior is consistent with the v2.0.24 source inspection recorded in the siblin
   per-session selection, so no configuration change was required.
 - Final verification query over `session_v2.model` returned zero rows for the target provider.
 
+## Model provenance on v2.3.2
+
+- The model picker keeps recent-model and variant state in `~/.local/state/opencode/model.json`. The
+  active session model remains in `session_v2.model`. A recent-list entry is not proof of a
+  configuration default.
+- OpenCode v2.3.2 contains a built-in provider module for vLLM. It defaults to
+  `http://127.0.0.1:8000`, requests `/health`, then `/v1/models`, and keeps only cards whose
+  `owned_by` is `vllm`. The models appear with no provider entry and no credential in the
+  configuration.
+- In one observed case, the global configuration declared no `model` field, and its `providers`
+  entry was commented out. The session still showed a `vllm` model. A read-only `GET /v1/models`
+  returned the same model with `owned_by: vllm` and its context limit.
+- The local endpoint was a batch-scheduler job owned by a different account on the shared host. The
+  client had no relationship to that job. Attribution came from scheduler metadata; the foreign
+  work directory was unreadable.
+- Discovery cannot infer tool support. The discovered vLLM models advertise text input and output
+  only, even when the server enables tool calling with its own flags.
+
 ## Limits
 
-- Verified only against v2.0.31. Table names, message types, and the `Model.Ref` schema can change
-  in later releases; re-read `openapi.json` and the live schema before reuse.
+- Verified only against v2.0.31 for the audit and retarget path, and v2.3.2 for vLLM discovery.
+  Table names, message types, and the `Model.Ref` schema can change in later releases; re-read
+  `openapi.json` and the live schema before reuse.
 - Model identity strings are per-installation and are generalized in the main entry.
 - No session titles, session identifiers, local paths, provider account names, or message content
   are retained in this record. Only public documentation locations, schema facts, and anonymized
   counts are used.
+- The built-in provider module and its default endpoint are details of v2.3.2. Confirm the
+  documented default in the installed version before reuse.
+- Ollama and LM Studio use the same documented discovery pattern but were not probed. Only vLLM
+  discovery has direct evidence.
