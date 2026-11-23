@@ -374,3 +374,28 @@ log, so the re-provision is dated by modification time.
 
 This file is a companion and is not part of normal retrieval. Keep rules in the main
 entry.
+
+## v3.19.0 — cross-session evidence sweep (2026-11-23)
+
+Source: a model-fleet qualification session. The tracker and repository record showed no
+run evidence for six registered workloads, so the session demanded fresh minimal-probe
+runs per workload. A completed sibling session had already brought every workload live
+through fleet autoscale and run full scored task dispatches against live replicas —
+warmup probes returned success codes and each dispatch completed with full-length,
+stop-terminated outputs, scored on a 13-item rubric, with raw response and log artifacts
+in a scratch work directory. The user pointed at that session; recovery from the local
+session store plus the scratch artifacts confirmed the stronger evidence, the weaker bar
+was withdrawn, and the tracker closed as owner-validated. One workload still lacked a
+production window for capacity reasons, recorded on the capacity tracker, and did not
+block the close.
+
+Lesson: search where sibling work leaves its evidence (session store by work-domain
+title keywords; scratch report/response/log artifacts) before requiring a re-run, then
+rank strength — stronger current-identity-bound evidence supersedes the weaker bar.
+
+Verification: verified-local — the sweep found the sibling session by a two-word title
+keyword, its message stream supplied the dispatch log and final report path, and the
+scratch artifacts (per-model response records, dispatch log, report) confirmed each
+claim before the close.
+
+This file is a companion and is not part of normal retrieval.
