@@ -64,6 +64,27 @@ numerator, across every artifact that states the rate. This session found the
 defect by reading the figure and the table side by side. No automated check
 compared them before the repair.
 
+## Fourth failure in the same session: capacity universe and a grouped mean
+
+A later report published a per-model rate of completed output per unit of
+capacity. The denominator counted every allocated unit for the whole window. A
+pool that had scaled up and then stopped serving kept many idle units in the
+denominator, so the rate fell by more than half while the engine was unchanged.
+
+The first diagnosis was also wrong. The queue telemetry query returned
+`avg(running_requests)` grouped by model and hour. That value is the mean per
+row, not the pool total. Read as a pool total, it made an over-scaled pool look
+idle. The pool total was the mean times the replica count, about an order of
+magnitude larger.
+
+The repair counted only the units that did work in each hour, weighted by the
+share of the hour that the unit was busy, and paired them with the tokens from
+the same hours. It also stated the capacity universe in the definition.
+
+The check that would have caught both defects compares the denominator's
+capacity universe with the label, and multiplies a grouped mean by its row
+count before comparing it with a capacity.
+
 ## Limits of this evidence
 
 - The entry is general. Project names, paths, table names, and account names
@@ -73,3 +94,6 @@ compared them before the repair.
 - The rate-denominator failure was found by inspection. The reported values
   were verified against the collection metadata after the repair, but the
   session did not add a regression test for the figure builder.
+- The capacity-universe change was validated on one fleet report. The
+  grouped-mean rule was checked against two independent load signals in that
+  report, not against a load generator.
