@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Rebind to the live head before you push a fix that you made in a shared review worktree, and re-publish a verdict that named a head which a peer publisher has advanced past. Use when an unpredictable reset discards your uncommitted edits, when another writer's in-flight change appears in your staging, or when the branch head moves after you post a head-bound verdict."
 category: tooling
 date: 2026-11-07
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -67,9 +67,10 @@ git log --oneline -4
 4. Stage explicit paths for your own edits. Do not use one command that matches every dirty path. When a stage command already included a foreign change, inspect the extra files before you decide what to do:
    - Read the extra diff. If it is a coherent inactive change for the same intent, and the test evidence covers the combination, keep it and state that in the record.
    - If it disagrees with your fix, or has no evidence, remove it from your commit and tell the owner. Do not push work that you cannot justify.
-5. Use a fast-forward push with no force. If the push is rejected because the remote moved, fetch, re-integrate your change on the new head, and push again. Do not rewrite the shared history.
-6. After a version-control command that matched too many paths, verify the scope with `git show --stat <commit>`. Compare every path with your edit list.
-7. When the head moves after you publish a verdict that names the head, post one brief addendum. Name the new head. State which of your records still apply: test evidence that no code change affects, and label conditions that the new head changes. Do not restate the full verdict.
+5. If another writer rebased the branch while you worked, the remote head is not a descendant of your base. Before you edit, reset the agent worktree to the observed remote head. After the edit, push with a lease that is pinned to that observed head (`--force-with-lease=<branch>:<observed-head>`). A bare lease or a plain force can overwrite the other writer. If the lease is rejected, fetch, re-apply on the new head, and pin again.
+6. Otherwise use a fast-forward push with no force. If the push is rejected because the remote moved, fetch, re-integrate your change on the new head, and push again. Do not rewrite the shared history.
+7. After a version-control command that matched too many paths, verify the scope with `git show --stat <commit>`. Compare every path with your edit list.
+8. When the head moves after you publish a verdict that names the head, post one brief addendum. Name the new head. State which of your records still apply: test evidence that no code change affects, and label conditions that the new head changes. Do not restate the full verdict.
 
 ## Failed Attempts
 
@@ -84,7 +85,7 @@ git log --oneline -4
 ### Configuration
 
 - `git rev-parse HEAD` and `git ls-remote origin refs/heads/<branch>`: read both before each write decision.
-- No force push. A rejected push means the remote advanced. Integrate on the new head and push again.
+- No plain force push. After a rebase by another writer, use only a lease pinned to the observed head. A rejected push means the remote advanced. Integrate on the new head and push again.
 - Stage explicit paths. Never use a command that matches every dirty path in a shared worktree.
 
 ### Expected Output
