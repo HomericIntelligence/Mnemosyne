@@ -129,3 +129,59 @@ repeated all of these:
   often does not.
 - The failure is not version-specific, so consulting only `info.requires_python` on the
   release API does not prevent it.
+
+## Amendment: Directory Development Install Replaced by an Exact Release (2026-11-23)
+
+**Verification:** verified-local — the replacement and the verification ran in one
+session. CI consumption is pending.
+
+### What happened
+
+A uv tool isolate held a development installation from a local source directory.
+`uv tool list` reported a development version (`X.Y.Z.devN+...`). The request
+named the release `X.Y.Z`.
+
+The isolate had no `direct_url.json` in its distribution metadata. The
+authoritative provenance was the uv receipt at
+`$(uv tool dir)/DIST/uv-receipt.toml`. Its requirement named the local directory
+and the `[EXTRA]` set.
+
+### The replacement
+
+```bash
+uv tool install --force 'DIST[EXTRA]==X.Y.Z'
+```
+
+`--force` replaced the directory requirement. `uv tool list` then reported
+`X.Y.Z`, and the receipt requirement changed to `specifier = "==X.Y.Z"` with no
+`directory` field.
+
+### Verification evidence
+
+- `SCRIPT --version` printed `X.Y.Z` and exited zero.
+- The tool environment import and the installed distribution metadata both
+  reported `X.Y.Z`.
+- A real product command, not only `--version`, printed usage and exited zero.
+- `uv tool list --show-extras` showed the `[EXTRA]` set. Plain `uv tool list`
+  does not show extras.
+- A separate interpreter environment still held an older release. It did not
+  shadow the canonical copy because the uv tool bin directory was earlier on
+  `PATH`.
+
+### Generalization
+
+- A uv tool isolate can have no `direct_url.json`; read `uv-receipt.toml` for
+  the requirement, the source form, and the extra set.
+- The installed requirement can be a local directory, not a registry version.
+  Replace it with `--force` and an exact `==X.Y.Z` specifier to select the
+  release, and confirm that the receipt no longer names a `directory`.
+- `uv tool list` hides the extra set. Use `uv tool list --show-extras` or the
+  receipt before you decide that the install is complete.
+- The request named one install target, not a full consolidation. The older
+  copy remained and was reported with its `PATH` order. Do not remove a copy
+  that the request did not cover.
+
+### Privacy note
+
+The distribution name, script names, local paths, and exact version values are
+generalized. Only the decision rule and the verification shape are recorded.

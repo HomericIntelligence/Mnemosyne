@@ -1,12 +1,12 @@
 ---
 name: python-multi-env-install-consolidation
-description: "Consolidate divergent copies of a Python distribution across pip interpreter sites, conda environments, and uv tool isolates into one canonical newest-release install, keeping the required optional extras. Use when an install or upgrade request can hit several environments, when console scripts shadow each other on PATH, when a locally built development wheel sits beside release copies, or when a pinned reinstall leaves a console script failing on a missing optional module."
+description: "Consolidate divergent copies of a Python distribution across pip interpreter sites, conda environments, and uv tool isolates into one canonical newest-release install, keeping the required optional extras. Use when an install or upgrade request can hit several environments, when console scripts shadow each other on PATH, when a locally built development wheel or directory install sits beside release copies, when a uv tool isolate holds a development version and the request names an exact release, or when a pinned reinstall leaves a console script failing on a missing optional module."
 category: tooling
 date: 2026-10-09
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
-tags: [python-install, pip, uv-tool, conda, multi-environment, consolidation, direct-url, path-shadowing, extras, optional-dependency, reinstall]
+tags: [python-install, pip, uv-tool, conda, multi-environment, consolidation, direct-url, uv-receipt, exact-release, path-shadowing, extras, optional-dependency, reinstall]
 ---
 
 # Python Multi-Environment Install Consolidation
@@ -16,9 +16,9 @@ tags: [python-install, pip, uv-tool, conda, multi-environment, consolidation, di
 | Field | Value |
 | ----- | ----- |
 | Date | 2026-10-09 |
-| Objective | Give one machine exactly one newest-release copy of a Python distribution when older copies exist in several environments |
-| Outcome | Successful: three divergent copies removed, one newest release installed, and every surface verified |
-| Verification | verified-local: the workflow ran end-to-end in a real session. CI consumption is pending. |
+| Objective | Give one machine exactly one canonical copy of a Python distribution, or replace a development install with an exact release, while keeping the required optional extras |
+| Outcome | Successful in two local sessions: three divergent copies consolidated to one newest release, and a directory development build replaced by an exact release; every surface was verified |
+| Verification | verified-local: both workflows ran end-to-end in real sessions. CI consumption is pending. |
 
 ## When to Use
 
@@ -28,7 +28,8 @@ Use this skill when one or more of these conditions apply:
 - The machine has several Python environments: a pip user site for an older interpreter, a conda environment, or one or more uv tool isolates.
 - The `pip` and `python3` executables on PATH resolve to different interpreters.
 - Console scripts of the same distribution exist in more than one bin directory on PATH.
-- A locally built development wheel copy exists beside release copies.
+- A locally built development wheel or directory install exists beside release copies.
+- A uv tool isolate reports a development version and the request names an exact release.
 - A reinstall replaces the distribution with the same version, and the console script then exits non-zero with a missing-optional-module error.
 
 ## Verified Workflow
@@ -46,6 +47,10 @@ which -a SCRIPT            # PATH shadows of the console scripts
 cat .../site-packages/DIST_INFO.direct_url.json
 #    https URL  -> downloaded release copy
 #    file URL to a .whl -> locally built development wheel
+# A uv tool isolate can have no direct_url.json; read its receipt instead:
+cat "$(uv tool dir)/DIST/uv-receipt.toml"
+#    directory = ...        -> development install from a source tree
+#    specifier = "==X.Y.Z"  -> exact release requirement
 
 # 3. Read the extra set the installed distribution already declares.
 python3 -c "import importlib.metadata as m; print(m.metadata('DIST').get_all('Provides-Extra'))"
@@ -57,7 +62,9 @@ uv tool uninstall DIST     # also removes all entry-point scripts
 
 # 5. Install one canonical copy of the new release, WITH its required extras.
 python3 -m pip install --upgrade 'DIST[EXTRA]'   # import and scripts
-# or: uv tool install --upgrade 'DIST[EXTRA]'    # CLI-only isolate
+# or, for a CLI-only isolate:
+uv tool install --force 'DIST[EXTRA]==VERSION'   # exact release; replaces a dev build
+# For a newest-release upgrade from the index: uv tool install --upgrade 'DIST[EXTRA]'
 
 # 6. Verify closure on every surface, including one real command.
 python3 -c "import PKG; print(PKG.__version__)"
@@ -80,11 +87,15 @@ others.
    to an older or different interpreter than `python3`. Use the
    `INTERPRETER -m pip` form for the target that you mean. Read the first line
    of `pip --version` to see which interpreter a given pip owns.
-3. **Check provenance through direct_url.json.** The `direct_url.json` file in
-   each dist-info directory records the origin of the copy. An `https` URL is
-   a downloaded release. A `file` URL to a local wheel is a development build
-   with a source tree behind it. When the request is to keep only the newest
-   release, remove development-wheel copies too. When development on that
+3. **Check provenance through direct_url.json or the uv receipt.** The
+   `direct_url.json` file in each dist-info directory records the origin of
+   the copy. An `https` URL is a downloaded release. A `file` URL to a local
+   wheel is a development build with a source tree behind it. A uv tool
+   isolate can have no `direct_url.json`; read
+   `$(uv tool dir)/DIST/uv-receipt.toml` instead. Its `directory` field names
+   a development install from a source tree, and its `specifier` field names
+   an exact release requirement. When the request is to keep only the newest
+   release, remove development-build copies too. When development on that
    source can continue, report the choice before you replace that copy.
 4. **Select the canonical target before removal.** The new release can have a
    narrower `requires_python` range than the old copies. Read
@@ -93,7 +104,10 @@ others.
    for that interpreter is then removal. Use the default interpreter
    environment as the canonical target when import and console scripts both
    matter. Use a uv tool isolate when the tool is CLI-only and must stay out
-   of project environments.
+   of project environments. A development install can come from a local
+   directory requirement, not a registry version. To select the release,
+   replace that requirement with `uv tool install --force 'DIST[EXTRA]==X.Y.Z'`
+   and confirm that the receipt names the exact specifier and no `directory`.
 5. **Remove each copy with its owning manager.** pip removes only its own
    sites. `uv tool uninstall` removes the isolate and every entry-point
    script in one operation. Do not delete files in site-packages by hand:
@@ -104,15 +118,19 @@ others.
    command, but the command then exits non-zero with a missing-module error. Read
    the installed `Provides-Extra` set before removal, and give the install command
    the same brackets the working install used: `'DIST[EXTRA]'`. Quote the value so
-   the shell does not read the brackets as a pattern. This is not a version
-   problem, so a version check alone will not see it. A `--version` smoke run will.
+   the shell does not read the brackets as a pattern. For a uv tool isolate, the
+   receipt also records the extra set; `uv tool list` shows it only with
+   `--show-extras`. This is not a version problem, so a version check alone will
+   not see it. A `--version` smoke run will.
 7. **Verify closure.** Success needs all of these results: import shows the
    new release version in the canonical environment; `pip show` reports
-   not-found in every other site; `uv tool list` shows no copy; `which`
-   resolves each console script into the canonical environment; one
-   `SCRIPT --version` run exits zero.
+   not-found in every other site; `uv tool list` shows no copy when the
+   isolate is not the canonical target, or its receipt names the exact
+   version specifier and no `directory` when it is; `which` resolves each
+   console script into the canonical environment; one `SCRIPT --version` run
+   exits zero.
 
-Short decision-branch examples from the verified session:
+Short decision-branch examples from the verified sessions:
 
 - The newest release required `>=3.13, <3.14`. The pip owned by Python 3.10
   could never accept it, so its copy could only be removed. The conda
@@ -120,6 +138,10 @@ Short decision-branch examples from the verified session:
 - A uv tool isolate held 58 entry-point executables. One
   `uv tool uninstall` removed all of them. The terminal `which` check was
   necessary to confirm that the canonical environment scripts were on PATH.
+- A uv tool isolate held a directory development install and no
+  `direct_url.json`. Its receipt named the directory and the extra set.
+  `uv tool install --force 'DIST[EXTRA]==X.Y.Z'` replaced it with the exact
+  release.
 
 ## Failed Attempts
 
@@ -127,6 +149,7 @@ Short decision-branch examples from the verified session:
 | ------- | -------------- | ------------- | -------------- |
 | N/A | The direct enumerated-then-consolidated approach was successful. | N/A | Enumeration before mutation made consolidation a single pass with no retries. |
 | 2 | Pinned the reinstall to `DIST==VERSION` without the extra the working install used | The version and command were correct, but the console script exited non-zero with a missing-optional-module error; the package looked installed and healthy | Read `Provides-Extra` before removal and reinstall `'DIST[EXTRA]'`; verify with a real command, not only an import |
+| 3 | Checked for `direct_url.json` in a uv tool isolate to identify the source | The isolate had no `direct_url.json` | Read `uv-receipt.toml`; it records the requirement, source form, and extra set |
 
 ## Results & Parameters
 
@@ -140,6 +163,8 @@ target_contexts:
 constraints:
   requires_python: "read info.requires_python from the PyPI JSON API before target selection"
   extra_set: "read Provides-Extra from the installed distribution; reinstall 'DIST[EXTRA]'"
+  uv_tool_provenance: "read uv-receipt.toml; direct_url.json can be absent"
+  exact_release_selection: "uv tool install --force 'DIST[EXTRA]==VERSION' when the installed requirement is a local directory"
   managers:
     - "INTERPRETER -m pip for each interpreter site"
     - "uv tool uninstall / uv tool install for isolates"
@@ -148,8 +173,11 @@ constraints:
 ### Expected Output
 
 - Non-canonical environments report "Package(s) not found" from `pip show`.
-- `uv tool list` no longer names the distribution.
+- `uv tool list` no longer names the distribution when the isolate is not the
+  canonical target.
 - Import in the canonical environment prints the new release version.
+- A canonical uv tool receipt names the exact version specifier and no
+  `directory` source.
 - `which` resolves console scripts into the canonical environment bin
   directory, and a `--help` smoke run exits zero.
 
@@ -158,6 +186,7 @@ constraints:
 | Project | Context | Details |
 | ------- | ------- | ------- |
 | Public PyPI CLI distribution in a user-owned ecosystem | Developer workstation session on Linux | Three divergent copies consolidated to one newest release; see [notes](python-multi-env-install-consolidation.notes.md). |
+| Public PyPI CLI distribution with a uv tool isolate | Developer workstation session on Linux | A directory development build was replaced by an exact release; the receipt and a real command surface were verified; see [notes](python-multi-env-install-consolidation.notes.md). |
 
 ## References
 
