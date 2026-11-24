@@ -1,10 +1,10 @@
 ---
 name: testing-non-vacuous-regression-guards-behavior-unchanged
 license: BSD-3-Clause
-description: "Assess whether regression guards distinguish meaningful behavior changes when the implementation stays unchanged; use discriminating inputs and optional mutation checks. When an upstream validation layer rejects the same invalid input first, bind the guard test to the layer that owns the decision."
+description: "Assess whether regression guards distinguish meaningful behavior changes when the implementation stays unchanged; use discriminating inputs and optional mutation checks. When an upstream validation layer rejects the same invalid input first, bind the guard test to the layer that owns the decision. When the guarded branch selects between two derivation rules, choose a fixture where the two rules produce different values."
 category: testing
-date: 2026-06-27
-version: "1.2.0"
+date: 2026-11-24
+version: "1.3.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -15,6 +15,8 @@ tags:
   - mutation-testing
   - sibling-asymmetry
   - layered-validation
+  - rule-selection-guard
+  - coincident-fixture
   - test-targeting
   - planning
   - hephaestus
@@ -22,14 +24,15 @@ history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d7
 history-cleanup-date: "2026-09-20"
 ---
 
-# Non-Vacuous Regression Guards for Behavior-Unchanged (Docstring/Doc-Only) Fixes
+# Non-Vacuous Regression Guards (Behavior-Unchanged, Rule-Selection, and Layered-Validation Cases)
 
 > **Warning:** This workflow has not been validated end-to-end. Treat as a
 > hypothesis until CI confirms. It is a PLANNING-discipline learning derived
 > from a plan that was revised after a reviewer NOGO but never executed — no
 > tests were run, no mutations applied, no CI observed.
-> Exception: the "Layered-validation targeting" branch below was verified in
-> operation with executed removal-and-rerun mutation checks.
+> Exception: the "Layered-validation targeting" and "Rule-selection
+> discriminator" branches below were verified in operation with executed
+> removal-and-rerun mutation checks.
 
 ## Overview
 
@@ -66,6 +69,10 @@ without proving it would fail under a plausible mutation gates nothing.
   you must verify is in an earlier layer: a boundary-level test stays green even
   when you delete that guard, because an upstream validator refuses the input
   first.
+- The guarded branch selects between two derivation rules — a budget rule and a
+  fixed-count override, two scheduling or sizing formulas, two pricing tables.
+  Your round-trip or end-to-end test passes on a fixture where both rules give
+  the SAME value, so deleting the rule-selection guard changes nothing.
 
 ## Verified Workflow
 
@@ -106,6 +113,13 @@ For a behavior-UNCHANGED (docstring/doc-only) fix whose tests "guard" the contra
    WRONG reason. Bind the guard test to the layer that OWNS the decision (call
    the selection/classification function directly), then repeat the step-5
    spot-check against that guard to prove the test kills it.
+
+7. RULE-SELECTION DISCRIMINATOR — when the guarded branch chooses between two
+   computations, evaluate BOTH on the fixture before you trust the test. If they
+   agree, the fixture cannot prove the guard. Pick parameters so the two values
+   differ, and ASSERT the guarded computation's value in the test so a later
+   change in its semantics fails at the premise. Then run the step-5 spot-check
+   with the rule-selection guard removed.
 ```
 
 ### Detailed Steps
@@ -144,6 +158,14 @@ For a behavior-UNCHANGED (docstring/doc-only) fix whose tests "guard" the contra
    "wording alignment" edits to text that already documents the contract — that
    is materially identical churn and a reviewer will (correctly) flag it.
 
+7. **Prove the two rules differ on the fixture.** When the code under test picks
+   between two derivation rules, a passing end-to-end test proves the pipeline
+   works, not that the selection guard does. Write down the value each rule
+   produces for the fixture. If the values are equal, the guard is unobservable:
+   change one input so the values differ, and assert the guarded rule's value
+   directly in the test. That assertion also fails loudly if someone later
+   changes the rule's semantics, instead of silently re-vacuuming the test.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -152,6 +174,7 @@ For a behavior-UNCHANGED (docstring/doc-only) fix whose tests "guard" the contra
 | No-op "wording alignment" doc edit | Proposed editing `info.py:237-239` for "cross-function consistency" with `format_output` | The `format_system_info` docstring ALREADY documented the fallback — the edit was materially identical churn; reviewer flagged it as a redundant no-op | READ the current text first; if it already states the contract, DROP the edit. The real gap was ONLY `format_output`'s docstring |
 | "No behavior change so tests encode the contract" | Asserted the regression tests guard the documented behavior without naming what each would catch | Behavior-unchanged tests are green from the start and can pass vacuously; an un-proven "they encode the contract" claim gates nothing → reviewer NOGO | For EACH test, name the exact mutation it would FAIL against, in a Test \| Asserts \| Mutation table, so the reviewer can verify discrimination |
 | Boundary-level guard assertion under layered validation | Asserted only the end-to-end delivery error for an earlier selection guard | An upstream validator rejected the same input first, so the test passed with the guard deleted — mis-targeted, not vacuous | Remove the guard to expose the masking; assert on the layer that owns the decision, then repeat the mutation spot-check against that guard |
+| Round trip on a coincident fixture | Wrote a plan with a fixed count of 2 and ran it through a budget rule whose parameters also produced 2 shards; the comment claimed the budget "would pick one shard" | The two rules agreed on the fixture, so deleting the rule-selection guard left the test green. A reviewer found this after merge, and the guard's removal would have reached production untested | Compute both rules' outputs for the fixture. Choose parameters where they differ (a large budget gives 1, the fixed count is 2) and assert the budget-derived value in the test |
 
 ## Results & Parameters
 
@@ -221,6 +244,29 @@ Do not keep the boundary-level test as the only guard for that condition. Keep
 it for the upstream contract it actually pins, and give the guarded layer its
 own test.
 
+### Rule-selection discriminator (branch verified in operation)
+
+When a plan or request carries a rule selector (`budget` against `fixed`, a
+computed count against an override), the round trip proves wiring. It proves the
+guard only when the two rules disagree on the fixture.
+
+```python
+# WEAK — both rules give 2 here, so the selector is unobservable.
+assert count_by_budget(units, budget_seconds=0.05, max_parts=4) == 2
+write_plan(units, fixed_count=2)
+
+# STRONG — the budget rule gives 1, the override keeps 2.
+assert count_by_budget(units, budget_seconds=240.0, max_parts=4) == 1
+write_plan(units, fixed_count=2)
+# Deleting the `rule == "budget"` guard around the minimality recheck now fails
+# this test: the recheck compares the budget count (1) against the planned
+# count (2) and raises.
+```
+
+Assert the guarded rule's value as a separate statement, not only as a comment.
+The premise then fails at the fixture when a rule's arithmetic changes, and the
+reviewer can see why the fixture discriminates.
+
 ### Residual risks the reviewer should still watch
 
 - The mutation table is a **reasoning aid, not executed proof.** The plan has not
@@ -242,3 +288,4 @@ own test.
 | Project | Context | Details |
 |---------|---------|---------|
 | ProjectHephaestus | Issue #1509 re-plan (NOGO → revised) — document the silent `format_type` fallback in `format_output`/`format_system_info` | Planning-only; not executed. Distinct from PR #2853 (which captured the separate "Arm B: document the fallback" learning in `error-message-consistency-optional-dependency-pola` v2.1.0). |
+| Internal CI test-plan runner | Post-merge review finding: a fixed-count round trip did not prove the rule-selection bypass, fixed by a test-only follow-up PR | Executed: with the rule-selection guard removed, the corrected test fails at that guard's error; the guard was restored. The changed test file passed locally; every CI shard passed. |
