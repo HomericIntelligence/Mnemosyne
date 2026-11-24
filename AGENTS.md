@@ -36,6 +36,14 @@ protects. Prefer continued useful work within that boundary.
 These recommendations apply across supported models, including Astra. They do
 not require a particular model to use the corpus.
 
+## Canonical authority
+
+Follow the [agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md)
+for authority, host permissions, security invariants, and stop conditions. Host
+rules and repository rules may be stricter. This repository adds its own
+contribution and validation constraints. Do not restate the canonical policy in
+a skill.
+
 ## Project Overview
 
 Mnemosyne stores skills and session memory for the HomericIntelligence agentic

@@ -13,8 +13,8 @@ description: "Debug and fix the live HomericIntelligence agent mesh dispatch pip
   remote'; run_end exit 130), (10) you need to STOP the mesh touching one repo without
   killing the org-wide Agamemnon control plane."
 category: ci-cd
-date: "2026-07-12"
-version: "1.1.0"
+date: "2026-11-23"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -36,6 +36,10 @@ history-cleanup-date: "2026-09-20"
 ---
 
 # HomericIntelligence Mesh Dispatch Pipeline Debugging
+
+Follow the [agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md)
+for authority, host permissions, security invariants, and stop conditions. This skill
+records host-specific diagnostics. It does not grant authority or recommend a bypass.
 
 ## Overview
 
@@ -150,9 +154,11 @@ Disable all `--session-id`/`--resume` flags. Each pipeline stage gets full conte
 
 ```python
 log("claude", f"Starting new session ({len(prompt)} chars)")
+# Version-scoped host example. Host config owns the exact permission mode.
+# Do not add --dangerously-skip-permissions or a broad allow-all.
 claude_args = [
     "claude-host", "-p", prompt,
-    "--dangerously-skip-permissions",
+    "--permission-mode", "dontAsk",
     "--allowedTools", "Bash,Read,Write,Edit,Glob,Grep",
 ]
 # Do NOT add --resume or --session-id

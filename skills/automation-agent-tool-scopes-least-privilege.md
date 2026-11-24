@@ -3,8 +3,8 @@ name: automation-agent-tool-scopes-least-privilege
 license: BSD-3-Clause
 description: "Enforce and test least-privilege tool policy at both host job construction and provider invocation boundaries. Use when: (1) an automation role must be non-mutating, (2) ambient CLI configuration can add tools, plugins, hooks, skills, or MCP servers, (3) caller grants must not broaden read-only execution, (4) a stage-produced AgentJob must carry an exact builder/parser/tool contract, or (5) older CLIs must fail closed instead of retrying under weaker defaults."
 category: architecture
-date: 2026-08-05
-version: "2.1.0"
+date: 2026-11-24
+version: "2.2.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -28,6 +28,13 @@ history-cleanup-date: "2026-09-20"
 ---
 
 # Automation Agent Tool Scopes: Enforce Availability, Not Just Permission
+
+Follow the [agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md)
+for authority, host permissions, security invariants, and stop conditions.
+
+This is a version-scoped Claude Code adapter reference. Host configuration owns
+the exact flags and matching rules. Verify the current CLI before reuse. This
+reference does not grant authority.
 
 **History:** [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-agent-tool-scopes-least-privilege.history)
 

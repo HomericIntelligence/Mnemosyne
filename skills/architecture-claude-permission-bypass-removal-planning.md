@@ -3,8 +3,8 @@ name: architecture-claude-permission-bypass-removal-planning
 license: BSD-3-Clause
 description: "Plan removal of blanket permission bypasses while preserving unattended operation through scoped tool access. Use for helper, subprocess, compact, and resume invocation paths."
 category: architecture
-date: 2026-07-02
-version: "1.0.1"
+date: 2026-11-24
+version: "1.1.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -20,6 +20,13 @@ history-cleanup-date: "2026-09-20"
 ---
 
 # Architecture: Claude Permission Bypass Removal Planning
+
+Follow the [agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md)
+for authority, host permissions, security invariants, and stop conditions.
+
+This is historical, unverified Claude Code planning. The canonical policy owns
+authority. Do not use a bypass flag in new code. Keep this document as migration
+evidence and remove the bypass by the documented scoped path.
 
 ## Overview
 

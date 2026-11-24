@@ -1,9 +1,9 @@
 ---
 name: tooling-force-push-blocked-reopen-as-fresh-branch
-description: "Use when a harness blocks force-push after a branch conflict or rebase. Prefer merging current main into the existing feature branch so the next push is a normal fast-forward; if already rebased, preserve the verified tree only through an explicitly authorized reconciliation; if PR identity may change, push a fresh remote ref and open a replacement PR with complete linkage and checks."
+description: "Use when a harness blocks force-push after a branch conflict or rebase. Prefer merging current main into the existing feature branch so the next push is a normal fast-forward; if already rebased, preserve the verified tree only through an explicitly authorized reconciliation; if PR identity may change, push a fresh remote ref and open a replacement PR with complete linkage and checks. Only use a replacement PR when the task authorizes a new review identity."
 category: tooling
-date: 2026-07-06
-version: "3.0.0"
+date: 2026-11-24
+version: "3.1.0"
 verification: verified-ci
 license: BSD-3-Clause
 user-invocable: false
@@ -22,13 +22,15 @@ history-cleanup-date: "2026-09-20"
 
 # Force-Push Blocked: Preserve the PR or Reopen Safely
 
+Follow the [agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md) for authority, host permissions, security invariants, and stop conditions.
+
 ## Overview
 
 Some harnesses deny every force-push spelling at command admission. Redirection does not change an
 argv denial, and destructive recovery commands may be blocked too. The safest solution is usually
 to avoid rewriting the remote branch: merge current main into it, verify both ancestry relations,
-and perform a plain fast-forward push. A fresh ref and replacement PR is the fallback when PR
-identity does not need to survive.
+and perform a plain fast-forward push. A fresh ref and replacement PR is the fallback only when the
+task authorizes a new review identity and the old PR points forward.
 
 Verification remains `verified-ci`. Detailed incidents and state transitions are in the
 [notes](./tooling-force-push-blocked-reopen-as-fresh-branch.notes.md); the byte-preserved source and
@@ -43,7 +45,8 @@ prior changelog are in [history](https://github.com/HomericIntelligence/Mnemosyn
 - A clean local rebase exists but updating the old remote ref would require force.
 - Review history, PR number, stack position, or auto-merge state makes preserving the branch useful.
 - Standard restore/reset commands are prohibited and a file must be reconstructed from a known ref.
-- A replacement PR is acceptable, but its issue linkage and canonical status must remain clear.
+- The task authorizes a new review identity, and a replacement PR is acceptable; its issue linkage
+  and canonical status must remain clear.
 
 ## Decision Table
 
@@ -51,7 +54,7 @@ prior changelog are in [history](https://github.com/HomericIntelligence/Mnemosyn
 | --- | --- | --- |
 | Not rebased; repository squash-merges; same PR should remain | **A0: merge main into feature** | No history rewrite or force token; ordinary fast-forward push |
 | Already rebased; verified tree retained; environment and user permit reconciliation | **A: authorized tree-preserving merge** | Same PR/branch with remote tip as ancestor |
-| Fresh PR acceptable | **B: new remote ref and replacement PR** | No force needed for a nonexistent ref |
+| Task authorizes new review identity; fresh PR acceptable | **B: new remote ref and replacement PR** | No force needed for a nonexistent ref |
 | Denial came from Git/remote rather than harness | Neither | Diagnose lease, permission, or protection failure directly |
 | Repository requires linear/rebase-only feature history | Do not use A0 blindly | A merge commit may violate policy; obtain an allowed update path |
 
@@ -59,7 +62,7 @@ prior changelog are in [history](https://github.com/HomericIntelligence/Mnemosyn
 
 1. Confirm the failure is command-admission denial, not Git’s `rejected` or `remote rejected`.
 2. Never disguise or encode a prohibited force command. Choose a workflow whose graph permits a
-   normal push.
+   normal push. Do not use B to evade a policy decision or review identity.
 3. Read merge policy before A0. It is appropriate when feature-branch merge commits are accepted
    and the repository squash-merges the PR.
 4. Preserve the exact remote tip before graph changes and fetch current refs.
@@ -69,8 +72,9 @@ prior changelog are in [history](https://github.com/HomericIntelligence/Mnemosyn
    committing. Do not reconstruct it from memory.
 8. Destructive state changes require explicit authority and a resolved target. If reset/checkout is
    prohibited, do not attempt Option A; use A0 or B.
-9. A replacement PR must preserve title/body intent, issue-closing semantics, review context, and
-   required validation. Closing a PR disarms its auto-merge request.
+9. Confirm the task authorizes a new review identity before B. A replacement PR must preserve
+   title/body intent, issue-closing semantics, review context, and required validation. Closing a PR
+   disarms its auto-merge request.
 10. Leave orphan-ref cleanup to the repository’s guarded cleanup workflow.
 
 ## Verified Workflow
@@ -160,7 +164,8 @@ not improvise destructive commands; use A0 from a preserved pre-rebase branch or
 
 ### 4. Option B — create a fresh ref and replacement PR
 
-Confirm the candidate ref does not exist, then push once:
+Confirm the task authorizes the new review identity. If it does not, stop and report the block; do
+not use B to evade it. Confirm the candidate ref does not exist, then push once:
 
 ```bash
 git ls-remote --heads origin <branch>-rebased  # must return no ref
@@ -233,7 +238,7 @@ identity was expendable, a new `-rebased` ref and replacement PR avoided force e
 | Current-base proof | `origin/main` is an ancestor of `HEAD` |
 | Option A proof | Cached tree diff to verified rebased checkpoint is empty |
 | Option B ref | Remote ref does not exist before the one-time push |
-| Replacement PR | Same intent and issue linkage; old PR points to new canonical PR |
+| Replacement PR | Task authorizes new review identity; same intent and issue linkage; old PR points to new canonical PR |
 
 ## Output Contract
 

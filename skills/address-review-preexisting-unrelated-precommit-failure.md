@@ -1,10 +1,10 @@
 ---
 name: address-review-preexisting-unrelated-precommit-failure
 license: BSD-3-Clause
-description: "Classify unrelated pre-commit or pre-push failures against a clean base, verify the changed behavior, and document any authorized local-hook exception."
+description: "Classify unrelated pre-commit or pre-push failures against a clean base, verify the changed behavior, and report a host policy block without bypassing hooks."
 category: tooling
-date: 2026-07-04
-version: "1.2.1"
+date: 2026-11-23
+version: "1.3.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -16,6 +16,7 @@ tags:
   - stash-verify
   - targeted-validation
   - macos-bash
+  - hook-bypass-prohibited
   - no-verify-exception
   - scope-creep
   - coverage-gate-partial-run
@@ -34,13 +35,15 @@ red" is a trap. On a tightly-scoped PR the right move is to **prove the failure
 is unrelated to the PR**, run the validation that actually covers the PR diff,
 and avoid expanding scope into unrelated local gate debt.
 
+Follow the [agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md) for authority, host permissions, security invariants, and stop conditions.
+
 ## Overview
 
 | Field | Value |
 | ------- | ------- |
 | **Date** | 2026-07-04 |
 | **Objective** | Land tightly-scoped PR work when broad local gates fail for unrelated reasons: ProjectHephaestus PR #1743 hit an unrelated `pre-commit run --all-files` hook; Inference Service PR #327 hit a local pre-push `pytest -q` failure caused by macOS/Bash host assumptions after a clean rebase |
-| **Outcome** | Verified-local. ProjectHephaestus: stash-verified the hook failure as pre-existing/out-of-scope, then committed only the in-scope files after focused tests and ruff checks passed. Inference Service: rebased PR #327 onto its real base `origin/master` (the repo has no `origin/main`), resolved `AGENTS.md`, passed `git diff --check` and 14 PR-specific tests, documented the unrelated full pre-push failure (`1108 passed, 1 skipped, 30 failed` from `/usr/bin/bash` missing and Bash-4-only constructs under macOS `/bin/bash` 3.2), then updated the PR branch with `git push --force-with-lease --no-verify` |
+| **Outcome** | Verified-local. ProjectHephaestus: stash-verified the hook failure as pre-existing/out-of-scope, then committed only the in-scope files after focused tests and ruff checks passed. Inference Service: rebased PR #327 onto its real base `origin/master` (the repo has no `origin/main`), resolved `AGENTS.md`, passed `git diff --check` and 14 PR-specific tests, documented the unrelated full pre-push failure (`1108 passed, 1 skipped, 30 failed` from `/usr/bin/bash` missing and Bash-4-only constructs under macOS `/bin/bash` 3.2), then updated the PR branch with `git push --force-with-lease --no-verify` (the original incident; current policy prohibits this bypass) |
 | **Verification** | verified-local |
 | **History** | [changelog](https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/address-review-preexisting-unrelated-precommit-failure.history) |
 
@@ -119,8 +122,9 @@ git push --force-with-lease origin <branch>
 #   mapfile: command not found
 #   ${actual_container_digest,,}: bad substitution
 
-# 5. Only after targeted validation passes and the hook failure is classified:
-git push --force-with-lease --no-verify origin <branch>
+# 5. Do not bypass the hook. If the local hook still blocks the push,
+#    use a supported host path or stop and report the exact command.
+git push --force-with-lease origin <branch>
 ```
 
 ### Detailed Steps
@@ -189,10 +193,10 @@ git push --force-with-lease --no-verify origin <branch>
      and a small subset of `tests/test_quality_gate_scripts.py`, not the unrelated
      failing validation-container and multi-model launcher paths.
 
-   In that situation, record the full-hook failure, keep the targeted-pass evidence,
-   and use `git push --force-with-lease --no-verify` only as an explicit local-hook
-   exception. This is not a blanket bypass rule: if the failure overlaps the PR diff
-   or the focused test fails, fix the PR instead.
+   In that situation, record the full-hook failure and keep the targeted-pass evidence.
+   Do not bypass the hook. Use a supported host path where the hook passes, or stop and
+   report the exact command and block. If the failure overlaps the PR diff or the
+   focused test fails, fix the PR instead.
 
 7. **Verify the base branch before rebasing.** Do not assume `main`. Inference Service
    PR #327's GitHub metadata said `baseRefName=master`, `origin/HEAD` pointed to
@@ -210,8 +214,8 @@ git push --force-with-lease --no-verify origin <branch>
 | Trust a bare local red on a repo-wide hook | Saw a whole-tree hook red locally and assumed my branch was broken | A repo-wide `--all-files` hook can be red for EVERYONE because of one unrelated stale/malformed file already on base — a bare local red does not mean your change caused it | Trust the CI log / the stash-verify, not a bare local red; confirm the failure pre-exists on base HEAD before touching anything |
 | Trust `git log --show-signature` to confirm the commit is signed | Ran `git log --show-signature -1` locally, saw it look signed, and moved on | Local git can report a commit as signed while pr-policy treats it as unsigned when the committer email does not match the GPG key | Set `-c user.email=<key-email>` on the commit and verify via `gh api .../commits/<sha> .commit.verification` (`.verified == true`), not local git |
 | Rebase against a guessed `origin/main` | User asked to rebase a PR "against main", so the branch name looked obvious | Inference Service has no `origin/main`; PR #327's `baseRefName` and `origin/HEAD` were both `master`. Rebasing against a non-existent or stale guessed branch would produce the wrong base | Query `gh pr view <n> --json baseRefName`, `git symbolic-ref refs/remotes/origin/HEAD`, and `git ls-remote --heads origin main master` before rebasing |
-| Treat a full local pre-push failure as proof the PR is bad | `git push --force-with-lease` launched the pre-push hook (`pytest -q`) and failed with 30 tests red | The failures were unrelated macOS Bash assumptions (`/usr/bin/bash` missing; `mapfile`, `${var,,}`, namerefs under Bash 3.2), while the PR-specific post-rebase target passed and `git diff --check` was clean | Run and record focused validation against the PR diff first. If it passes, document the full-hook failure signature and use `--no-verify` only as an explicit local-hook exception |
-| Use `--no-verify` before classifying the failure | Considered skipping the pre-push hook immediately to get the force-push through | A failed broad hook can still reveal a real PR-introduced regression. Bypassing before classification hides a real defect | First classify file overlap and failure signatures, run focused tests, and only then bypass if the failure is unrelated local environment debt |
+| Treat a full local pre-push failure as proof the PR is bad | `git push --force-with-lease` launched the pre-push hook (`pytest -q`) and failed with 30 tests red | The failures were unrelated macOS Bash assumptions (`/usr/bin/bash` missing; `mapfile`, `${var,,}`, namerefs under Bash 3.2), while the PR-specific post-rebase target passed and `git diff --check` was clean | Run and record focused validation against the PR diff first. If it passes, document the full-hook failure signature and stop; do not bypass the hook |
+| Use `--no-verify` before classifying the failure | Considered skipping the pre-push hook immediately to get the force-push through | A failed broad hook can still reveal a real PR-introduced regression. Bypassing before classification hides a real defect | First classify file overlap and failure signatures, run focused tests, and do not bypass the hook. Use a supported host path or report the block |
 
 ## Results & Parameters
 
@@ -324,14 +328,10 @@ Classification:
 - The failure was host-environment noise on macOS Bash assumptions, not the PR
   rebase resolution.
 - The PR-specific target passed.
-- The branch was pushed with:
-
-```bash
-git push --force-with-lease --no-verify origin codex-add-cache-determinism-blog
-```
-
-Use this only after the classification and targeted validation steps above. It is
-not a general permission to bypass hooks.
+- The original incident pushed the branch with
+  `git push --force-with-lease --no-verify`. That bypass is now prohibited. The
+  current path is to use a host where the hook passes or to stop and report the
+  exact command and block.
 
 **Cross-links (do NOT conflate these distinct traps):**
 
@@ -353,5 +353,6 @@ test / ruff checks were actually run; the full `pixi run pytest tests/` reported
 `5718 passed, 24 skipped` at 87.62% coverage. The Inference Service PR #327 workflow
 was also executed locally: rebase completed, `git diff --check` passed, the
 PR-specific pytest selection reported `14 passed`, and the full pre-push hook
-failure was observed before the documented `--no-verify` force-with-lease push.
+failure was observed before the original `--no-verify` force-with-lease push.
+That push form is now prohibited; the verification limit is recorded here.
 Neither finding is labeled verified-ci here.

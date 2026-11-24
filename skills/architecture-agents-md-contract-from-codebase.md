@@ -1,10 +1,10 @@
 ---
 name: architecture-agents-md-contract-from-codebase
 license: BSD-3-Clause
-description: "Derive AGENTS.md guidance from repository behavior, ownership, and host constraints; reuse existing documentation checks and identify unverified assumptions."
+description: "Plan an AGENTS.md contract from repository behavior, ownership, and host constraints; link the canonical authority policy, reuse documentation checks, and record unverified assumptions."
 category: architecture
-date: 2026-06-20
-version: "1.1.0"
+date: 2026-11-23
+version: "1.2.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -12,14 +12,12 @@ tags:
   - agent-behavior-contract
   - planning
   - derive-from-codebase
-  - claude-md-invariants
-  - permitted-tools
-  - dangerously-skip-permissions
+  - authority
+  - host-permissions
   - markdownlint
   - ci-gate
   - drift-guard
   - line-number-drift
-  - meta-repo
   - unverified-assumptions
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/architecture-agents-md-contract-from-codebase.history"
 history-cleanup-date: "2026-09-20"
@@ -27,23 +25,28 @@ history-cleanup-date: "2026-09-20"
 
 # Planning an AGENTS.md Agent-Behavior Contract Derived From the Codebase
 
-> **Warning:** This workflow has not been validated end-to-end. Treat as a hypothesis until CI confirms.
+> **Warning:** This workflow has not been validated end-to-end. Treat it as a hypothesis
+> until CI confirms it.
+
+Follow the [agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md)
+for authority, host permissions, security invariants, and stop conditions.
 
 ## Overview
 
 | Field | Value |
 | ------- | ------- |
 | **Date** | 2026-06-20 |
-| **Objective** | Capture the planning meta-skill surfaced while planning Odysseus issue #186 ("add a root AGENTS.md"): how to plan an AGENTS.md agent-behavior-contract doc so every rule is grounded in real pipeline code + CLAUDE.md invariants, wired into the existing CI gate, and protected by a doc-to-source drift guard — and how to surface the planning risks honestly. |
-| **Outcome** | Plan produced only. Nothing was written, no doc was created, no markdownlint or CI run was executed. The durable value is the *planning pattern* plus the explicit risk inventory. |
-| **Verification** | unverified — PLANNING artifact. No file was written, no lint/CI ran. Every cited line number and "will pass markdownlint" claim is an assumption, not a confirmation. |
+| **Objective** | Plan an `AGENTS.md` agent-behavior contract. Ground each rule in repository behavior and policy. Keep host mechanics in the host configuration or adapter reference. |
+| **Outcome** | Plan produced only. No documentation change, lint run, or CI run was executed. The durable value is the planning pattern and the risk inventory. |
+| **Verification** | unverified. This is a planning artifact. Every cited line number and lint claim is an assumption, not a confirmation. |
 | **Category** | architecture / planning |
 | **Related Issues** | Odysseus #186 |
 
 Base agent guidance on actual repository behavior. Distinguish host-enforced limits
 from workflow suggestions, and state unresolved assumptions. Existing authorization
 covers routine work; reserve permission requests for missing authority or a material
-ambiguity. Consider drift checks for technical contracts that can change.
+ambiguity. Link the canonical authority policy. Do not copy host permission flags or
+tool names into the contract.
 
 ---
 
@@ -51,102 +54,82 @@ ambiguity. Consider drift checks for technical contracts that can change.
 
 Use this skill when:
 
-1. You are **planning or adding an `AGENTS.md`** agent-behavior contract to a repo
-   (scope in/out, permitted vs prohibited actions, `--dangerously-skip-permissions`
-   policy, coordination, escalation, verification commands).
-2. You need to **derive the permitted-tools / off-limits / escalation set from real
-   source** — the runner/harness `--allowedTools` flag and the danger-flag invocation,
-   plus the repo's `CLAUDE.md` invariants — rather than writing generic boilerplate.
-3. You want to **wire the doc into an existing markdownlint CI gate** instead of adding
-   a new CI job, and must confirm the disabled-rules config covers it.
-4. You want to **add a drift guard** tying the documented tool contract to the code.
-5. A **sibling `AGENTS.md` already exists in the ecosystem** and you want to reuse its
-   structure without letting the two contracts diverge.
+1. You plan or add an `AGENTS.md` agent-behavior contract to a repository. The contract
+   covers scope, permitted and prohibited actions, coordination, escalation, and
+   verification commands.
+2. You need to derive the permitted-action set, off-limits set, and escalation path
+   from repository behavior and policy. Do not derive portable authority from one
+   harness invocation.
+3. You want to use an existing markdownlint CI gate instead of adding a new CI job.
+4. You want a drift guard for a stable behavior or configuration contract.
+5. A sibling `AGENTS.md` exists in the ecosystem and you want to reuse its structure
+   without letting the contracts diverge.
 
-Do NOT use this as a record of executed work — it is a plan with open assumptions.
+Do NOT use this as a record of executed work. It is a plan with open assumptions.
 
 ---
 
 ## Verified Workflow
 
-> **Warning:** This section is a **Proposed Workflow**, not a verified one. It was
-> *not* executed: no AGENTS.md was written, `markdownlint` was never run against the
-> draft, and CI never confirmed it. Every line number cited below is from a grep
-> snapshot and WILL drift — re-grep by content, never trust the numbers.
+> **Warning:** This section is a proposed workflow, not a verified one. No `AGENTS.md`
+> was written, markdownlint was not run against a draft, and CI did not confirm it.
+> Re-grep by content. Do not trust line numbers from an old snapshot.
 
 ### Quick Reference
 
 ```text
-1. Glob **/AGENTS.md  → reuse the in-ecosystem sibling's section structure.
-2. Derive each rule from source:
-     permitted tools + danger flag  ← runner's --allowedTools / --dangerously-skip-permissions
-     off-limits set                 ← CLAUDE.md invariants (ADRs append-only, configs canonical, pins matter)
-   Re-grep by CONTENT, not by the line numbers in the plan.
-3. Extend the EXISTING markdownlint file list (one line) — do NOT add a CI job.
-4. Confirm .markdownlint.json disables the rules the doc trips (MD013/022/032/040/060…)
-   AND actually RUN markdownlint on the draft (MD041/MD024/MD033 are NOT disabled).
-5. Add a drift guard: grep the documented tool string against the runner source.
-6. Cross-reference the doc (CLAUDE.md banner, README bullet) WITHOUT disturbing
-   the project-instructions structure the harness relies on.
-7. Scope the new AGENTS.md to its own repo so it does not duplicate a sibling's rules.
+1. Glob **/AGENTS.md and reuse a sibling's section structure.
+2. Derive each rule from its owner:
+     authority and scope      <- canonical policy and task authority
+     permitted actions        <- repository policy and ownership
+     off-limits set           <- repository invariants and security policy
+     host mechanics           <- host configuration or adapter reference
+   Link the canonical policy. Do not copy permission flags or tool names.
+3. Extend the existing markdownlint file list by one filename.
+4. Run markdownlint on the draft.
+5. Add a behavior or configuration drift guard. Do not pin prose.
+6. Cross-reference the document without disturbing harness-loaded instructions.
+7. Scope the new AGENTS.md to its own repository.
 ```
 
-1. **Find the in-ecosystem template first.** `Glob **/AGENTS.md` — if a sibling exists
-   (here `provisioning/Myrmidons/AGENTS.md`), reuse its section set (Scope in/out table,
-   Permitted/Prohibited Actions, `--dangerously-skip-permissions` Policy, Coordination,
-   Escalation, Verification Commands). Reuse relevant sections where they help; omit sections that do not apply.
+1. **Find the in-ecosystem template first.** Run `Glob **/AGENTS.md`. If a sibling
+   exists, reuse its section set where it helps. Omit sections that do not apply.
 
-2. **Ground every rule in real code, not aspiration.** The permitted toolset and the
-   danger flag come *verbatim* from the pipeline source — the runner's invocation line
-   (e.g. `--dangerously-skip-permissions` and `--allowedTools Bash,Read,Write,Edit,Glob,Grep`
-   in `e2e/claude-myrmidon.py`). git/gh permitted actions come from the same runner's
-   git/gh calls. The **off-limits** set is derived from `CLAUDE.md` invariants: ADRs are
-   append-only, `configs/` is canonical, submodule pins matter, ai-maestro removed per
-   ADR-006. **Re-grep each fact by content** — the plan's cited line numbers are a
-   snapshot and drift.
+2. **Give each rule an owner.** Derive authority and scope from the canonical policy
+   and the task. Derive permitted actions from repository policy and ownership. Derive
+   the off-limits set from repository invariants and security policy. Keep exact host
+   flags, tool names, and matching rules in the host configuration or adapter reference.
+   Re-grep each fact by content because line numbers drift.
 
-3. **Wire the doc into the EXISTING enforcement gate.** CI lints a fixed file list
-   (e.g. `markdownlint docs/architecture.md docs/adr/*.md` in `.github/workflows/ci.yml`).
-   **Extend that one line** to include the new file. Do **not** add a new markdownlint
-   job — that duplicates the gate.
+3. **Use the existing enforcement gate.** CI often lints a fixed file list. Extend that
+   list by the new filename. Do not add a second markdownlint job.
 
-4. **Prove the lint passes — do not assume it.** Confirm the root `.markdownlint.json`
-   disables the rules the new doc would trip (MD013 line-length, MD022/MD032 blank-line,
-   MD040 fenced-lang, MD060 table). But MD041 (first-line-h1), MD024 (duplicate heading),
-   MD033 (inline HTML) are typically **NOT** disabled — so actually **run** markdownlint
-   against the drafted content before claiming green. This is the single biggest
-   "looks done but isn't" risk.
+4. **Prove the lint result.** Confirm the markdownlint configuration covers the new
+   document. Run markdownlint against the draft before you claim a pass. Configuration
+   that disables some rules does not prove that the document passes.
 
-5. **Add a drift guard between the doc and its source of truth.** A verification grep
-   (e.g. `grep -q "Bash,Read,Write,Edit,Glob,Grep" e2e/claude-myrmidon.py`) ties the
-   documented contract to the runner code so they cannot silently diverge — the
-   executable-convention-guard pattern applied to a doc.
+5. **Add a behavioral drift guard.** Tie a stable behavior or configuration value to its
+   source. Use a focused test or a configuration check. Do not add a test for prose
+   wording or a duplicated host flag string.
 
-6. **Make it discoverable via the existing cross-ref convention.** Add a banner line in
-   `CLAUDE.md`, a bullet in `README.md` / `docs/README.md`. When editing `CLAUDE.md`,
-   do not disturb the `## Key Principles` / section structure the harness loads as
-   authoritative project instructions. Confirm any relative link resolves
-   (e.g. `docs/README.md` → `../AGENTS.md` only works if `docs/README.md` is one level deep).
+6. **Make the contract discoverable.** Add a banner or link in the repository entry
+   point. Do not disturb the section structure that the harness loads as authoritative
+   project instructions. Check that each relative link resolves.
 
-7. **Scope the new AGENTS.md to its own repo.** With two `AGENTS.md` files now present
-   (root + sibling), explicitly scope the root one to the meta-repo and do NOT duplicate
-   the sibling's submodule-specific rules — divergence is the long-term failure mode.
+7. **Scope the new AGENTS.md to its own repository.** With two `AGENTS.md` files,
+   explicitly scope the root contract. Do not duplicate the sibling's rules. Divergence
+   is the long-term failure mode.
 
 ### Assumptions and risks to communicate
 
-- **Unverified line numbers.** The plan cites exact lines (the runner's `--allowedTools`
-  and danger-flag lines, the git/gh call sites, `ci.yml`'s markdownlint line, a `README.md`
-  bullet line) from grep snapshots, not a fresh full read. Line numbers drift — re-grep by
-  content.
-- **markdownlint pass is ASSUMED, not run.** The plan asserts the doc passes because of
-  the disabled-rules config, but lint was never executed. MD041/MD024/MD033 are not
-  disabled and could still fire. Biggest hidden risk.
-- **CLAUDE.md edit collides with project-instructions.** `CLAUDE.md` is loaded as
-  authoritative instructions; a banner must not disturb its structure.
-- **Two AGENTS.md files now exist** (root + sibling) — contract-divergence risk; scope
-  each one explicitly.
-- **Relative-link resolution** (`../AGENTS.md` from `docs/README.md`) depends on the doc
-  being exactly one directory deep — confirm before asserting the link works.
+- **Unverified line numbers.** A plan can cite exact lines from grep snapshots. Line
+  numbers drift. Re-grep by content.
+- **Markdownlint pass is unproven until it runs.** A disabled-rules configuration is
+  not a test result.
+- **Project-instruction edits can collide.** `CLAUDE.md` or `AGENTS.md` can be loaded as
+  authoritative instructions. A banner must not disturb their structure.
+- **Multiple AGENTS.md files can diverge.** Scope each contract explicitly.
+- **Relative-link resolution depends on directory depth.** Confirm each link target.
 
 ---
 
@@ -154,28 +137,29 @@ Do NOT use this as a record of executed work — it is a plan with open assumpti
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | ------- | -------------- | ------------- | -------------- |
-| Trusting grep line numbers as stable | Citing exact lines (`claude-myrmidon.py:258/259`, `ci.yml:30`, `README.md:36`) from grep snapshots in the plan | Line numbers drift as files change; the cited line may no longer be the right one | Re-grep by CONTENT, not by remembered numbers — anchor every fact to a string match |
-| Asserting markdownlint passes from the disabled-rules config alone | Concluding the new AGENTS.md is lint-green because `.markdownlint.json` disables MD013/022/032/040/060 | MD041/MD024/MD033 are NOT disabled and never actually ran; "config disables some rules" ≠ "this file passes" | RUN `markdownlint` against the drafted content before claiming green |
-| Adding a new CI markdownlint job | Proposing a separate markdownlint job/step for the new doc | Duplicates the gate that already lints a fixed file list; two gates drift | Extend the EXISTING fixed file-list line by one filename instead of adding a job |
+| Copying host permission values from a runner | Putting a bypass flag and a broad tool list into `AGENTS.md` as the permitted-action contract | It normalized a bypass, made host mechanics look like repository authority, and became stale when the host changed | Link the canonical authority policy. Keep host flags and tool names in the host adapter reference. |
+| Trusting grep line numbers as stable | Citing exact source lines from a grep snapshot | Line numbers drift; the cited line may no longer be the right one | Re-grep by content and anchor each fact to a string match. |
+| Asserting markdownlint passes from configuration alone | Concluding a draft is lint-clean because some rules are disabled | The remaining enabled rules never ran | Run markdownlint against the drafted content before claiming a pass. |
+| Adding a new CI markdownlint job | Proposing a separate job for the new document | It duplicates the existing gate and the two gates drift | Extend the existing fixed file list by one filename. |
 
 ---
 
 ## Results & Parameters
 
-The plan produced a single root `AGENTS.md` whose contract is **derived**, not invented:
+The plan produces one root `AGENTS.md` whose contract is derived, not invented:
 
 | Contract element | Derived from |
 | ---------------- | ------------ |
-| Section structure | sibling `provisioning/Myrmidons/AGENTS.md` (reuse, don't reinvent) |
-| Permitted tools + `--dangerously-skip-permissions` | runner invocation in `e2e/claude-myrmidon.py` (`--allowedTools Bash,Read,Write,Edit,Glob,Grep`) |
-| Permitted git/gh actions | the runner's own git/gh call sites |
-| Off-limits / prohibited set | `CLAUDE.md` invariants: ADRs append-only, `configs/` canonical, submodule pins matter, ai-maestro removed per ADR-006 |
-| Enforcement | extend the existing `markdownlint` fixed file list in `.github/workflows/ci.yml` (one line) |
-| Drift guard | `grep -q "Bash,Read,Write,Edit,Glob,Grep" e2e/claude-myrmidon.py` |
-| Discoverability | banner in `CLAUDE.md`, bullet in `README.md` / `docs/README.md` |
+| Section structure | A sibling `AGENTS.md`, reused where it helps |
+| Authority and scope | The canonical authority policy and task authority |
+| Permitted and prohibited actions | Repository policy, ownership, and security invariants |
+| Host mechanics | Host configuration or adapter reference, linked rather than copied |
+| Enforcement | The existing markdownlint fixed file list, extended by one line |
+| Drift guard | A focused behavior or configuration check, not a prose-string test |
+| Discoverability | A banner or link in `CLAUDE.md`, `README.md`, or `docs/README.md` |
 
-All of the above are **proposed**. No file was written, no lint or CI ran. The line
-numbers and the markdownlint-green claim are assumptions (see Risks).
+All items are proposed. No file was written, and no lint or CI ran. The line numbers
+and the markdownlint result are assumptions.
 
 ---
 
@@ -183,4 +167,9 @@ numbers and the markdownlint-green claim are assumptions (see Risks).
 
 | Project | Context | Details |
 | ------- | ------- | ------- |
-| Odysseus | Issue #186 planning ("add a root AGENTS.md") | Planning-only; **unverified** — plan never executed, no AGENTS.md written, `markdownlint`/CI never run. All cited line numbers and the lint-pass claim are assumptions. |
+| Odysseus | Issue #186 planning ("add a root AGENTS.md") | Planning only. **Unverified.** No `AGENTS.md` was written. Markdownlint and CI never ran. All cited line numbers and the lint pass are assumptions. |
+
+## References
+
+- [Agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md)
+- `automation-agent-tool-scopes-least-privilege.md` for the version-scoped Claude adapter reference

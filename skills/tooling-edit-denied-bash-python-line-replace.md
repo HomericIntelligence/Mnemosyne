@@ -1,10 +1,10 @@
 ---
 name: tooling-edit-denied-bash-python-line-replace
 license: BSD-3-Clause
-description: "Apply a formatting-preserving single-line edit through an alternate tool only when the host explicitly permits that tool for the same authorized action."
+description: "Use an alternate tool for a formatting-preserving edit only when the host permits that tool for the same authorized action and a non-protected path."
 category: tooling
-date: 2026-07-01
-version: "1.1.0"
+date: 2026-11-23
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -26,37 +26,50 @@ history-cleanup-date: "2026-09-20"
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-07-01 |
-| **Objective** | Apply a precise, formatting-preserving single-line change to a protected config file when the `Edit`/`Write` tool is denied but `Bash` is allowed |
-| **Outcome** | The exact requested one-line edit was applied through a Python in-place line replacement scripted in Bash; the diff stayed at exactly one line, JSON remained valid, and no keys were reordered |
-| **Verification** | verified-local |
+| **Date** | 2026-11-23 |
+| **Objective** | Apply a precise, formatting-preserving single-line change to a non-protected config file when the `Edit`/`Write` tool is denied but `Bash` is permitted for that action and path |
+| **Outcome** | The exact requested one-line edit was applied through a Python in-place line replacement scripted in Bash; the diff stayed at exactly one line, and the file remained valid |
+| **Verification** | verified-local (replacement mechanics only) |
 
-**Verified locally only — CI validation pending.** The change was applied and verified locally (valid JSON + membership assertions passed) in the ProjectHephaestus issue-1497 worktree. It was NOT run through CI in that session (config-only change; the orchestrator owns commit/CI).
+**Verified locally only — CI validation pending.** The whole-line replacement mechanics were
+verified locally in the ProjectHephaestus issue-1497 worktree. The rewritten non-security example is
+illustrative and was not rerun through CI.
 
 An unavailable editing tool can have a permitted substitute. A permission denial is different:
 it can protect the action or the path, not merely the tool. Inspect the stated reason and the
-host policy before choosing another mechanism. User intent alone does not remove that boundary.
+host policy before you choose another mechanism. User intent alone does not remove that boundary.
 
-When the host explicitly permits the same action through another tool, a whole-line replacement
-can preserve formatting. Otherwise, report the denied action and continue independent work.
-Use the host approval path if that action remains necessary.
+**Stop condition:** Do not use an alternate tool to change permission or security configuration,
+hooks, CI workflows, secrets, credential stores, or protected policy. Do not use it to broaden a
+permission rule. A denial on one of those paths is a stop condition. Report the exact file, the
+intended change, and the block. Use the documented host-owner approval path. Follow the
+[agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md).
+
+When the host explicitly permits the same action through another tool on a non-protected path, a
+whole-line replacement can preserve formatting. Otherwise, report the denied action and continue
+independent work.
 
 ## When to Use
 
 - An editing mechanism is unavailable, and host policy explicitly permits the same authorized
-  action through an alternate tool.
+  action through an alternate tool on a non-protected path.
 - Tool availability differs, and the denial reason has been checked before choosing a substitute.
-- You need a **formatting-preserving** single-line change to a JSON/YAML file where a full re-serialization (`json.dump`) would reorder keys, change indentation, or otherwise produce a noisy multi-line diff.
-- **Do NOT use this to circumvent a denial whose intent is to block the action.** Only use it when the user explicitly asked for the edit and only the *tool* was gated — not the action itself.
+- You need a **formatting-preserving** single-line change to a JSON/YAML file where a full
+  re-serialization (`json.dump`) would reorder keys, change indentation, or otherwise produce a
+  noisy multi-line diff.
+- **Do NOT use this on permission or security configuration.** Only use it when the user asked for
+  the edit, only the tool was gated, and the target path is not protected.
 
 ## Verified Workflow
 
-> **Note:** verified-local. Applied and verified locally (valid JSON reload + membership assertions) in the ProjectHephaestus issue-1497 worktree. Not exercised through CI in that session.
+> **Note:** verified-local. The replacement mechanics were applied and verified locally in the
+> ProjectHephaestus issue-1497 worktree. The example below uses non-security configuration. It was
+> not exercised through CI.
 
 ### Quick Reference
 
 ```bash
-# 1. Read the file first (Read tool works; only Edit/Write are denied).
+# 1. Read the non-protected file first. Only Edit/Write are denied.
 #    Copy the EXACT old line, including leading whitespace and trailing comma.
 
 # 2. Replace exactly one whole line via a Python heredoc in Bash.
@@ -64,9 +77,9 @@ Use the host approval path if that action remains necessary.
 python3 - <<'PY'
 from pathlib import Path
 
-path = Path(".claude/settings.json")
-old = '      "Bash(git reset --hard origin/main)",\n'
-new = '      "Bash(git reset --hard*)",\n'
+path = Path("config/service.json")
+old = '  "timeout_seconds": 30,\n'
+new = '  "timeout_seconds": 60,\n'
 
 lines = path.read_text().splitlines(keepends=True)
 count = sum(1 for line in lines if line == old)
@@ -79,72 +92,87 @@ PY
 # 3. Verify: still valid JSON + membership assertions.
 python3 - <<'PY'
 import json
-data = json.load(open(".claude/settings.json"))
-deny = data["permissions"]["deny"]
-assert "Bash(git reset --hard*)" in deny
-assert "Bash(git reset --hard origin/main)" not in deny
-print("verified: valid JSON, new present, old absent")
+with open("config/service.json") as handle:
+    data = json.load(handle)
+assert data["timeout_seconds"] == 60
+print("verified: valid JSON and new value present")
 PY
 ```
 
 ### Detailed Steps
 
-1. **Read the file first with the `Read` tool.** Read almost always still works even when Edit/Write are denied. Copy the EXACT text of the line to change — including leading indentation and any trailing comma — so the match is unambiguous.
-2. **Inspect the denial and host policy.** Use an alternate tool only if the host permits
-   that same action on that path. If permission is missing, keep the affected edit pending
-   and continue independent work; do not infer permission from shell availability.
-3. **Replace exactly ONE whole line via a Python heredoc in Bash.** Read all lines with `read_text().splitlines(keepends=True)`. Count matches of the exact old line and `assert count == 1` — fail loudly on zero (stale/wrong string) or multiple (ambiguous). Rebuild the line list swapping only the matched line, then `write_text("".join(lines))`.
-4. **Match WHOLE lines, including leading whitespace and the trailing comma/newline.** This preserves the file's exact formatting — no reindent, no JSON re-serialization that would reorder keys.
-5. **Verify with a separate Python one-liner.** `json.load` (or `yaml.safe_load`) to confirm the file still parses, plus membership assertions: `assert new in <container>` and `assert old not in <container>`.
-6. **Never `json.dump` the whole file to apply the change.** A full rewrite reorders/reformats keys and produces a noisy multi-line diff. Line-level replacement keeps the diff to exactly one line.
+1. **Read the file first with the `Read` tool.** Read almost always still works when Edit/Write are
+   denied. Copy the EXACT text of the line to change, including leading indentation and any trailing
+   comma, so the match is unambiguous.
+2. **Inspect the denial and the path ownership.** Use an alternate tool only if the host permits
+   that same action on that path. If the path is permission or security configuration, stop. Do not
+   infer permission from shell availability.
+3. **Replace exactly ONE whole line via a Python heredoc in Bash.** Read all lines with
+   `read_text().splitlines(keepends=True)`. Count matches of the exact old line and
+   `assert count == 1` to fail loudly on zero (stale or wrong string) or multiple (ambiguous)
+   matches. Rebuild the line list by swapping only the matched line, then
+   `write_text("".join(lines))`.
+4. **Match WHOLE lines, including leading whitespace and the trailing comma or newline.** This
+   preserves the file's exact formatting. It avoids a reindent or JSON re-serialization that would
+   reorder keys.
+5. **Verify with a separate Python one-liner.** Use `json.load` or `yaml.safe_load` to confirm the
+   file still parses. Add membership assertions for the new value and the old value.
+6. **Never `json.dump` the whole file to apply the change.** A full rewrite reorders or reformats
+   keys and produces a noisy multi-line diff. Line-level replacement keeps the diff to one line.
 
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
 | --------- | ---------------- | --------------- | ---------------- |
-| Call the Edit tool directly | Used the normal `Edit` tool to change the deny-list line in `.claude/settings.json` | Denied — the harness was in "don't ask mode" (auto-deny for non-allowlisted tools) and the config path was gated | Use an alternate tool only when host policy permits the same action and path. |
-| `json.dump` full rewrite | Loaded the JSON, mutated the deny list in memory, and wrote the whole file back with `json.dump` | Re-serialization reordered keys and changed indentation, producing a noisy multi-line diff instead of the intended one-line change | Use line-level replacement (whole-line `str` match, keep formatting) — never full re-serialization for a single-line edit |
-| Partial-substring replace | Considered `str.replace` on a bare substring like `git reset --hard origin/main` | A bare substring risks matching inside a comment or a different key and drops the surrounding indentation/comma, corrupting formatting | Match the ENTIRE line (leading whitespace + trailing comma/newline) and assert exactly one occurrence before writing |
-| Assume Read was also blocked | Almost skipped reading the file because Edit was denied | Read was actually still allowed — only Edit/Write were gated | Read through permitted tools when useful; inspect the actual denial rather than assuming its scope. |
+| Call the Edit tool on permission config | Used the normal `Edit` tool to change a deny-list line in `.claude/settings.json` | Denied. The path was protected, and the denial applied to the action and path, not only to the tool | A protected-path denial is a stop condition. Report the blocked change and use the host-owner path. |
+| Broaden the permission rule through Bash | Used a Python heredoc to replace a specific deny rule with a wildcard | This changed the security policy with an alternate tool and made the deny rule broader | Do not use an alternate tool to edit permission or security configuration. Do not broaden a deny rule. |
+| `json.dump` full rewrite | Loaded the JSON, mutated the value in memory, and wrote the whole file back with `json.dump` | Re-serialization reordered keys and changed indentation, producing a noisy multi-line diff | Use line-level replacement with a whole-line `str` match. Never full re-serialization for a one-line edit. |
+| Partial-substring replace | Considered `str.replace` on a bare substring | A bare substring risks a match inside a comment or a different key and drops the surrounding indentation or comma | Match the ENTIRE line, including whitespace and the trailing comma or newline, and assert exactly one occurrence. |
+| Assume Read was also blocked | Almost skipped reading the file because Edit was denied | Read was still allowed. Only Edit/Write were gated | Read through permitted tools when useful. Inspect the actual denial rather than assuming its scope. |
 
 ## Results & Parameters
 
 ### The exact change (worked example)
 
 ```text
-# .claude/settings.json permissions.deny entry, before → after:
-- "Bash(git reset --hard origin/main)",
-+ "Bash(git reset --hard*)",
+# config/service.json before -> after:
+- "timeout_seconds": 30,
++ "timeout_seconds": 60,
 ```
 
-Broadening a specific deny entry to a wildcard so `git reset --hard <anything>` is denied, not just the one `origin/main` form.
+This changes a non-security timeout value. It does not change a permission or security rule.
 
 ### Parameters that made it safe
 
-- **`assert count == 1`** before writing — fails loudly on zero (stale string) or multiple (ambiguous) matches, so a bad match never silently corrupts the file.
-- **`keepends=True`** on `splitlines` — preserves the trailing newline so the rewritten file is byte-identical except for the one line.
-- **Whole-line match** including indentation and trailing comma — no reindent, no key reordering.
-- **Post-write `json.load` + membership assertions** — confirms valid JSON and that the swap actually happened (new present, old absent).
+- **`assert count == 1`** before writing fails loudly on zero (stale string) or multiple
+  (ambiguous) matches, so a bad match never silently corrupts the file.
+- **`keepends=True`** on `splitlines` preserves the trailing newline, so the rewritten file is
+  byte-identical except for the one line.
+- **Whole-line match** including indentation and trailing comma avoids a reindent or key reorder.
+- **Post-write `json.load` plus membership assertions** confirms valid JSON and that the swap
+  happened.
 
 ### Expected Output
 
-- The file still parses (`json.load` / `yaml.safe_load` succeeds).
+- The file still parses (`json.load` or `yaml.safe_load` succeeds).
 - `git diff` shows exactly ONE changed line.
 - The new value is present in the target container and the old value is gone.
 
 ### Rule of thumb
 
-Use an alternate tool for an authorized edit only when the host permits it for the same
-action and path. Read the original content, keep the change narrow, and inspect the result.
-A denied action remains denied even when another tool could mechanically perform it.
+Use an alternate tool for an authorized edit only when the host permits it for the same action and
+non-protected path. Read the original content, keep the change narrow, and inspect the result.
+A denied action remains denied when another tool could mechanically perform it. A denied permission
+or security path remains denied.
 
 ## Verified On
 
 | Project | Context | Details |
 | --------- | --------- | --------- |
-| ProjectHephaestus | issue-1497 worktree; broadened a `.claude/settings.json` deny-list entry from `Bash(git reset --hard origin/main)` to `Bash(git reset --hard*)` while Edit/Write were denied in "don't ask mode" | verified-local (valid JSON + membership assertions passed); not run through CI in that session |
+| ProjectHephaestus | issue-1497 worktree; whole-line replacement while Edit/Write were denied in "don't ask mode" | verified-local (valid JSON and membership assertions passed); the original permission-file example is now prohibited; this rewrite uses a non-security config |
 
 ## References
 
-- [ci-hygiene-and-validation-gates](ci-hygiene-and-validation-gates.md) — Pattern 5 records the same read → replace → write fallback when Edit is blocked by a config-file guard, in a CI-hook context.
-- [tooling-edit-templated-config-at-source](tooling-edit-templated-config-at-source.md) — a different config-edit footgun (generated artifact overwritten on re-render).
+- [Agent authority and host permissions](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md) — canonical authority, host permission, and security-invariant policy.
+- [ci-hygiene-and-validation-gates](ci-hygiene-and-validation-gates.md) — Pattern 5 records a read → replace → write fallback in a CI-hook context.
+- [tooling-edit-templated-config-at-source](tooling-edit-templated-config-at-source.md) — a different config-edit footgun: a generated artifact overwritten on re-render.
