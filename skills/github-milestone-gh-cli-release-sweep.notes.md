@@ -108,3 +108,29 @@ Polling or retrying does not help here. A rate-limited run and a
 closed-milestone run produce different stderr (`rate limit` compared with
 `not found`), so classify the error text before you add a retry. A retry only
 affected the rate-limit class.
+
+## 2026-11 False rate-limit failure with remaining quota
+
+A later open-milestone session hit the rate-limit class again, with a
+different signature. Four single-issue milestone moves on OPEN milestones,
+plus the creation of two new milestones in the same sweep:
+
+1. `gh issue edit {n} --milestone "{title}"` failed with
+   `GraphQL: API rate limit already exceeded for user <id>`.
+2. `gh api rate_limit` in the same session showed remaining GraphQL and core
+   quota, so the error contradicted the live quota state.
+3. Retrying the same command in later turns reproduced the same error, so no
+   bounded wait could clear it.
+4. `gh api -X PATCH repos/{owner}/{repo}/issues/{n} -f milestone={number}`
+   succeeded on the first try for every move. Verification queries confirmed
+   each assignment and zero unassigned epics after the sweep.
+
+```text
+CLI     : gh issue edit --milestone  GraphQL false rate-limit, every try
+Recovery: PATCH issues/{n} -f milestone={number}   4/4 moves, 0 failures
+```
+
+Recovery rule: when a CLI rate-limit error contradicts `gh api rate_limit`,
+treat it as a CLI defect and switch to the REST PATCH by number. Do not add
+a retry or a quota-reset wait; both run against a limit that was never
+reached.
