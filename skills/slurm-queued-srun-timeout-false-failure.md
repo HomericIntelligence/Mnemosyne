@@ -1,9 +1,9 @@
 ---
 name: slurm-queued-srun-timeout-false-failure
-description: "Run a validation command on a busy Slurm partition without a false result. Use when: (1) a command is wrapped as `timeout N srun ...` and exits 143 or prints nothing, (2) srun reports 'queued and waiting for resources' and your wall-clock limit expires, (3) a job queue holds many pending jobs and you need a test result from a compute node, (4) the estimated start of your pending job is hours or days away and a review, merge, or hand-off waits for the test result."
+description: "Run a validation command on a busy Slurm partition without a false result. Use when: (1) a command is wrapped as `timeout N srun ...` and exits 143 or prints nothing, (2) srun reports 'queued and waiting for resources' and your wall-clock limit expires, (3) a job queue holds many pending jobs and you need a test result from a compute node, (4) the estimated start of your pending job is hours or days away and a review, merge, or hand-off waits for the test result, (5) a one-off job with no memory request stays pending while the partition looks free."
 category: tooling
 date: 2026-11-04
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 tags: ["slurm", "srun", "sbatch", "timeout", "queue-wait", "validation", "ci-gate", "unverified-results"]
 ---
@@ -25,6 +25,7 @@ tags: ["slurm", "srun", "sbatch", "timeout", "queue-wait", "validation", "ci-gat
 - The partition has many pending jobs, so the queue wait can be longer than your limit.
 - An agent or script ran a check and the result looks like a pass, but the payload never started.
 - A batch job shows `COMPLETED` but its output file is missing or empty on the submit host.
+- A one-off job that sets no memory request stays pending with reason `Resources` while nodes in the partition look idle.
 - The estimated start of a pending job (`squeue --start`) is hours or days away, and a review, a merge, or a hand-off waits for that result.
 
 ## Verified Workflow
@@ -47,6 +48,8 @@ squeue -h -j <JOBID> -o "%T"      # PENDING, RUNNING, or empty when done
 4. Run the submission in the background or poll `squeue`. Do not put a wall-clock `timeout` around the submit step.
 5. Treat a result as valid only when the output file contains the payload's own pass or fail line. A killed or pending job is "not run", not a pass and not a failure.
 6. If the same check also runs in CI, you can cancel the batch job after CI passes (`scancel <JOBID>`). Keep CI as the proof.
+
+Set an explicit small memory request, CPU count, and time limit on every one-off job (for example `--mem=16G --cpus-per-task=4 -t 30`). A job with no memory request can inherit the node's full memory as its request. It then waits for a whole idle node while the partition looks free. If a job is pending with no clear cause, read its requested memory (`scontrol show job <JOBID>`), cancel it, and resubmit with the explicit request. Do not wait for it.
 
 If you must use `srun`, give it no outer `timeout`. Use `srun --immediate=<SECONDS>` to fail fast when no resources are free, and accept that this means "not run".
 
@@ -71,6 +74,7 @@ A batch submission fixes the false result but not the delay. When `squeue --star
 | 4 | Each reviewer and each writer queued a test job and waited for it | The estimated starts were days away. Reviews stalled, and the jobs would have started later and run for nothing. | Decide early not to wait, cancel your own pending jobs, and move the proof to the required CI. |
 | 5 | Wrote "N tests passed" in a review from a hand-off report | The writer's own run had also never started. The number had no observer. | State the true source of each test claim. |
 | 6 | Several writers each submitted a test job with its output under a node-local `/tmp` | The jobs completed, but the submit host had no output file. Each writer submitted a second job and waited again. | A completed job with no readable output is an output-path error, not a test result. Fix the path on shared storage, then resubmit once. |
+| 7 | Waited for a one-off job that set no memory request | The request defaulted to the node's full memory, so the job needed a whole node and stayed pending while the partition looked free. | Request explicit small memory, CPUs, and time. Cancel and resubmit a stuck job. |
 
 ## Results & Parameters
 
@@ -82,6 +86,8 @@ A batch submission fixes the false result but not the delay. When `squeue --star
 #SBATCH -A <ACCOUNT>
 #SBATCH --qos=<QOS>
 #SBATCH -t 30
+#SBATCH --mem=16G
+#SBATCH --cpus-per-task=4
 #SBATCH -o <OUT_DIR>/check.out
 umask 022
 cd <WORKTREE>
