@@ -170,3 +170,31 @@ Also read `whoami` latency: ~55 ms rejects happen before any lookup.
 - Issue references use the public tracker, consistent with corpus precedent.
 - The 2026-10-23 addendum generalizes host names and key identifiers the same
   way; latency figures and status codes are operational facts, not secrets.
+
+## Addendum (2026-11-24): shared-profile swap incident
+
+Evidence for the v1.3.0 recovery-branch strengthening and the new
+failed-attempts row.
+
+- Context: an admin dry run of the release pipeline on a non-production
+  deployment needed an ordinary-user credential that matched the acting
+  account. The account already held one, but the deployed scheme stored one
+  key per cluster profile, and two deployments shared that profile.
+- Action: a helper script replaced the `api_key` value of the shared cluster
+  profile in `~/.config/comet/credentials` (with a 0600 backup of the old
+  value) and did not restore it inside the test window.
+- Effect: clients on the other deployment started failing with HTTP 401
+  within the window; the acting account's own parity checks passed, which
+  delayed the notice. A restore of the original value ended the failures.
+- Recovery evidence: after the restore, an authenticated status call returned
+  200 on the affected deployment; no server-side key state changed, so the
+  store edit was the whole cause.
+- Follow-up: a project issue now tracks a per-deployment credential scheme
+  (records keyed by deployment, no cluster-level shared key value), so the
+  swap class of failure becomes structurally impossible. Until that lands,
+  the store is treated as read-only for tests: a test client runs with
+  `HOME` pointed at a lane-local directory.
+- Privacy screening applied: no account names, host names, key values, or
+  key identifiers; deployment names generalized to "two deployments on one
+  cluster"; the follow-up is referenced only as "a project issue" in the
+  main skill, and here by its nature, not by number.
