@@ -3,8 +3,8 @@ name: multi-repo-governance-and-ecosystem-setup
 license: BSD-3-Clause
 description: "Coordinate repository governance or ecosystem setup across multiple repositories, hosts, dependencies, and plugin integrations."
 category: tooling
-date: 2026-05-19
-version: "1.0.1"
+date: 2026-11-24
+version: "1.1.0"
 user-invocable: false
 tags:
   - multi-repo
@@ -26,6 +26,10 @@ history-cleanup-date: "2026-09-20"
 ---
 
 # Multi-Repo Governance and Ecosystem Setup
+
+Follow the [agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md)
+for authority, host permissions, security invariants, and stop conditions.
+The command examples in this skill are version-scoped host examples, not policy.
 
 ## Overview
 
@@ -249,7 +253,8 @@ Configure `SessionEnd` hook in `.claude/settings.json`:
 }
 ```
 
-For pipeline integration, resume the session with explicit tool permissions:
+For pipeline integration, resume the session with the minimum host scope that
+the task needs. This is a version-scoped example, not policy:
 
 ```python
 run([
@@ -261,6 +266,9 @@ run([
     "--allowedTools", "Bash(gh:*)"
 ], cwd=worktree_path, timeout=600)
 ```
+
+The exact flags and scope belong to the host adapter. Do not copy this broad
+example as a portable allowlist.
 
 ## Failed Attempts
 
@@ -283,7 +291,7 @@ run([
 | Delegating file reads to a subagent | Asked Explore agent to read files and return exact contents | Agent returned summaries, not exact file content | For files that will be edited, always use the Read tool directly |
 | Using just `claude` without full path in cron | `0 * * * * claude plugin marketplace update ...` | cron does not source `.bashrc`/`.profile` | Always use absolute path to binary in cron jobs |
 | Updating only the marketplace in cron | `claude plugin marketplace update` alone | Marketplace index updates but installed plugin version does not change | Must also run `claude plugin update <plugin>@<marketplace>` |
-| Missing tool permissions in retrospective pipeline | `claude --resume session_id --message "Use /learn..."` | No git/gh permissions; retrospective cannot commit | Add `--allowedTools Bash(git:*)` and `--allowedTools Bash(gh:*)` |
+| Missing tool permissions in retrospective pipeline | `claude --resume session_id --message "Use /learn..."` | No git/gh permissions; retrospective cannot commit | Use the minimum host scope the task needs. Follow the canonical authority policy and host adapter reference; do not copy a broad allowlist. |
 | Shallow clone for centralized repos | `git clone --depth=1` for centralized base | Cannot fetch arbitrary commits from shallow clones | Use full clone for centralized repos |
 | Including commit in `git worktree add` | `git worktree add -b branch /path commit` | Fails when base repo is on a different branch | Separate `git worktree add` and `git checkout` steps |
 

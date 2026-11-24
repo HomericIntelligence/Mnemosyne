@@ -119,6 +119,12 @@ Use existing task authorization for routine choices. Reserve permission
 questions for a concrete missing authority, and identify its source and the
 action it protects. Suggest unrelated improvements separately.
 
+When a skill states authority, approval, permission, or destructive-action
+rules, link the
+[agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md).
+State only the skill-specific outcome and stop condition. Do not copy host
+permission flags, tool names, allowlists, or bypass recipes.
+
 1. **Precise descriptions**: Prefer a short capability and specific trigger.
    Avoid broad descriptions that match unrelated tasks.
 2. **Failures required**: Record each method that did not work. Explain why it
