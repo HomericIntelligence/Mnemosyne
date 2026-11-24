@@ -1,10 +1,10 @@
 ---
 name: github-milestone-gh-cli-release-sweep
 license: BSD-3-Clause
-description: "Manage GitHub milestones and release-board sweeps with the gh CLI. The gh CLI has no milestone subcommand, so creation and due-date repair go through the REST API; set due_on at noon UTC, not midnight UTC, or the UI renders the date one day early. Use when creating milestones from a script, assigning a large mixed issue and pull-request backlog to milestones, or verifying that a release board has zero unassigned items. Use the REST PATCH path when the target milestone is CLOSED: the gh CLI resolves names through an OPEN-only query and reports a closed milestone as not found."
+description: "Manage GitHub milestones and release-board sweeps with the gh CLI. The gh CLI has no milestone subcommand, so creation and due-date repair go through the REST API; set due_on at noon UTC, not midnight UTC, or the UI renders the date one day early. Use when creating milestones from a script, assigning a large mixed issue and pull-request backlog to milestones, or verifying that a release board has zero unassigned items. Use the REST PATCH path when the target milestone is CLOSED: the gh CLI resolves names through an OPEN-only query and reports a closed milestone as not found. Use the REST PATCH path also when `gh issue edit --milestone` fails with a GraphQL 'API rate limit already exceeded' error while `gh api rate_limit` shows remaining quota: the error is false, and retrying the CLI command never succeeds."
 category: tooling
 date: 2026-10-24
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags: [github-cli, gh-api, milestone, release-train, release-board, due-on-timezone, batch-assignment, issue-sweep, pr-sweep, tracker-epic]
@@ -36,6 +36,10 @@ Use this skill when one or more of these conditions apply:
   `gh milestone create ...` returns an "unknown command" usage error.
 - A milestone created with `due_on` at midnight UTC displays a due date one
   day earlier than intended in the GitHub web UI.
+- `gh issue edit {n} --milestone "{title}"` fails with
+  `GraphQL: API rate limit already exceeded for user ...` while
+  `gh api rate_limit` shows remaining core and GraphQL quota, and the target
+  milestone is OPEN. The error is false; waiting does not clear it.
 - You must assign a large backlog of issues **and** pull requests to
   milestones, and you must prove completeness (zero unassigned).
 - You run a release train: one tracker epic per milestone, plus periodic
@@ -70,11 +74,14 @@ gh api -X PATCH repos/{owner}/{repo}/milestones/{number} \
 # 4. Assign matters: milestones apply to issues AND pull requests.
 #    These two commands resolve the milestone NAME through a GraphQL query that
 #    filters states:[OPEN]. They cannot reach a CLOSED milestone; they report
-#    "'<title>' not found". Use them only for an OPEN milestone.
+#    "'<title>' not found". They can also fail with a false "API rate limit
+#    already exceeded" error even when quota remains; retrying never succeeds.
+#    Use them only for an OPEN milestone, and switch to 4b on either failure.
 gh issue edit {n} --milestone "{title}"
 gh pr edit {n} --milestone "{title}"
 
-# 4b. Assign to a CLOSED milestone by number. This works for either state.
+# 4b. Assign by number. This works for either milestone state and is the only
+#     reliable path for a CLOSED milestone or after a false rate-limit error.
 gh api -X PATCH repos/{owner}/{repo}/issues/{n} -f milestone={number} --jq '.milestone.title'
 
 # 5. Batch sweep with an explicit failure log (tolerate individual errors,
@@ -149,6 +156,7 @@ gh pr list --state open --limit 500 --json milestone \
 | Fallback-chained creation | `gh milestone create ... || gh api ...` | The usage error and fallback output interleaved, making the creation log ambiguous. | Call the supported command directly; a `||` chain hides which branch executed. |
 | Issue-only sweep | Assigned all open issues and verified zero unassigned issues | The release board still showed unassigned pull requests; milestone state spans both kinds. | Sweep and verify `gh pr list` separately from `gh issue list`; both counts must be zero. |
 | Retroactive sweep by name | Closed the new milestones, then ran `gh issue edit {n} --milestone "<closed title>"` over the backlog | Every item after the first few reported `'<title>' not found`, which reads as a per-item defect. `gh issue edit` and `gh pr edit` resolve names through `milestones(states:[OPEN])` only. Items already placed before the milestones were closed stayed correct, so the failure boundary looked arbitrary. | Assign to a closed milestone with `gh api -X PATCH repos/{owner}/{repo}/issues/{n} -f milestone={number}`. Probe one item against a known closed milestone before running the full loop. |
+| False rate-limit failure | `gh issue edit {n} --milestone "{title}"` on an OPEN milestone returned `GraphQL: API rate limit already exceeded for user ...` although `gh api rate_limit` showed remaining core and GraphQL quota | The error is false: quota remains and no wait clears it. Retry, backoff, and a quota-reset wait all run against a limit that was never reached | Switch to `gh api -X PATCH repos/{owner}/{repo}/issues/{n} -f milestone={number}`. Treat a CLI rate-limit error that contradicts `gh api rate_limit` as a CLI defect, not a quota state |
 
 ## Results & Parameters
 
@@ -159,7 +167,7 @@ gh pr list --state open --limit 500 --json milestone \
 | `due_on` | `YYYY-MM-DDT12:00:00Z` | Noon UTC for every date-only milestone due date. |
 | `gh issue list --limit` | 1000 | Default page size truncates large backlogs silently. |
 | `gh pr list --limit` | 500 | Same reason as above. |
-| Closed-milestone assignment | `PATCH repos/{owner}/{repo}/issues/{n}` with `milestone={number}` | The only reachable path; the CLI name lookup filters to OPEN milestones. |
+| Closed-milestone assignment | `PATCH repos/{owner}/{repo}/issues/{n}` with `milestone={number}` | The only reachable path for a closed milestone, and the only reliable path after a false CLI rate-limit error; the CLI name lookup filters to OPEN milestones. |
 | Failure log | one `kind#number -> milestone` line per failed edit | Inspect before any verification claim. |
 
 ### Expected Output
@@ -176,6 +184,7 @@ gh pr list --state open --limit 500 --json milestone \
 | --------- | --------- | --------- |
 | Private multi-service monorepo | 2026-10 release-train setup: 13 milestones, approximately 700 open issues, all open pull requests | Full mechanics and the midnight-UTC observation are in [github-milestone-gh-cli-release-sweep.notes.md](../skills/github-milestone-gh-cli-release-sweep.notes.md). |
 | Release-history reconstruction | 2026-11 retroactive sweep: closed shipped-release milestones, then placed ~3,700 closed issues and pull requests by closing commit | Closed-milestone resolution failure and the REST recovery are in [github-milestone-gh-cli-release-sweep.notes.md](../skills/github-milestone-gh-cli-release-sweep.notes.md). |
+| Large inference-platform repository | 2026-11 open-milestone re-homing of epics between release milestones: four single-issue moves and two new milestones | False GraphQL rate-limit failure on `gh issue edit --milestone` with remaining quota, and the REST PATCH recovery, are in [github-milestone-gh-cli-release-sweep.notes.md](../skills/github-milestone-gh-cli-release-sweep.notes.md). |
 
 ## References
 
