@@ -63,10 +63,10 @@ def redact_url(text: str) -> str:
         raw = match.group(0)
         scheme = match.group("scheme")
         rest = raw[len(scheme) + 1:].lstrip("/")
+        rest = rest.split("?", 1)[0].split("#", 1)[0]
         authority, slash, tail = rest.partition("/")
         host = authority.rsplit("@", 1)[-1]
         path = "/" + tail if slash else ""
-        path = path.split("?", 1)[0].split("#", 1)[0]
         return f"{scheme}://{host}{path}"
 
     text = _URL_TOKEN.sub(replace, text)
@@ -126,8 +126,8 @@ Apply this function to each diagnostic field at its log sink. Redact once per fi
 | `https://<userinfo>@host.example/path` | `https://host.example/path` |
 | `https:/<userinfo>@host.example/path` | `https://host.example/path` |
 | `https://<userinfo>@host.example/path?token=value#fragment` | `https://host.example/path` |
-| `<userinfo>@host.example:path` | `host.example:path` |
-| Missing scheme or malformed authority | A fixed non-secret placeholder |
+| `<user>:<secret>@host.example:path` | `host.example:path` |
+| Missing scheme or malformed authority | Not handled by this function; replace the whole field with a fixed non-secret placeholder |
 
 ### Expected Output
 
