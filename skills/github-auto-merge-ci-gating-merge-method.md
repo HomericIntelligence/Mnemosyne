@@ -16,7 +16,7 @@ description: >-
   current head while every other check is green.
 category: ci-cd
 date: 2026-07-30
-version: "2.12.0"
+version: "2.13.0"
 user-invocable: false
 verification: verified-ci
 license: BSD-3-Clause
@@ -105,9 +105,12 @@ gh api repos/<OWNER>/<REPO>/branches/<BASE>/protection
 gh api repos/<OWNER>/<REPO>/commits/<HEAD>/check-runs
 ```
 
-List review threads via GraphQL and treat every unresolved, non-outdated thread as a blocker when
-conversation resolution is required. A thread blocks merge even with a passing review verdict and
-green checks. The acting agent owns the closure and needs no owner approval: verify each finding
+List review threads via GraphQL and treat every unresolved thread as a blocker when conversation
+resolution is required. An outdated thread (its diff line has changed) still blocks until it is
+resolved. A thread blocks merge even with a passing review verdict and green checks. When every
+required context has a current success run and the state stays `BLOCKED`, check threads before you
+rerun stale failed or cancelled duplicates: reruns did not change the state in that case. The
+acting agent owns the closure and needs no owner approval: verify each finding
 against the current head, reply with one line of evidence (the fixing commit, or the reason the
 finding no longer applies), and resolve the thread; then refresh because merge state may briefly
 become `UNKNOWN`.
@@ -229,8 +232,10 @@ On a queue-protected base, direct merge mutations are structurally rejected. The
 `Repository rule violations found: Changes must be made through the merge queue`. Use
 `gh pr merge <N>`: the CLI detects the queue policy and enqueues the PR. Its output
 `The merge strategy for <BASE> is set by the merge queue` is informational, not an error.
-A repeated `gh pr merge <N>` prints `already queued to merge`; use it as the enqueued-state
-signal. Poll `gh api repos/<OWNER>/<REPO>/pulls/<N>` until `merged_at` is non-null, and
+A repeated `gh pr merge <N>` prints `already queued to merge`; read it as a hint only, because it
+was seen for a PR whose `mergeQueueEntry` was null. Confirm with the query below. If the entry is
+null, enqueue directly with the GraphQL `enqueuePullRequest` mutation (`pullRequestId`,
+`expectedHeadOid`). A transient server error on the mutation is safe to repeat. Poll `gh api repos/<OWNER>/<REPO>/pulls/<N>` until `merged_at` is non-null, and
 treat the merge-group run for the base as the merge validation evidence.
 
 Verify the admission through `mergeQueueEntry`, not `autoMergeRequest`:
@@ -247,6 +252,14 @@ like a failed arm. A `mergeQueueEntry` with a state and position proves the admi
 strategy message. The flag is `--auto`; `--auto-merge` is rejected as an unknown flag. Read merge
 state per PR with `gh pr view`. A list response can report `BLOCKED` for a PR that a single-PR
 read reports as `CLEAN`.
+
+When a queued PR leaves the queue without merging, read the removal reason from its timeline
+(`timelineItems(itemTypes:[REMOVED_FROM_MERGE_QUEUE_EVENT]){... on RemovedFromMergeQueueEvent{reason}}`)
+and the failing job of its merge-group run. If one infrastructure error, such as a package download
+returning HTTP 503, failed the whole group, every entry in that group is removed together. Queue
+the same head again and confirm with `mergeQueueEntry`. If the same PR is removed again with a
+rule reason (for example `branch_protection_failure`) while its peers merge, stop re-queueing:
+the cause belongs to that PR, so diagnose it or replace the PR.
 
 `gh pr merge --squash` on a queue-protected base without `--auto` prints
 `The merge strategy for <BASE> is set by the merge queue` and exits with a non-zero status. That
@@ -343,8 +356,16 @@ gh api repos/<OWNER>/<REPO>/commits/<HEAD> --jq '.commit.verification'
 ```
 
 An empty `parameters`, an empty name match, and `verified: false` together identify the blocker.
-Repair is a signed rewrite of the head; re-signing does not change file content. Do not wait for
-a check to turn green, because no check exists to turn green.
+Read `verification.reason` before the repair, because the reason selects the rewrite:
+
+- `unsigned`: no signature exists. Re-sign the unchanged head.
+- `no_user`: the signature verifies against a key that the account registered, but the committer
+  email is not attributable to a forge account. A re-sign alone preserves the committer identity,
+  so reset the author and committer to the account's verified identity in the same amend, then
+  sign. A valid key fingerprint does not clear the rule while the reason is `no_user`.
+
+A signed rewrite does not change file content. Do not wait for a check to turn green, because
+no check exists to turn green.
 
 ### Common blockers
 
@@ -391,6 +412,7 @@ a check to turn green, because no check exists to turn green.
 | Batch-arm with the wrong flag | Looped `gh pr merge --auto-merge` and piped the output | `--auto-merge` is not a flag; the piped error hid every failed call | Use `--auto` and confirm each PR reached the queue |
 | Read a green rollup as "nothing left blocks" | Saw 24 `SUCCESS` conclusions with no failing context and concluded the merge state was stale | The blocker was `required_signatures`, a checkless rule with null parameters. No check run existed to fail, so the rollup was correct and irrelevant | Enumerate the ruleset rules and classify each as check-emitting or checkless before you trust a green rollup |
 | Re-enqueue without changing the head | Called `gh pr merge --auto` again on the same unverified head | The queue refused admission and the command exited without a message, so a retry only masked the cause | When enqueue is silently refused on a green PR, verify the commit signature rather than re-arming |
+| Re-sign an unattributable commit | Re-signed the head with the registered key and pushed | The reason was `no_user`: the committer email was not attributable to the account, and the re-sign preserved it | Read `verification.reason`; for `no_user`, reset the author and committer to the account's verified identity before signing |
 | Call empty review output clean | Call empty review output clean | The tool may have truncated before analysis | Require its completion marker |
 | Debug content for a red required check | Read the armed merge's failing required check as a content regression and started a diff investigation | The aggregate check failed only because one matrix leg hung to the workflow timeout and was cancelled; the leg owned no changed tests and ran in minutes at nearby heads | Match the gate message's cancelled leg to the change surface and a comparator run; rerun failed jobs only |
 | Clear the final gate before the terminal record | Resolved the last foreign thread while the terminal review publication still pended under an armed merge | The armed merge fired within minutes of the gate clearing and landed before the ceremony completed | Deliver remaining records before the final gate clears, or disarm and re-arm |
