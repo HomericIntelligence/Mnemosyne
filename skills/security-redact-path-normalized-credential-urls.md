@@ -123,10 +123,10 @@ Apply this function to each diagnostic field at its log sink. Redact once per fi
 
 | Input representation | Expected diagnostic shape |
 |----------------------|---------------------------|
-| `https://user:secret@host.example/path` | `https://host.example/path` |
-| `https:/user:secret@host.example/path` | `https://host.example/path` |
-| `https://user:secret@host.example/path?token=value#fragment` | `https://host.example/path` |
-| `user:secret@host.example:path` | `host.example:path` |
+| `https://<userinfo>@host.example/path` | `https://host.example/path` |
+| `https:/<userinfo>@host.example/path` | `https://host.example/path` |
+| `https://<userinfo>@host.example/path?token=value#fragment` | `https://host.example/path` |
+| `<userinfo>@host.example:path` | `host.example:path` |
 | Missing scheme or malformed authority | A fixed non-secret placeholder |
 
 ### Expected Output
