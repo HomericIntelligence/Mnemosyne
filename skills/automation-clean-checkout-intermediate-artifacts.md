@@ -1,13 +1,13 @@
 ---
 name: automation-clean-checkout-intermediate-artifacts
 license: BSD-3-Clause
-description: "Diagnose reusable automation checkout cleanliness when generated artifacts, ignored files, or ambient configuration affect synchronization and agent admission."
+description: "Diagnose reusable automation checkout cleanliness when generated artifacts, ignored files, or ambient configuration affect synchronization and agent admission. Use also when a sandboxed agent test or review phase aborts instantly with a checkout-not-clean result at near-zero duration while the operator believes the tree was clean before handoff: the cause can be the agent's own uncommitted edits."
 category: tooling
 date: 2026-08-06
-version: "1.0.1"
+version: "1.1.0"
 user-invocable: false
 verification: verified-local
-tags: [automation, git, checkout, gitignore, untracked-files, trust-boundary, intermediate-artifacts, tdd]
+tags: [automation, git, checkout, gitignore, untracked-files, trust-boundary, intermediate-artifacts, tdd, preflight, agent-dirty-tree]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/automation-clean-checkout-intermediate-artifacts.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -35,6 +35,9 @@ history-cleanup-date: "2026-09-20"
   outside the checkout, or rejected.
 - Tests cover a clean checkout but do not separately prove rejection of a non-ignored file and
   acceptance of an ignored artifact containing real data.
+- A sandboxed agent test or review phase aborts instantly with a checkout-not-clean result at
+  near-zero duration, and the operator believes the tree was clean before the agent ran. The agent
+  can have made its own uncommitted edits.
 
 ## Verified Workflow
 
@@ -101,6 +104,31 @@ git ls-files -- <scratch-directory>/
    scratch location has packaging or distribution significance, retain a separate index guard that
    asserts `git ls-files -- <scratch-directory>/` is empty.
 
+### Pre-Flight Rejection Can Masquerade as a Sandbox Failure
+
+An operator-side cleanliness gate and an agent-side sandbox produce different failure shapes for
+the same dirty-tree cause.
+
+1. **Identify the signature.** When a sandboxed phase is refused before it executes, the returned
+   result reports `ok=False` with an error in the form `review_checkout_not_clean` and a duration
+   at or near zero. Near-zero duration is the tell: no test or review code ran.
+
+2. **Ask the discriminating question.** Run:
+
+   ```bash
+   git status --porcelain --untracked-files=all
+   ```
+
+   If the output lists the agent's own uncommitted edits, the failure is pre-flight rejection, not
+   a product regression. An empty report with the same signature points back at the operator side
+   of this entry.
+
+3. **Commit, then re-run.** Commit the pending edits first and re-run the focused suites. Do not
+   debug, bisect, or regression-triage the suites before the checkout is clean.
+
+4. **Make the tell a triage rule.** When a phase fails instantly, check the result duration and the
+   delta commit state before any other hypothesis.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -109,6 +137,7 @@ git ls-files -- <scratch-directory>/
 | Delete or stash generated artifacts before every run | Treated each dirty-tree failure as cleanup work. | Long-running producers recreated the files, and cleanup raced with active tools. | Give runtime outputs a durable ignored location rather than repeatedly fighting their lifecycle. |
 | Add a checker-specific artifact allowlist | Planned to permit a few known log and build names in the synchronization function. | The allowlist duplicated `.gitignore`, created a second policy surface, and would drift as producers changed. | Use Git's ignore engine as the single artifact-admission authority. |
 | Test an empty ignored directory | Created the directory but no file within it, then asserted the checkout remained clean. | Git does not report empty directories, so the test passed regardless of the ignore rule and could not detect a regression. | Write a real file under the ignored directory and verify the ignore rule with `git check-ignore -v`. |
+| Treat an instant sandbox failure as a change regression | Ran a full test tree with uncommitted edits and triaged two instant checkout-not-clean results as regressions of the change. | A pre-flight cleanliness gate rejected the sandbox before any test executed; both suites passed after the edits were committed and the focused runs re-executed clean. | Check the result for near-zero duration and the checkout for the agent's own edits before debugging any suite. |
 
 ## Results & Parameters
 
@@ -149,6 +178,7 @@ stash, or silently suppress the file.
 | Project | Context | Details |
 | --------- | --------- | --------- |
 | Python automation repository | Reusable-checkout synchronization before agent dispatch | A behavior-first regression failed while arbitrary untracked files were hidden, then passed after restoring full untracked inspection; ignored build/log artifacts, affected suites, and repository gates also passed. |
+| Python automation repository | Sandboxed agent test and review phases before gate runs | Two instant checkout-not-clean results reproduced only on the agent's dirty tree and passed after commit; focused suites re-ran clean. Triage the checkout state first whenever a phase fails at near-zero duration. |
 
 ## References
 
