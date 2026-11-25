@@ -3,8 +3,8 @@ name: automation-agent-tool-scopes-least-privilege
 license: BSD-3-Clause
 description: "Enforce and test least-privilege tool policy at both host job construction and provider invocation boundaries. Use when: (1) an automation role must be non-mutating, (2) ambient CLI configuration can add tools, plugins, hooks, skills, or MCP servers, (3) caller grants must not broaden read-only execution, (4) a stage-produced AgentJob must carry an exact builder/parser/tool contract, or (5) older CLIs must fail closed instead of retrying under weaker defaults."
 category: architecture
-date: 2026-11-24
-version: "2.2.0"
+date: 2026-11-25
+version: "2.3.0"
 user-invocable: false
 verification: unverified
 tags:
@@ -42,7 +42,7 @@ reference does not grant authority.
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-08-05 |
+| **Date** | 2026-11-25 |
 | **Objective** | Make headless agent permissions host-owned, visible in stage-produced jobs, and enforced as provider tool availability rather than prompt prose. |
 | **Outcome** | V2.0 provider enforcement succeeded locally. V2.1 proposes an additional stage-boundary contract over the job's builder, parser, structured inputs, and exact tool scope. |
 | **Verification** | `unverified` for the v2.1 stage-job extension; the v2.0 provider-adapter behavior remains `verified-local`, with live Claude execution and CI still pending. |
@@ -78,8 +78,8 @@ The authoritative behavior is documented in the
   surface of a scripted invocation.
 - An older CLI may not support required enforcement flags and the caller must fail
   the stage instead of silently retrying with weaker defaults.
-- Caller-supplied `allowed_tools` must remain configurable for workspace-write
-  runs but must never broaden read-only runs.
+- Caller-supplied `allowed_tools` is required for workspace-write runs and must
+  never broaden read-only runs. Do not give it a broad default.
 - A stage creates an `AgentJob` for remediation or review and tests currently infer
   permissions or parser behavior from prompt wording instead of inspecting the job.
 
@@ -209,13 +209,13 @@ Keep both layers:
 def run_claude_text(
     prompt: str,
     *,
+    allowed_tools: str,
     cwd: Path,
     timeout: int,
     model: str = "",
     sandbox: str = "workspace-write",
-    allowed_tools: str = "Read,Write,Edit,Glob,Grep,Bash",
 ) -> subprocess.CompletedProcess[str]:
-    """Run Claude Code with an explicit tool policy for read-only calls."""
+    """Run Claude Code with an explicit stage tool policy for read-only calls."""
     cmd = ["claude", "--print", "--output-format", "text"]
     if model:
         cmd.extend(["--model", model])
@@ -247,6 +247,10 @@ def run_claude_text(
 
     return subprocess.run(cmd, ..., check=False)
 ```
+
+The caller must supply `allowed_tools` for the stage. Do not use one broad
+default for every stage. The read-only branch ignores the caller value and uses
+the fixed read-only set.
 
 ### Expected read-only command
 

@@ -13,8 +13,8 @@ description: "Debug and fix the live HomericIntelligence agent mesh dispatch pip
   remote'; run_end exit 130), (10) you need to STOP the mesh touching one repo without
   killing the org-wide Agamemnon control plane."
 category: ci-cd
-date: "2026-11-23"
-version: "1.2.0"
+date: "2026-11-25"
+version: "1.3.0"
 user-invocable: false
 verification: verified-local
 tags:
@@ -39,13 +39,14 @@ history-cleanup-date: "2026-09-20"
 
 Follow the [agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md)
 for authority, host permissions, security invariants, and stop conditions. This skill
-records host-specific diagnostics. It does not grant authority or recommend a bypass.
+records host-specific diagnostics. It does not grant authority, recommend a bypass, or
+widen credential permissions.
 
 ## Overview
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-07-12 |
+| **Date** | 2026-11-25 |
 | **Objective** | Dispatch GitHub issues through the live HomericIntelligence agent mesh (Agamemnon → NATS → claude-myrmidon Python workers → GitHub PRs) AND, when the mesh contends with your own manual PR work, detect it and drain the offending repo's tasks without decapitating the org-wide control plane |
 | **Outcome** | SUCCESS — original dispatch (v1.0.0) closed issues #22/#69 via PR #147; v1.1.0 detected + drained a concurrent mesh that force-pushed a failing rebase over the operator's Hephaestus PR #2056 fix; the operator's fix held at sha 79f9ebb3 after draining |
 | **Verification** | verified-local (v1.1.0 detection + drain performed live; not a CI-gated claim) |
@@ -115,16 +116,10 @@ The following implementation incorporates all five container fixes verified in C
 ```python
 def _build_container_cmd(claude_args: list[str], cwd: str = WORKING_DIR) -> list[str]:
     import glob as _glob
-    import stat as _stat
     home = os.path.expanduser("~")
-    # Fix 3: credential permissions reset by host claude processes
-    for _path in _glob.glob(f"{home}/.claude/**", recursive=True) + [f"{home}/.claude.json"]:
-        try:
-            _st = os.stat(_path)
-            if not (_st.st_mode & _stat.S_IROTH):
-                os.chmod(_path, _st.st_mode | _stat.S_IROTH)
-        except OSError:
-            pass
+    # Fix 3: credential access. Map the host UID with --userns=keep-id (below),
+    # mount the credential read-only at mode 0600, or use a dedicated container
+    # credential. Never make ~/.claude/** or ~/.claude.json world-readable.
     # Fix 2: use standalone binary — avoids Traefik TLS interception of api.claude.ai
     standalone = os.path.join(home, ".local/share/claude/versions/2.1.120")
     if not os.path.exists(standalone):
@@ -148,21 +143,45 @@ def _build_container_cmd(claude_args: list[str], cwd: str = WORKING_DIR) -> list
     return cmd
 ```
 
+### Credential Access Without Permission Widening
+
+The container agent needs the credential file, but the file must stay private.
+Use one of these options:
+
+1. Map the host UID into the container with `--userns=keep-id`.
+2. Mount only the credential file read-only at mode `0600`.
+3. Use a dedicated container credential with its own lifecycle.
+
+Do not run `chmod` on `~/.claude/**` or `~/.claude.json`. Do not make a
+credential file world-readable. If `EACCES` continues after one of these
+options, stop and report the exact file path and mode. Follow the
+[agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md)
+for authority and stop conditions.
+
 ### Correct `invoke_claude` — No Session Resumption
 
 Disable all `--session-id`/`--resume` flags. Each pipeline stage gets full context in its prompt:
 
 ```python
 log("claude", f"Starting new session ({len(prompt)} chars)")
-# Version-scoped host example. Host config owns the exact permission mode.
-# Do not add --dangerously-skip-permissions or a broad allow-all.
+# Version-scoped host example for a read-only REVIEW stage. Host config owns
+# the exact flags and matching rules. Give each stage its own minimum scope.
+# Do not add --dangerously-skip-permissions or one broad allow-all.
 claude_args = [
     "claude-host", "-p", prompt,
     "--permission-mode", "dontAsk",
-    "--allowedTools", "Bash,Read,Write,Edit,Glob,Grep",
+    "--tools", "Read,Glob,Grep",
+    "--allowedTools", "Read,Glob,Grep",
 ]
+# IMPLEMENT needs a separate reviewed write scope.
 # Do NOT add --resume or --session-id
 ```
+
+The example is for a read-only REVIEW stage. The IMPLEMENT stage needs a
+separate reviewed scope with only the write paths that it uses. See
+[automation agent tool scopes](automation-agent-tool-scopes-least-privilege.md)
+and the host adapter reference for the exact flags. One scope does not fit
+every stage.
 
 ### markdownlint Config for Odysseus Docs
 

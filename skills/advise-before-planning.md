@@ -3,15 +3,20 @@ name: advise-before-planning
 license: BSD-3-Clause
 description: Integrate team knowledge search before automated planning workflows
 category: tooling
-date: 2026-02-13
-version: 1.0.0
+date: 2026-11-25
+version: 1.1.0
 user-invocable: false
 ---
 # Skill: Advise Before Planning
 
+Follow the [agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md)
+for authority, host permissions, security invariants, and stop conditions. If a
+host nested-session guard blocks a command, stop and report the exact command.
+Do not bypass the guard.
+
 | Attribute | Value |
 | ----------- | ------- |
-| **Date** | 2026-02-13 |
+| **Date** | 2026-11-25 |
 | **Objective** | Integrate team knowledge base search into automated planning workflows |
 | **Outcome** | ✅ Two-step workflow implemented with graceful degradation |
 | **Context** | Enhancing `plan_issues.py` to leverage Mnemosyne skills registry |
@@ -68,7 +73,6 @@ def _call_claude(
         text=True,
         check=True,
         timeout=timeout,
-        env={"CLAUDECODE": ""},  # Avoid nested-session guard
     )
 
     response = result.stdout.strip()
@@ -81,7 +85,9 @@ def _call_claude(
 **Key Details:**
 
 - Use `--print` for non-interactive mode (not `--message`)
-- Set `CLAUDECODE=""` to bypass nested-session detection
+- Use a plain shell or the supported in-session cycle. If the host
+  nested-session guard blocks the command, stop and report the exact command.
+  Do not scrub environment variables such as `CLAUDECODE`.
 - Shorter timeout for advise (180s) vs plan (300s)
 - Return stripped stdout text
 
@@ -339,7 +345,6 @@ plan-issues = "python scripts/plan_issues.py"
 | Plan timeout | `300s` | Longer timeout for plan generation |
 | CLI binary | `claude` | Correct Claude CLI binary name |
 | CLI flag | `--print` | Non-interactive mode for automation |
-| CLAUDECODE env | `""` | Bypass nested-session detection |
 
 ### Test Coverage
 

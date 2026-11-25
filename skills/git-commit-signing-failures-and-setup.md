@@ -2,8 +2,8 @@
 name: git-commit-signing-failures-and-setup
 description: "Use when required-signature policy blocks a conflict-free PR; GitHub reports unsigned, no_user, unknown_key, or bad signatures; local cryptographic checks disagree with GitHub; noninteractive workers silently fail to sign; a fresh headless host needs SSH signing; a restored host or later session inherits a stale signing-key path; email privacy rejects a push; amend produced a signed sibling that the PR did not adopt; a healthy signing host still yields an unsigned commit; a single-introduced-commit range needs only a tip amend; or an aggregate required job fails as a cascade of the named failing job; a merge-queue repository never admits an armed, CI-green PR and no `merge_group` run appears for it; Diagnose with REST, align identity and registered key, re-sign every affected commit without changing content, verify an embedded signature in place after key registration, separate verification noise from a real fault, and verify the exact remote PR head before merge."
 category: tooling
-date: 2026-10-15
-version: "2.7.0"
+date: 2026-11-25
+version: "2.8.0"
 user-invocable: false
 license: BSD-3-Clause
 verification: mixed
@@ -13,6 +13,9 @@ history-cleanup-date: "2026-09-20"
 ---
 
 # Git Commit Signing: Failures and Setup
+
+Follow the [agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md)
+for authority, host permissions, security invariants, and stop conditions.
 
 ## Overview
 
@@ -210,9 +213,13 @@ SSH_AUTH_SOCK=<stable-socket-path> ssh-add -l
 Two more traps remain after the signer works:
 
 - A commit hook re-runs `git commit` in a fresh process, so the `-c` overrides
-  are lost and the OpenPGP fallback returns. Either put the values in the
-  isolated configuration or skip hooks for that one commit and verify
-  separately.
+  are lost and the OpenPGP fallback returns. Put the signing values in the
+  isolated configuration so the hook's child process inherits them, or use a
+  hook-compatible commit path that keeps the same configuration. A hook bypass
+  is not a normal fallback. If the task explicitly authorizes one, record the
+  exact bypass and the separate verification result in the pull request. Follow
+  the [agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md)
+  for authority and stop conditions.
 - Verification has the same configuration dependency. Reading `%G?` without the
   allowed-signers file reports `N` (no signature) even when the signature is
   present and correct. Verify with the configuration supplied, and treat a bare
