@@ -3,8 +3,8 @@ name: googlenet-backward-pass-inception-gradients
 license: BSD-3-Clause
 description: "Use when: (1) implementing neural network backward passes through Inception modules with multiple branches; (2) splitting gradients across parallel branches using split_with_indices with channel tables; (3) implementing SGD-momentum parameter updates for large numbers of parameters (100+); (4) debugging Batch Normalization backward pass tuple indexing ([0]/[1]/[2] for grad_input/gamma/beta); (5) generating highly repetitive gradient computation code via Python helpers to avoid copy-paste errors; (6) handling merge conflicts when rebasing backward-pass PRs with fine-tuned imports."
 category: optimization
-date: 2026-07-04
-version: "1.1.0"
+date: 2026-11-25
+version: "1.2.0"
 user-invocable: false
 tags: [googlenet, inception, backward-pass, gradient-splitting, split_with_indices, channel-tables, sgd-momentum, batch-norm-gradients, python-code-generation, gradient-combining, merge-conflict-resolution, parameter-updates, mojo]
 verification: verified-precommit
@@ -12,11 +12,14 @@ verification: verified-precommit
 
 # GoogLeNet Backward Pass: Inception Module Gradient Splitting
 
+Follow the [agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md)
+for authority, host permissions, security invariants, and stop conditions.
+
 ## Overview
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-07-04 |
+| **Date** | 2026-11-25 |
 | **Objective** | Implement full backward pass for GoogLeNet with 9 Inception modules, splitting gradients across 4 branches per module and updating 222 parameters via SGD-momentum |
 | **Outcome** | Working backward implementation with correct gradient splitting via `split_with_indices`, systematic SGD updates, and verified pre-commit compliance |
 | **Verification** | verified-precommit (passes Mojo formatting, linting; implementation gates verified; full CI pending) |
@@ -294,11 +297,26 @@ that permitted rebase introduces conflicts:
    - No backward-pass code was lost
    - Pre-commit still passes
 
-4. **Force push** if necessary (only on feature branches, never main):
+4. **Update the remote branch.** Prefer a fast-forward push. If the rebase
+   rewrote history, use a leased force push only when the task explicitly
+   authorizes a history rewrite. Otherwise, push a fresh ref.
 
    ```bash
-   git push -f origin feat/googlenet-backward-inception-gradients
+   # Record the remote OID before the rewrite.
+   git rev-parse origin/feat/googlenet-backward-inception-gradients
+
+   # Authorized rewrite of an owned feature branch, bound to the observed OID.
+   git push \
+     --force-with-lease=feat/googlenet-backward-inception-gradients:<observed-oid> \
+     origin HEAD:feat/googlenet-backward-inception-gradients
+
+   # Or push a fresh ref and open a new pull request.
+   git push origin HEAD:feat/googlenet-backward-inception-gradients-v2
    ```
+
+   Do not rewrite a shared branch or the default branch. Follow the
+   [agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md)
+   for authority and stop conditions.
 
 ### Batch Normalization Backward Tuple Indexing Pattern
 

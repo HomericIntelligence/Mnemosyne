@@ -3,8 +3,8 @@ name: ruff-format-preexisting-files-precommit
 license: BSD-3-Clause
 description: "Handle formatter edits to pre-existing files after pre-commit; inspect unstaged changes and preserve unrelated work when selecting commit scope."
 category: tooling
-date: 2026-06-20
-version: "1.1.0"
+date: 2026-11-25
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags: [pre-commit, ruff-format, staging, git-add, amend, style-drift, preexisting-files]
@@ -14,11 +14,14 @@ history-cleanup-date: "2026-09-20"
 
 # Ruff-Format Reformats Pre-existing Files — Stage and Commit Them
 
+Follow the [agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md)
+for authority, host permissions, security invariants, and stop conditions.
+
 ## Overview
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-06-20 |
+| **Date** | 2026-11-25 |
 | **Objective** | Avoid a CI pre-commit failure caused by unstaged ruff-format changes to pre-existing files after a feature branch implementation |
 | **Outcome** | Successful — staging the reformatted files and amending the feature commit produces a clean `pre-commit run --all-files` on the second run and passes CI |
 | **Verification** | verified-local — confirmed on ProjectTelemachy PR #285 (issue #283); 73/73 tests pass after including the ruff-format changes |
@@ -94,7 +97,7 @@ pre-commit run --all-files  # should show all Passed now
 | ------- | -------------- | ------------- | -------------- |
 | Only stage authored files and commit | `git add src/telemachy/mcp_server.py tests/test_mcp_server.py && git commit` | Pre-commit (or CI) will re-run `ruff-format --check` on all files; the unstaged reformats are still in the working tree as unclean changes and will fail the next check | Inspect formatter changes after the run and stage only reviewed changes within the chosen scope |
 | Run `pre-commit run --all-files` a second time and assume clean | Saw `Passed` on the second run and concluded nothing needed to be done | The second run passes because ruff already reformatted the files in-place, but those changes are **unstaged** and invisible to the commit; CI will reformat them again and fail | A second-run `Passed` does not mean the changes are staged — check `git diff --name-only` |
-| Skip or bypass pre-commit | Considered `git commit --no-verify` to avoid the hook | Bypassing hooks hides the problem from CI; the CI pre-commit job will fail with the same reformats | Stage the reformatted files; never use `--no-verify` unless explicitly authorised |
+| Skip or bypass pre-commit | Considered `git commit --no-verify` to avoid the hook | Bypassing hooks hides the problem from CI; the CI pre-commit job will fail with the same reformats | Stage the reformatted files. Do not use `--no-verify`. |
 
 ## Results & Parameters
 

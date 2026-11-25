@@ -3,8 +3,8 @@ name: multi-repo-governance-and-ecosystem-setup
 license: BSD-3-Clause
 description: "Coordinate repository governance or ecosystem setup across multiple repositories, hosts, dependencies, and plugin integrations."
 category: tooling
-date: 2026-11-24
-version: "1.1.0"
+date: 2026-11-25
+version: "1.2.0"
 user-invocable: false
 tags:
   - multi-repo
@@ -35,7 +35,7 @@ The command examples in this skill are version-scoped host examples, not policy.
 
 | Field | Value |
 | ------- | ------- |
-| **Date** | 2026-05-19 |
+| **Date** | 2026-11-25 |
 | **Objective** | Bring N HomericIntelligence repositories to a baseline standard: governance files, ecosystem deps, scaffold completion, plugin marketplace config, and retrospective automation |
 | **Outcome** | Consolidated from 8 member skills covering governance rollout (11 PRs), ecosystem installer (5/7 hosts), scaffold flesh-out (7 files created, 11 modified), centralized clones (37–73% disk savings), marketplace cron, plugin migration, and session-end hook integration |
 | **Verification** | verified-local across HomericIntelligence org and Tailnet |
@@ -74,8 +74,8 @@ for repo in repo1 repo2 repo3; do
     --title "chore: add governance files" --body "..."
 done
 
-# 5. Enable auto-merge
-gh api -X PATCH repos/HomericIntelligence/{repo} --field allow_auto_merge=true
+# 5. Enable auto-merge only when the repository policy already allows it.
+# Do not change repository policy unless the task explicitly authorizes it.
 gh pr merge "$PR_NUM" -R HomericIntelligence/{repo} --auto --rebase
 
 # --- Ecosystem installer ---
@@ -110,7 +110,7 @@ done; wait
 
 6. **Create PRs with `-R` flag** — `gh pr create -R HomericIntelligence/{repo} --head {branch}`. Works from any cwd.
 
-7. **Enable auto-merge** — if `gh pr merge --auto` errors, first run `gh api -X PATCH repos/HomericIntelligence/{repo} --field allow_auto_merge=true`.
+7. **Enable auto-merge** — run `gh pr merge --auto`. If it fails because the repository disables auto-merge, do not change repository policy unless the task gives explicit authority for that change. Otherwise, report the error, leave the policy unchanged, and continue with the remaining repositories. Follow the [agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md) for authority and stop conditions.
 
 ### Ecosystem Installer (Detailed)
 
@@ -254,21 +254,23 @@ Configure `SessionEnd` hook in `.claude/settings.json`:
 ```
 
 For pipeline integration, resume the session with the minimum host scope that
-the task needs. This is a version-scoped example, not policy:
+the task needs. The host adapter reference owns the exact flags and matching
+rules. A read-only stage can need less scope than a stage that commits. This is
+a version-scoped example, not policy:
 
 ```python
 run([
     "claude", "--resume", session_id,
     "/learn commit the results and create a PR",
     "--print",
-    "--tools", "Bash",
-    "--allowedTools", "Bash(git:*)",
-    "--allowedTools", "Bash(gh:*)"
+    # Add only the minimum scope for this stage. The host adapter owns the
+    # exact flag names and matching rules.
 ], cwd=worktree_path, timeout=600)
 ```
 
-The exact flags and scope belong to the host adapter. Do not copy this broad
-example as a portable allowlist.
+Do not copy a broad allowlist from another stage. Consult the
+[automation agent tool scopes](automation-agent-tool-scopes-least-privilege.md)
+guidance and the host adapter reference. One scope does not fit every stage.
 
 ## Failed Attempts
 
@@ -339,9 +341,12 @@ For **GitOps/provisioning** repos: `default`, `status HOST`, `plan HOST`, `apply
 
 ```bash
 gh api repos/HomericIntelligence/{repo} --jq '.allow_auto_merge'
-# If false:
-gh api -X PATCH repos/HomericIntelligence/{repo} --field allow_auto_merge=true
 ```
+
+If the value is `false`, report it and continue. Change the repository policy
+only when the task explicitly authorizes that change. Follow the
+[agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md)
+for authority and stop conditions.
 
 ### Plugin CLI Reference
 

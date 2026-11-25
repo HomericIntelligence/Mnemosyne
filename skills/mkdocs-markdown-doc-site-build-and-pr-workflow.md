@@ -3,8 +3,8 @@ name: mkdocs-markdown-doc-site-build-and-pr-workflow
 license: BSD-3-Clause
 description: "Repair MkDocs navigation, Markdown rendering, and documentation drift; use when deleted pages, lint failures, or stale documentation block a requested change."
 category: documentation
-date: 2026-06-07
-version: "1.2.0"
+date: 2026-11-25
+version: "1.3.0"
 user-invocable: false
 tags:
   - mkdocs
@@ -25,6 +25,9 @@ tags:
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/mkdocs-markdown-doc-site-build-and-pr-workflow.history"
 history-cleanup-date: "2026-09-20"
 ---
+
+Follow the [agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md)
+for authority, host permissions, security invariants, and stop conditions.
 
 ## Overview
 
@@ -282,7 +285,7 @@ an unrelated hook; this skill does not authorize bypassing required checks.
 | Ran `markdownlint-cli2 --fix` for MD056 | Hoped autofix would handle the table-column error | MD056 has no autofix — 0 modifications, error persists | Manual `\|` escape; triage by `line:col` (column lands on the surplus pipe) |
 | Adding columns to the header / removing the pipe to absorb MD056 | Bumped header arity or rewrote the command without the pipe | Destroyed table semantics or lost the documented behavior | Never change table arity; escape the pipe and preserve the example verbatim |
 | HTML-entity / bracket-removal for MD033, reword to `[here]` for MD059, leading space for MD018 | Tried `&lt;version&gt;`, dropped angle brackets, `[here]`, indented `#NNN` | Entities render literally; brackets carry substitution-slot meaning; `here`/`click`/`this` are also non-descriptive; the ATX parser strips leading whitespace | Backtick-wrap placeholders, use the real subject as link text, reflow or `\#NNN` |
-| Parallel admin-merge of a stuck markdownlint queue | Ran `gh pr merge --admin` against 17 PRs concurrently | 13 hit "base branch was modified" races | When an authorized policy exception permits admin merges, serialize them and inspect each PR state |
+| Parallel admin-merge of a stuck markdownlint queue | Ran `gh pr merge --admin` against 17 PRs concurrently | 13 hit "base branch was modified" races | Admin merge is not routine. It requires explicit task authority and an applicable policy exception. When both exist, serialize the merges and inspect each PR state |
 | Trusted `.history` snapshots to be lint-safe | Snapshotted skill files into `.history` without pre-flight lint | Absorbed Failed Attempts tables carry unescaped pipes; `.history` IS linted by CI | Check all changed Markdown files before pushing; Git now preserves old snapshots |
 | Patched `subprocess.run` globally in drift-check tests | `patch("subprocess.run", ...)` for `collect_actual_test_count` | The script already imported `subprocess`; patching the stdlib location has no effect on the bound reference | Patch in the module's own namespace: `scripts.check_doc_config_consistency.subprocess.run` |
 | Used `pytest.raises(SystemExit)` for drift-check `main()` tests | Expected `main()` to call `sys.exit()` | `main()` returns `int`; only the `__main__` block exits | Call `main()` directly and assert the return value |
@@ -357,13 +360,16 @@ repos:
 | mkdocs | `--strict` | builds with no WARNING lines after link fixes |
 | tomllib | Python 3.11+ stdlib | drift-check reads pyproject.toml directly |
 
-### Queue-recovery telemetry
+### Queue-recovery telemetry (historical authorized exception)
+
+The recorded incident used administrative merges under an explicit policy
+exception. This is not a routine workflow.
 
 | Metric | Value |
 | ------ | ----- |
 | PRs blocked on the same MD056 line | 17 |
-| Track-A admin-merge wall time | ~30 s |
-| Track-B sequential admin-merge of remaining 16 | ~90 s |
+| Track-A authorized admin-merge wall time | ~30 s |
+| Track-B sequential authorized admin-merge of remaining 16 | ~90 s |
 | Total queue recovery | ~2 minutes |
 
 ### Doc/config drift-check parameters

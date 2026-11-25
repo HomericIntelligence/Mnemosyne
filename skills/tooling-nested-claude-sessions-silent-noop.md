@@ -3,8 +3,8 @@ name: tooling-nested-claude-sessions-silent-noop
 license: BSD-3-Clause
 description: "Diagnose agent-spawning automation that reports success without changes inside a nested Claude Code session; use supported execution contexts."
 category: tooling
-date: 2026-07-16
-version: "1.0.1"
+date: 2026-11-25
+version: "1.0.2"
 user-invocable: false
 verification: verified-local
 tags:
@@ -24,11 +24,14 @@ history-cleanup-date: "2026-09-20"
 
 # Nested Claude Sessions Make Agent-Spawning Automation Silently No-Op
 
+Follow the [agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md)
+for authority, host permissions, security invariants, and stop conditions.
+
 ## Overview
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-07-16 |
+| **Date** | 2026-11-25 |
 | **Objective** | Run the hephaestus-automation-loop pilot (phases plan,implement) against HomericIntelligence/Myrmidons issue #758 from inside a Claude Code session |
 | **Outcome** | PLANNING phase (plan + plan-review agents) worked perfectly; IMPLEMENT stage silently no-opped twice — agent job reported ok=true after ~170s with zero file changes in the worktree, so the loop saw "no commits vs base" and auto-tagged the issue state:skip. Root cause (high confidence): spawned `claude` subprocesses inherit CLAUDECODE / CLAUDE_CODE_* env vars from the parent Claude Code session — the documented nested-session poisoning. Verified workaround: run the loop from a plain shell, or execute the loop cycle in-session with normal sub-agents |
 | **Verification** | verified-local |
