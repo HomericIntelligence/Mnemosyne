@@ -7,7 +7,7 @@ date: 2026-11-25
 version: "1.0.0"
 user-invocable: false
 verification: verified-live
-tags: [postgres, advisory-lock, connection-pool, pool-exhaustion, lock-timeout, statement-timeout, query-plan, seq-scan, health-probe, background-worker, rollup, outage-diagnosis, pg-locks]
+tags: [deployed-version-lag, postgres, advisory-lock, connection-pool, pool-exhaustion, lock-timeout, statement-timeout, query-plan, seq-scan, health-probe, background-worker, rollup, outage-diagnosis, pg-locks]
 ---
 
 # Idle Service Stall From A Database Lock And An Exhausted Pool
@@ -43,7 +43,11 @@ ss -tn 'sport = :<port>' | awk 'NR>1{c[$1]++}END{for(k in c)print k,c[k]}'   # m
 psql "$DSN" -Atc "select pid, granted, classid, objid from pg_locks where locktype='advisory' order by granted desc"
 # One granted row and N not granted rows on the same key, with N+1 = pool size, is the stall.
 
-# 3. What does the holder run? Needs the service role, in a read-only session.
+# 3. Is the running build older than the fix? (release of the live interpreter, then ancestry of the fix commit)
+<venv>/bin/python -c "import <package>, pathlib; print(pathlib.Path(<package>.__file__).resolve())"
+git merge-base --is-ancestor <fix-commit> <deployed-revision> && echo has-fix || echo predates-fix
+
+# 4. What does the holder run? Needs the service role, in a read-only session.
 PGOPTIONS="-c default_transaction_read_only=on -c statement_timeout=15000" \
 psql "$SERVICE_DSN" -x -c "select pid, state, wait_event_type, wait_event,
   now()-xact_start as xact_age, left(query,400) from pg_stat_activity
@@ -54,18 +58,19 @@ psql "$SERVICE_DSN" -x -c "select pid, state, wait_event_type, wait_event,
 
 1. **Save evidence first.** Copy the proxy and service logs and take the snapshots above before any restart or backend termination. A restart clears the lock and the proof. Do not end a backend or restart without the owner's approval.
 2. **Show that the service waits.** Idle CPU, threads in `ep_poll` or a futex, and a listen backlog of zero mean the event loop is free. The wait is on the database, not on the loop.
-3. **Count the pool.** If the granted holder plus the waiters equal the pool maximum, new requests wait on pool acquire, so the health route fails too.
-4. **Read the holder.** A read-only role shows "insufficient privilege" for the query of another role. Use the service role in a read-only session, with authorization. `wait_event = DataFileRead` with a transaction age of minutes points at a large scan.
-5. **Map the lock key.** An advisory key splits into `classid` (high 32 bits) and `objid` (low 32 bits). Compare it with `hashtextextended(<candidate>, 0)` for each candidate string at every lock call site. Search all call sites, not only one. The holder has not committed, so its rows may not exist yet.
-6. **Check the plan of the holder.** Run `EXPLAIN` (not `ANALYZE`) on the same statement with a real id. A range join of a huge table against a `DISTINCT` subquery that produces the time windows can be estimated badly and planned as a full scan. One bounded window per statement uses the time index and takes milliseconds.
-7. **Fix the design, not only the timeout:**
+3. **Compare the running build with the fixed source.** A statement that runs longer than the command timeout already in the source proves that the deployed build is older than that timeout. Then the first action is to deploy the current source, not to write the timeout again. Read the release of the live interpreter and test whether the fix commit is an ancestor of it.
+4. **Count the pool.** If the granted holder plus the waiters equal the pool maximum, new requests wait on pool acquire, so the health route fails too.
+5. **Read the holder.** A read-only role shows "insufficient privilege" for the query of another role. Use the service role in a read-only session, with authorization. `wait_event = DataFileRead` with a transaction age of minutes points at a large scan.
+6. **Map the lock key.** An advisory key splits into `classid` (high 32 bits) and `objid` (low 32 bits). Compare it with `hashtextextended(<candidate>, 0)` for each candidate string at every lock call site. Search all call sites, not only one. The holder has not committed, so its rows may not exist yet.
+7. **Check the plan of the holder.** Run `EXPLAIN` (not `ANALYZE`) on the same statement with a real id. A range join of a huge table against a `DISTINCT` subquery that produces the time windows can be estimated badly and planned as a full scan. One bounded window per statement uses the time index and takes milliseconds.
+8. **Fix the design, not only the timeout:**
    - Run the rebuild outside the request, in one serial background worker with a queue that drops duplicate keys and never gives up a key because others are ahead of it.
    - Replace one bounded window in each short transaction. The delete and the new rows commit together, so a reader sees old rows or new rows.
    - Set `lock_timeout` for that transaction with `set_config('lock_timeout', ..., true)`. A window that times out keeps its old rows and is tried again in a later round.
    - Set a pool acquire timeout and a command timeout. Answer a typed 503 so senders retry from their buffer.
    - Give the health route and the background worker each their own connection. A full request pool cannot hide the probe, and a slow rebuild cannot take a request connection.
-8. **Make the next stall visible.** Log each slow lock wait with its key, route and pool use. Alert when an advisory lock has waited without being granted for more than a minute, and save a lock and socket snapshot with the alert. A first-seen time kept in the alert state is enough, because `pg_locks` has no wait time.
-9. **Prove the fix.** The proxy shows only 200 answers, the freshest derived row advances every minute, and no lock waits longer than a minute.
+9. **Make the next stall visible.** Log each slow lock wait with its key, route and pool use. Alert when an advisory lock has waited without being granted for more than a minute, and save a lock and socket snapshot with the alert. A first-seen time kept in the alert state is enough, because `pg_locks` has no wait time.
+10. **Prove the fix.** The proxy shows only 200 answers, the freshest derived row advances every minute, and no lock waits longer than a minute.
 
 ## Failed Attempts
 
@@ -75,6 +80,7 @@ psql "$SERVICE_DSN" -x -c "select pid, state, wait_event_type, wait_event,
 | Read-only role | Read the holder's query with the read-only role. | The role cannot see queries of other roles. | Use the service role in a read-only session, with authorization. |
 | Key match on committed ids | Matched the lock key against the recent batch ids in the data. | The holder had not committed, and the key came from a different lock call site. | List every lock call site and hash each candidate string. |
 | Busy-loop theory | Looked for a blocked event loop or a CPU spike. | The loop was idle. All four connections waited on the database. | Idle CPU with a full small pool points to a lock, not to compute. |
+| Code fix first | Planned to add a command timeout after a statement ran 13 minutes. | The timeout was already in the source. The deployed build was older. | Compare the running build with the source before you write code. |
 | Timeouts only | Considered only a command timeout. | A timeout cancels the slow rebuild, but the same rebuild starts again and fails again. | Bound the work to one window and move it out of the request. |
 
 ## Results & Parameters
