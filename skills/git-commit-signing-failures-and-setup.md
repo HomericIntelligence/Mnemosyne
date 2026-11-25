@@ -215,10 +215,11 @@ Two more traps remain after the signer works:
 - A commit hook re-runs `git commit` in a fresh process, so the `-c` overrides
   are lost and the OpenPGP fallback returns. Put the signing values in the
   isolated configuration so the hook's child process inherits them, or use a
-  hook-compatible commit path that keeps the same configuration. A hook bypass
-  is not a normal fallback. If the task explicitly authorizes one, record the
-  exact bypass and the separate verification result in the pull request. Follow
-  the [agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md)
+  hook-compatible commit path that keeps the same configuration. Do not bypass
+  the hook. Use a hook-compatible commit path or the documented host escalation
+  path. If the hook still blocks the commit, report the exact command and the
+  hook result. Follow the
+  [agent authority and host permissions policy](https://github.com/HomericIntelligence/Athena/blob/main/docs/policies/agent-authority.md)
   for authority and stop conditions.
 - Verification has the same configuration dependency. Reading `%G?` without the
   allowed-signers file reports `N` (no signature) even when the signature is
