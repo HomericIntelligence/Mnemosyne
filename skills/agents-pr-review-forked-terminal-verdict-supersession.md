@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Deliver a valid review verdict on the same pull request when the review-exchange helper refuses it for bookkeeping reasons (forked chain, head move during delivery, edited carrier, authority record a shared login cannot give). Post a plain exact-head review and verify before auto-merge; do not open replacement PRs. Use when two terminal verdicts fork the history or a helper rejects a head-bound verdict."
 category: tooling
 date: 2026-10-30
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: execution-observed
 tags:
@@ -85,7 +85,7 @@ gh api repos/<OWNER>/<REPO>/pulls/<PR>/reviews --jq '.[-1]|{commit_id,body}'   #
 3. **Post the verdict directly.** The reviewer posts a plain review with `commit_id` set to the exact head. The verdict text stays the same as the refused verdict.
 4. **Verify before arming.** The coordinator checks that the review `commit_id` equals the current head, that the head commit signature is valid, and that the verdict text is a pass verdict. Then enable auto-merge pinned to that head.
 5. **Reuse the reviewer.** Use the same reviewer agent for the same issue across rounds. A new reviewer has no context and restarts findings.
-6. **Treat a head move as stale.** A later head move makes the verdict stale. Re-review the exact new head. A test-only delta is a short re-review.
+6. **Treat a content change as stale, not a rebase.** A new commit that changes the patch makes the verdict stale. Review that delta, then re-arm. A test-only delta is a short re-review. A rebase that leaves the patch unchanged does not make the verdict stale. Prove the patch is the same (`git range-diff old..new`, or compare the patch identity of the commits), keep the verdict and the approval label, and re-arm auto-merge on the new head with no new review. A rebase that needed conflict resolution changed the patch. Ask the reviewer to check only the resolved hunks.
 
 ## Failed Attempts
 
@@ -94,7 +94,8 @@ gh api repos/<OWNER>/<REPO>/pulls/<PR>/reviews --jq '.[-1]|{commit_id,body}'   #
 | Replacement PR for a clean exchange | Close the PR and reopen the same branch to restart the exchange | Doubled PRs, reviews, and CI runs; the owner rejected it | Bookkeeping failure is not a reason to replace the PR; post a direct exact-head review |
 | Treat one of two terminal verdicts as authoritative | Continue rounds or label delivery against the first verdict | Two valid competing histories; each later round can split again | Stand down extra publishers and deliver one direct verdict |
 | Reconcile both histories with author responses | Exchange responses on the forked PR | Adds a third lineage | Do not reconcile in place |
-| Arm auto-merge without checking | Trust the posted review | A head move or an unsigned head makes the verdict stale or invalid | Verify head, signature, and verdict text first |
+| Arm auto-merge without checking | Trust the posted review | A head move that changes the patch, or an unsigned head, makes the verdict stale or invalid | Verify head, signature, and verdict text first |
+| Re-review every head move | Removed the approval label, disarmed auto-merge, and asked for a fresh review after each rebase onto the base branch | The rebased patch was identical, so the review repeated work, held the merge, and the coordinator and the rebasing agent undid each other's state | A rebase that keeps the patch identical keeps the verdict. Prove it with a patch comparison, then re-arm on the new head |
 
 | Supersede at the same head while the code is known defective | Posted a pass verdict for a fork where the competing GO had zero findings but the code carried a required defect | The single surviving history then reviews code already known to be wrong, and the defect merges with a clean-looking record | Decide code soundness before delivering a verdict. Repair first; a head change caused by new code is the correct way to restart the exchange |
 
