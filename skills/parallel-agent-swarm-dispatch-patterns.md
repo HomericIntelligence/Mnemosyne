@@ -6,7 +6,7 @@ description: >-
   Also use it when a stopped worker must start another task.
 category: tooling
 date: 2026-05-31
-version: "2.2.1"
+version: "2.3.0"
 license: BSD-3-Clause
 user-invocable: false
 tags: [swarm, dispatch, worktree, ownership, dependency, verification, orchestration]
@@ -37,6 +37,9 @@ The complete prior source is archived in
 - A strict dependency chain invites many workers to poll the same gate.
 - The first prompt instruction is a wait/poll loop and workers may treat gate failure as task end.
 - An existing agent must start a new task after its last task ends.
+- A worker sends the same final report more than once.
+- A brief or an owner question summarizes a rule from an issue, a manifest, or a policy.
+- A worker runs tests from a shell that carries a scheduler job environment.
 
 ## Verified Workflow
 
@@ -163,6 +166,24 @@ resolution, or the user requests it. Otherwise, prefer CI/CD integration of comp
 Select scoped checks for changed content and update the wave graph for conflicts or
 already-landed work. Preserve isolated worktrees for failures and report their paths.
 
+### 9. Handle repeated reports, wrong briefs, and inherited job allocations
+
+A worker that stops while its own background job runs can send the same final report again each
+time that job reports. Read the first copy and record its content. Then send one message that tells
+the worker to stop its monitors and end. Do not act on a later copy, and do not relay it again.
+Put "send one report only, and end when delivery is done" in the brief.
+
+Before you send a brief or an owner question, copy the direction of each rule from the source line
+that states it. A rule that forbids a state is easy to summarize as a rule that requires it: for
+example, "the manifest forbids a mode bit that live paths carry" becomes "make the paths carry the
+bit". If a sent brief has the wrong direction, send a correction message at once. Name the wrong
+instruction and the right one, and check that the worker has not started the wrong action.
+
+When a worker runs from a shell that carries a scheduler job environment, its test step can land
+inside a job allocation that it must not use. Clear the scheduler job variables, or request a fresh
+allocation, before any run. Tell the worker to report the case as soon as it sees it. Put the
+check in the brief when the swarm shares a host with long-lived jobs.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -177,6 +198,9 @@ already-landed work. Preserve isolated worktrees for failures and report their p
 | Message without task activation | Sent new work to a completed agent through messaging | Delivery did not start execution | Use the supported activation operation and examine new execution evidence |
 | Unbounded hook | Waited indefinitely on local hook | One worker stalled the wave | Diagnose with budget; never bypass |
 | Nested fan-out | Required unsupported delegation | Second-level work never launched | Root coordinator owns fan-out |
+| Act on each copy of a repeated report | Relayed and re-checked every identical final report | Each copy looked like new work and cost a turn | Read the first copy, send one stop message, ignore the rest |
+| Brief from a summary line | Summarized a prohibition as a requirement in a brief and an owner question | The worker would have created the state that the rule forbids | Quote the direction from the source line; correct a wrong brief at once |
+| Test run from an inherited job shell | Ran the test step in a shell that held a scheduler job environment | The step ran inside an allocation that the worker must not use | Clear the job variables or use a fresh allocation; report it at once |
 
 ## Results & Parameters
 

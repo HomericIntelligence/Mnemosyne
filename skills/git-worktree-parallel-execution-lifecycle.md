@@ -3,7 +3,7 @@ name: git-worktree-parallel-execution-lifecycle
 description: "Use when parallel agents need isolated Git state; one issue is split across disjoint owners; worktree creation races across processes; branch ownership, stale, locked, dirty, submodule, or foreign-repository worktrees must be classified; hundreds of stale worktrees need a bulk audit and removal; or cleanup is constrained by preservation and destructive-action policy."
 category: tooling
 date: 2026-08-06
-version: "2.2.0"
+version: "2.3.0"
 license: BSD-3-Clause
 verification: unverified
 user-invocable: false
@@ -245,6 +245,21 @@ For uncommitted work on a hijacked shared checkout, export a patch or locate the
 fresh owned worktree, apply there, and revalidate. Never keep editing after `HEAD` or the branch
 changes unexpectedly.
 
+An assigned worktree can disappear while its worker still runs, for example when a host removes an
+unchanged worktree. A later `cd <path>` then fails. If the next command still runs, it runs in the
+current directory, which can be the shared checkout. Check that the path exists before each git
+command, or use `git -C <path>` after you verify the path. Join a `cd` and a git command with
+`&&`, not `;`. After such a slip, check the shared checkout:
+
+- `git rev-parse HEAD` equals the previous head;
+- no `.git/rebase-merge` or `.git/rebase-apply` directory exists;
+- `git status --porcelain` shows only the files that were there before; and
+- `git stash list` is unchanged.
+
+A `git fetch` only updates remote refs, and an aborted rebase leaves the checkout as it was. Then
+create a new owned worktree and redo the work there. To recover the vanished worktree itself, use
+`worktree-deleted-mid-session-recovery`.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -258,6 +273,7 @@ changes unexpectedly.
 | Force cleanup of dirty/submodule worktrees | Force cleanup of dirty/submodule worktrees | Destructive and often policy-blocked | Preserve, classify, and hand off exact commands |
 | Foreground cleanup of hundreds of worktrees on a network filesystem | Ran the full cleanup in one command with a time limit | The limit ended the run after a few removals | Probe the write, then run the rest in the background and re-list before a retry |
 | Branch reuse for a second logical issue | Branch reuse for a second logical issue | Creates two writers for one head | First writer wins; later item is superseded |
+| `cd` into a worktree that a host had removed, then a git command | The `cd` failed and the next command ran in the current directory | A fetch and a rebase ran in the shared checkout | Verify the path or use `git -C`; after a slip check head, rebase directories, status, and stash list |
 
 ## Results & Parameters
 
