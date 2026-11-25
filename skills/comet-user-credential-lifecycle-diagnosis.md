@@ -1,13 +1,13 @@
 ---
 name: comet-user-credential-lifecycle-diagnosis
 license: BSD-3-Clause
-description: "Diagnose Comet ordinary-user credential lifecycle failures end to end with read-only checks. Use when: (1) `comet request-key` hangs or ends with `Credential request state: pending.`, (2) a saved credential gets HTTP 401 after the propagation window, (3) `request-key` ends with `PermissionError: credential lifecycle intent does not match saved credential`, (4) unauthenticated reads work for an account but every authenticated call fails, (5) an operator asks which subsystem owns a user-reported key problem, (6) a rotate request ends with `Credential request state: conflict.` and the saved key is unchanged, (7) child processes get HTTP 401 after a restart while older long-lived processes still work, (8) the intent-mismatch error appears after the account changed login node, or (9) a register request leaves the queue and an empty result slot remains with no result and no error."
+description: "Diagnose Comet ordinary-user credential lifecycle failures end to end with read-only checks. Use when: (1) `comet request-key` hangs or ends with `Credential request state: pending.`, (2) a saved credential gets HTTP 401 after the propagation window, (3) `request-key` ends with `PermissionError: credential lifecycle intent does not match saved credential`, (4) unauthenticated reads work for an account but every authenticated call fails, (5) an operator asks which subsystem owns a user-reported key problem, (6) a rotate request ends with `Credential request state: conflict.` and the saved key is unchanged, (7) child processes get HTTP 401 after a restart while older long-lived processes still work, (8) the intent-mismatch error appears after the account changed login node, (9) a register request leaves the queue and an empty result slot remains with no result and no error, or (10) a test plan wants to swap a field of a saved credential profile that several deployments share, or such a swap already broke another deployment's authentication."
 category: debugging
 date: 2026-10-22
-version: "1.2.0"
+version: "1.3.0"
 user-invocable: false
 verification: verified-local
-tags: [comet, credentials, request-key, api-key, rendezvous, gateway, "401", hang-diagnosis, proc-sampling, privacy-masking]
+tags: [comet, credentials, request-key, api-key, rendezvous, gateway, "401", hang-diagnosis, proc-sampling, privacy-masking, shared-credential-profile, per-deployment-credentials, home-isolation]
 ---
 
 # Comet User Credential Lifecycle Diagnosis
@@ -45,6 +45,9 @@ Use this skill when one of these conditions applies:
   but no authenticated call succeeds.
 - You must decide whether a reported hang is client polling, a blocked external
   resource, or a shared-filesystem mount stall.
+- A test plan wants to replace a field of a saved credential profile to check
+  client behavior, or a swap already broke authentication on another
+  deployment that reads the same profile.
 
 Do not use this skill for operator-side key administration defects
 (`comet-admin keys ...`) or for offline CLI review without cluster access; see
@@ -166,7 +169,7 @@ next decision.
 Use the product's own recovery path first. Read the client's recovery message and the operator runbook before you design anything. When the owner requires the supported path, a workaround is out of scope.
 
 - **Rotate refused as a conflict.** The registered key is an older key, and the saved key was never registered. Ask an administrator to issue a replacement key through the supported reconcile or create command. The administrator delivers it as a file (mode 0600, readable only by the holder). The holder runs the client login command, which replaces the saved key and clears the unfinished request. After the key works, delete the staged file. Never post a key in a discussion, issue, or log.
-- **Do not hand-edit the store.** Do not restore an older key from a backup tar, and do not swap a shared profile for a test. One cluster profile can serve several deployments, so a swap changes every deployment on it. Backups made by the onboarding script are for the owner to use, not a repair path.
+- **Do not hand-edit the store.** Do not restore an older key from a backup tar, and do not swap a shared profile for a test. One cluster profile can serve several deployments, so a swap changes every deployment on it. Even a swap that keeps the old value in a backup is not a safe test: between the swap and the restore, every process that reads the store picks up the test key, and clients on the other deployments fail with 401 until the restore. Run a test client with a separate home directory (`HOME` pointed at a lane-local path) so its store never touches the shared one. Backups made by the onboarding script are for the owner to use, not a repair path. The durable fix is a per-deployment credential record, so one deployment's key never replaces another's; track the project's own issue for that schema change.
 - **Spawn-time key resolution.** A long-lived child server caches the key it read at spawn. A new child resolves the key from the home-directory store at spawn, because an approved-environment allowlist strips the key variable from children. So restarting a loop with a fresh environment does not help, and the first sign is that the oldest servers still work until they idle out. A lane-local synthetic home that holds a copy of the still-valid key is a mitigation for one lane; it is not a cure. The cure is a registered key in the real store.
 - **Verify completion with a status-only call.** A missing journal file and an unchanged stored key do not prove that a rotation finished. Send one request with the stored key to the gateway and read only the HTTP code. 200 proves it; 401 means the registration did not complete.
 
@@ -196,6 +199,7 @@ Use the product's own recovery path first. Read the client's recovery message an
 
 | Moved the stuck journal aside by hand | Renamed one account's pending journal, then retried | It freed one account only, it is a hand edit of the store that a pass rule can forbid, and the next login-node change recreated the failure | Fix the binding in the client (inode and digest only); keep a hand edit as the last resort and record it |
 | Read a removed journal as a completed registration | A peer inferred success because the journal was gone and the stored key prefix was unchanged | The key id was still absent from the gateway key snapshot and the status check returned 401 | Only the key snapshot and a status-only check prove registration |
+| Swapped a shared profile's key for a test | Replaced the key value of one cluster profile in the shared store, meaning to restore the old value after the test | The same profile served two deployments; between the swap and the restore, clients on the other deployment failed with 401, and the incident needed a revert and a follow-up issue | Never change any field of a profile that another deployment reads, not even briefly with a backup. Point the test client at a separate home directory instead. |
 | Ran a shell command to repair a user's store from the agent session | The agent session ran a user's `mv` through its command prefix | The command ran as the agent's own account and checked the wrong home directory | A command prefix runs as the session account; a repair in another account's home needs that account's own terminal |
 
 ## Results & Parameters
