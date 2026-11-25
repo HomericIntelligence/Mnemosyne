@@ -20,6 +20,7 @@ These notes retain project-specific evidence moved during
 | Label-gate re-run replays the old payload | Internal repository delivery flow, 2026-10 | verified-local | A required aggregate workflow gated on `toJSON(github.event.pull_request.labels.*.name)`. After the gate label replaced a hold label, a failed-only re-run started 80 s later still failed, and its step `env` listed the hold label. A fresh `pull_request` `labeled` run on the same head passed the gate, auto-merge armed, and the squash merge landed. Branch-protection readback showed both the stale re-run failure and the fresh success on the same head. |
 | Live-label gate recovery on a rerun | Agent delivery session, 2026-11 | verified-ci | A required gate failed before authorization while a newer run on the same head was green. The gate used `gh pr view <PR> --json labels` to query current labels during execution. After confirming the current label and unchanged head, a targeted rerun of the old run passed without a source, branch, or label change. Exact-head check and required-check queries then passed. |
 | Queue rejects an explicit method without `--auto` | Internal repository delivery flow, 2026-11 | verified-local | `gh pr merge <N> --squash` on a queue-protected base printed `The merge strategy for <BASE> is set by the merge queue` and returned a non-zero status; `gh pr view` still reported `OPEN` with a null merge commit; the same command with `--auto` printed `already queued to merge`; the queue merged the PR about ten minutes later |
+| Unattributable-signature blocker | Mnemosyne PR #4046 | verified-ci | The signature verified against a registered key but the committer email was a personal address, so the commit API read `no_user`. An identity reset plus re-sign in one amend repaired it; a plain re-sign would have preserved the blocker |
 
 ## Additional observed patterns
 
@@ -52,6 +53,14 @@ These notes retain project-specific evidence moved during
   of the commit changed only the signature; both then read `CLEAN` and entered the queue. A
   byproduct: after the force-push, mergeability read `UNKNOWN` for about one minute before
   GitHub recomputed it, which is a calculation window, not a second blocker.
+- The same sweep found a third signature reason. One head was signed with a key whose
+  fingerprint the account had registered, but the committer email was a personal address, so
+  the commit API read `verified: false, reason: no_user` although the signature was sound.
+  A plain amend with the signing key preserves the committer identity, so the repair reset
+  the author and committer to the account's verified noreply identity and re-signed in one
+  amend. The remote head then read `reason: valid`, the PR read `CLEAN`, and the queue
+  admitted it. Before pushing a repair, re-read the remote branch head: a concurrent lane
+  can push the same repair first, and the lease then correctly rejects the redundant push.
 
 ## Durable case details
 
