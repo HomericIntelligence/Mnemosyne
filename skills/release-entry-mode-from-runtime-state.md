@@ -3,7 +3,7 @@ name: release-entry-mode-from-runtime-state
 description: "Select upgrade, source-to-release, or first-install mode from the observed deployment runtime record. Use when one release driver serves environments that differ in active release, source runtime, or missing runtime state."
 category: ci-cd
 date: 2026-11-25
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 tags: [release, deployment, runtime-record, first-install, source-runtime, upgrade, activation, transaction]
 ---
@@ -57,6 +57,9 @@ neither record                -> FIRST INSTALL
 both records                  -> REFUSE (ambiguous)
 
 select the path from that result, never from the environment name
+
+EMPTY-LANE PROOF: no step may require a manifest, operator, or active runtime
+that a later step creates
 ```
 
 ### Suggested Approach
@@ -86,6 +89,12 @@ select the path from that result, never from the environment name
 8. **Test each mode and the mixed state.** Add one behavior test for upgrade,
    one for source conversion, one for first install, one for mixed records,
    and one for conversion failure compensation.
+9. **Prove the empty-lane step order, not only the typed error.** In a first
+   install, no step may need a manifest, operator, or active runtime that a
+   later step authors. If the ordered driver has that cycle, add a bootstrap
+   authoring path or an operator start that accepts the first manifest, and run
+   the complete sequence on an empty lane. A clean typed refusal is not a
+   completed first-install path.
 
 ## Failed Attempts
 
@@ -94,6 +103,7 @@ select the path from that result, never from the environment name
 | Normal upgrade on a source or empty lane | Used the prior-release path because the target was a production environment | The lane had no release record or no prior release; activation refused or reported a raw missing-record error | The observed runtime state selects the path, not the environment name |
 | One wrapper per environment | Kept separate release scripts for each cluster | The copies drifted, and a fix reached only one environment | Keep one driver and pass environment-specific values as explicit inputs |
 | Delete the source record before activation | Removed the old record, then wrote the release record | A failure between the two writes left no valid runtime record | Retire the source record inside the same guarded transaction as the release write and pointer move |
+| Run the normal step order on an empty lane | Expected a later step to create the manifest and operator | An early step required the manifest and operator that only a later step created | Prove the dependency order on an empty lane; add a bootstrap authoring or operator-start path |
 
 ## Results & Parameters
 
@@ -111,8 +121,10 @@ entry_mode_inputs:
 
 - A selected mode name and the observed record state.
 - A source conversion that ends with exactly one active release record.
-- A first install that ends with a release record and no fabricated prior.
-- A typed refusal for a mixed or unreadable runtime state.
+- A first install that reaches the full pre-release gate on an empty lane with
+  no fabricated prior.
+- A typed refusal for a mixed or unreadable runtime state. A typed refusal
+  alone does not prove that the first-install sequence can complete.
 
 ## Verified On
 
