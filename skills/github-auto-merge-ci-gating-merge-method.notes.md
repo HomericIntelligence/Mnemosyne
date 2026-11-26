@@ -21,6 +21,7 @@ These notes retain project-specific evidence moved during
 | Live-label gate recovery on a rerun | Agent delivery session, 2026-11 | verified-ci | A required gate failed before authorization while a newer run on the same head was green. The gate used `gh pr view <PR> --json labels` to query current labels during execution. After confirming the current label and unchanged head, a targeted rerun of the old run passed without a source, branch, or label change. Exact-head check and required-check queries then passed. |
 | Queue rejects an explicit method without `--auto` | Internal repository delivery flow, 2026-11 | verified-local | `gh pr merge <N> --squash` on a queue-protected base printed `The merge strategy for <BASE> is set by the merge queue` and returned a non-zero status; `gh pr view` still reported `OPEN` with a null merge commit; the same command with `--auto` printed `already queued to merge`; the queue merged the PR about ten minutes later |
 | Unattributable-signature blocker | Mnemosyne PR #4046 | verified-ci | The signature verified against a registered key but the committer email was a personal address, so the commit API read `no_user`. An identity reset plus re-sign in one amend repaired it; a plain re-sign would have preserved the blocker |
+| Conflicting head suppressed all `pull_request` workflows | Internal repository delivery flow, 2026-11 | verified-ci | Only the label-gate and provenance `pull_request_target` checks posted while the PR was `CONFLICTING`; the nine-shard test workflow never started, so its absence was a missing event, not a result. After a rebase the PR turned `MERGEABLE` and the full workflow started on the new head |
 
 ## Additional observed patterns
 
@@ -38,6 +39,8 @@ These notes retain project-specific evidence moved during
   requests in the same sweep, a non-mergeable state label did not hold an armed merge: the
   label was decorative, and only reviews, threads, checks, and policy-required inputs gated.
   Order ceremonies before the final gate, or disarm and re-arm.
+- A `CONFLICTING` head suppresses every `pull_request` workflow. Pull-request-target checks
+  still report, so a partial green rollup can look like success while no test has run.
 - An armed auto-merge waited for hours while one matrix leg hung to the workflow timeout and was
   cancelled. The required aggregate check failed with a message that named the cancelled leg.
   The leg owned only tests outside the change surface, and the same leg completed in minutes on
