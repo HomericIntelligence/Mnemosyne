@@ -1,10 +1,10 @@
 ---
 name: comet-user-credential-lifecycle-diagnosis
 license: BSD-3-Clause
-description: "Diagnose Comet ordinary-user credential lifecycle failures end to end with read-only checks. Use when: (1) `comet request-key` hangs or ends with `Credential request state: pending.`, (2) a saved credential gets HTTP 401 after the propagation window, (3) `request-key` ends with `PermissionError: credential lifecycle intent does not match saved credential`, (4) unauthenticated reads work for an account but every authenticated call fails, (5) an operator asks which subsystem owns a user-reported key problem, (6) a rotate request ends with `Credential request state: conflict.` and the saved key is unchanged, (7) child processes get HTTP 401 after a restart while older long-lived processes still work, (8) the intent-mismatch error appears after the account changed login node, (9) a register request leaves the queue and an empty result slot remains with no result and no error, or (10) a test plan wants to swap a field of a saved credential profile that several deployments share, or such a swap already broke another deployment's authentication."
+description: "Diagnose Comet ordinary-user credential lifecycle failures end to end with read-only checks. Use when: (1) `comet request-key` hangs or ends with `Credential request state: pending.`, (2) a saved credential gets HTTP 401 after the propagation window, (3) `request-key` ends with `PermissionError: credential lifecycle intent does not match saved credential`, (4) unauthenticated reads work for an account but every authenticated call fails, (5) an operator asks which subsystem owns a user-reported key problem, (6) a rotate request ends with `Credential request state: conflict.` and the saved key is unchanged, (7) child processes get HTTP 401 after a restart while older long-lived processes still work, (8) the intent-mismatch error appears after the account changed login node, (9) a register request leaves the queue and an empty result slot remains with no result and no error, or (10) a test plan wants to swap a field of a saved credential profile that several deployments share, or such a swap already broke another deployment's authentication, (11) a saved key reports `not_accepted` from the key-state route, (12) an acknowledged new key still gets 401 while the gateway serves an old key snapshot, (13) a lifecycle service starts but a dispatched admin operation reports that the database credential is absent, or (14) key publication fails on a shared filesystem that rejects `renameat2` with EINVAL."
 category: debugging
 date: 2026-10-22
-version: "1.3.0"
+version: "1.4.0"
 user-invocable: false
 verification: verified-local
 tags: [comet, credentials, request-key, api-key, rendezvous, gateway, "401", hang-diagnosis, proc-sampling, privacy-masking, shared-credential-profile, per-deployment-credentials, home-isolation]
@@ -71,6 +71,9 @@ Match the observed signature to the broken link, then check the named evidence:
 | Fast exit 1 with the intent-mismatch error, and the stored journal digest and inode equal the current file | Link 1, durable record binds a device number that changed with the node | Compare the journal fields with current `stat` and digest. Only the device number differs: node change, not a file edit. See the cross-host identity entry for the fix and for the missing abandon verb. |
 | Rotate ends with `conflict`; the saved key gets 401; an older key still gets 200 | Link 2, the server holds an active key that was never acknowledged through the lifecycle | A rotate needs an acknowledged prior key, so it can never succeed. Use the supported recovery below. Do not retry. |
 | New child processes get 401 while long-lived ones work | Spawn-time key resolution | See the spawn-time branch below. |
+| Key-state reports `not_accepted` and the key authority is available | Link 3, admission, not revocation or sync lag | The saved key was never admitted; check whether the holder has any accepted key before choosing a recovery path |
+| A new key is acknowledged but the gateway still 401s and its snapshot age grows | Link 3, gateway snapshot refresh | Read the key-sync owner-lease refusal and the path-policy drift line for the shared public root |
+| A lifecycle service starts, but a dispatched admin operation says the database credential is absent | Service spawn environment | A launcher that strips the credential from its environment can still pass startup validation that reads an owner-only file; restart the service with the credential exported |
 | Mount-stall-looking hang (no output, long elapsed) | None of the above yet | Time `stat` on the rendezvous dirs and the client shim; ~0 s excludes a mount stall |
 
 ### Suggested Approach
@@ -173,6 +176,16 @@ Use the product's own recovery path first. Read the client's recovery message an
 - **Spawn-time key resolution.** A long-lived child server caches the key it read at spawn. A new child resolves the key from the home-directory store at spawn, because an approved-environment allowlist strips the key variable from children. So restarting a loop with a fresh environment does not help, and the first sign is that the oldest servers still work until they idle out. A lane-local synthetic home that holds a copy of the still-valid key is a mitigation for one lane; it is not a cure. The cure is a registered key in the real store.
 - **Verify completion with a status-only call.** A missing journal file and an unchanged stored key do not prove that a rotation finished. Send one request with the stored key to the gateway and read only the HTTP code. 200 proves it; 401 means the registration did not complete.
 
+### Restoration branches
+
+These branches apply after the broken link is classified. They decide which repair to attempt.
+
+- **`not_accepted` is an admission state, not a revocation.** A key-state route that reports `not_accepted` while the key authority is available means the presented key is absent from the accepted set. It is distinct from `active`, `revoked`, `expired`, and authority-unavailable answers. Re-importing the same key cannot repair it.
+- **Check holder scope before administrator reconciliation.** Reconciliation targets holders that have no accepted key. When the holder already has other accepted keys, a reconcile dry run reports the holder as working and issues nothing. Use the holder's own rotation path after the lifecycle service can fulfil requests. Do not repeat the reconcile with different filters.
+- **Restore the service environment before retrying a dispatched operation.** A service that starts through a wrapper which strips the owner-only database credential from its process environment can pass startup checks that read the credential file directly, yet refuse an admin operation dispatched into that process. Restart the service with the credential exported in its environment. Retrying the operation without that restart produces the same refusal.
+- **A stale serving snapshot can be a path-policy denial.** When the authority publishes a fresh snapshot but the gateway still serves an old one, read the owner-lease refusal and the path drift line before you restart the gateway. A shared public root whose mode differs from its registered policy denies the lease; restore the registered mode. The gateway then accepts the published snapshot and key admissions recover without a gateway restart.
+- **Shared filesystems may reject `renameat2(RENAME_NOREPLACE)` with EINVAL.** Key publication then fails at the no-replace rename even with a healthy service. Use a client that implements the documented fallback: observe the destination with a directory descriptor and perform a relative rename. An older installed client can make a healthy lifecycle look broken.
+
 ### Degraded Conditions
 
 - `py-spy` absent and `strace` attach refused (`yama/ptrace_scope=1` blocks
@@ -201,6 +214,9 @@ Use the product's own recovery path first. Read the client's recovery message an
 | Read a removed journal as a completed registration | A peer inferred success because the journal was gone and the stored key prefix was unchanged | The key id was still absent from the gateway key snapshot and the status check returned 401 | Only the key snapshot and a status-only check prove registration |
 | Swapped a shared profile's key for a test | Replaced the key value of one cluster profile in the shared store, meaning to restore the old value after the test | The same profile served two deployments; between the swap and the restore, clients on the other deployment failed with 401, and the incident needed a revert and a follow-up issue | Never change any field of a profile that another deployment reads, not even briefly with a backup. Point the test client at a separate home directory instead. |
 | Ran a shell command to repair a user's store from the agent session | The agent session ran a user's `mv` through its command prefix | The command ran as the agent's own account and checked the wrong home directory | A command prefix runs as the session account; a repair in another account's home needs that account's own terminal |
+| Applied administrator reconciliation for a rejected key | Ran reconcile with a user filter while the holder had other accepted keys | Reconcile targets holders with no accepted key, so it reported no target and issued nothing | Inspect the dry-run holder states first; use holder rotation when the holder is already working |
+| Retried a dispatched admin operation after a service restart | The launcher stripped the database credential from the service process environment | Startup validation read the owner-only file, but the dispatched operation resolved the credential from the process environment | Restart the service with the credential exported before retrying the operation |
+| Restarted the gateway to refresh a stale key snapshot | A mode drift on the shared public root denied the key-sync owner lease | The gateway would have accepted the fresh snapshot after the registered mode was restored; a restart adds serving disruption without fixing the denial | Read the owner-lease refusal and path drift line first; repair the declared mode |
 
 ## Results & Parameters
 
@@ -231,6 +247,8 @@ A successful diagnosis ends in exactly one terminal classification:
 | Prepare/publish dead end | exit 1 traceback frame at prepare time | Link 1 |
 | Fulfillment dead | exit 0 + `pending`; `results`/`deliveries` parent mtimes old | Link 2 |
 | Admission dead | 401 on `whoami` beyond the window; comparison key of an older vintage authenticates | Link 3 |
+| Never-admitted key | key-state `not_accepted`; no accepted row for the saved key while the key authority is available | Link 3 |
+| Stale snapshot serving | acknowledged key absent from the served snapshot; owner-lease refusal and path drift line present | Link 3 |
 | Lifecycle healthy | `whoami` 200 with the expected user | None (stop) |
 
 ## Verified On
