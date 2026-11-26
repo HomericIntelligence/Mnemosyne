@@ -1,10 +1,10 @@
 ---
 name: git-rebase-skip-duplicate-merged-commits
 license: BSD-3-Clause
-description: "Identify already-merged duplicate commits during rebase with objective patch-id proof, skip them safely, recover linked-worktree rebase failures, and preserve branch-specific changes and the intended final diff."
+description: "Identify already-merged duplicate commits during rebase with objective patch-id or empty-diff proof, skip them safely or exclude a duplicate base with --onto, recover linked-worktree rebase failures, and preserve branch-specific changes and the intended final diff."
 category: ci-cd
 date: 2026-07-06
-version: "1.2.0"
+version: "1.3.0"
 verification: verified-local
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/git-rebase-skip-duplicate-merged-commits.history"
 history-cleanup-date: "2026-09-20"
@@ -17,8 +17,8 @@ history-cleanup-date: "2026-09-20"
 | Field | Value |
 | ------- | ------- |
 | **Date** | 2026-07-06 |
-| **Objective** | During a permitted rebase, recognize commits that duplicate already-merged upstream work and use `git rebase --skip` without retaining duplicate commits |
-| **Outcome** | Branch rebased successfully with duplicate commits skipped, ending cleanly on top of origin/main with no manual conflict resolution needed |
+| **Objective** | During a permitted rebase, recognize commits that duplicate already-merged upstream work and either skip them with `git rebase --skip` or exclude a duplicate base with `git rebase --onto`, without retaining duplicate commits |
+| **Outcome** | Branch rebased successfully with duplicate commits skipped, ending cleanly on top of origin/main; a duplicate-base case reduced a pull-request diff to only the intended files |
 | **Verification** | verified-local |
 
 ## When to Use
@@ -28,26 +28,31 @@ Use this skill when:
 1. **A PR branch has duplicate commits**: The branch was created before upstream completed the same work.
    Both the branch and upstream have commits with the same or nearly-identical content.
 
-2. **A permitted rebase encounters conflicts from duplicate content**: Running `git rebase origin/main` hits
+2. **A duplicate base commit has no conflict**: A commit in the branch prefix was squash-merged, and
+   new work sits above it. The pull-request diff shows the merged change as well. Confirm that
+   the active task or repository policy permits the rebase. If it does not, leave the conflict-free
+   pull request to CI/CD.
+
+3. **A permitted rebase encounters conflicts from duplicate content**: Running `git rebase origin/main` hits
    conflicts where the conflicting file versions are **identical or nearly identical** between
    the branch's commit and the already-merged upstream commit.
 
-3. **You want to land cleanly on main**: The goal is to have the branch end up on top of
+4. **You want to land cleanly on main**: The goal is to have the branch end up on top of
    origin/main with no leftover duplicate commits, not to preserve the duplicate history.
 
-4. **Validation confirmed no unique work is lost**: You've checked that:
+5. **Validation confirmed no unique work is lost**: You've checked that:
    - The conflicting commits on the branch match already-merged commits on origin/main
    - There is no unique work in the conflicting commits that would be lost by skipping
    - All post-conflict commits in the branch (if any) are unique additions
 
-5. **Manual conflict resolution would just discard the changes**: Instead of manually resolving
+6. **Manual conflict resolution would just discard the changes**: Instead of manually resolving
    merge conflicts that would require deleting the branch's changes (because main has them already),
    skip the commits that are now redundant.
 
-6. **Message similarity is not sufficient evidence for a skip**: Two commits can share a subject
+7. **Message similarity is not sufficient evidence for a skip**: Two commits can share a subject
    line and still carry different content. When a squash merge or a stacked change rewrites a
-   commit, only an objective comparison (patch identifier, result blob) tells you if a skip is
-   safe.
+   commit, only an objective comparison (patch identifier, empty diff, result blob) tells you if a
+   skip or exclusion is safe.
 
 ### Trigger Phrases
 
@@ -56,6 +61,8 @@ Use this skill when:
 - "Skip these duplicate commits and land cleanly on main"
 - "Branch created before upstream finished; now both have the same commits"
 - "Use --skip instead of resolving; the work already merged"
+- "The pull request diff includes the prerequisite commit that already merged"
+- "Drop the duplicate base commit with rebase --onto"
 
 ## Verified Workflow
 
@@ -65,9 +72,16 @@ Use this skill when:
 # 1. Fetch to ensure origin/main is current
 git fetch origin main
 
-# 2. Start only a permitted rebase onto origin/main: a host-reported conflict or
-#    an active task that requires main content. A completed conflict-free PR is
-#    integrated by CI/CD.
+# 1b. Only when the active task permits the rebase: a duplicate base commit
+#     (already squash-merged) with new work above it.
+#     An empty diff proves the base commit adds nothing upstream.
+git diff <upstream-squash-commit> <branch-base-commit>
+git rebase --onto origin/main <branch-base-commit> <branch>
+#     Then go to step 6 to verify.
+
+# 2. For the conflict path, start only a permitted rebase onto origin/main: a
+#    host-reported conflict or an active task that requires main content. A
+#    completed conflict-free PR is integrated by CI/CD.
 git rebase origin/main
 
 # 3. When a conflict appears (conflicts on duplicate content)
@@ -150,6 +164,54 @@ git show REBASE_HEAD:<path> | git hash-object --stdin       # blob the commit pr
 
 If every target blob already matches your tree, the commit adds nothing and the skip stays
 safe. If one result differs, the commit has unique work: resolve the conflict manually.
+
+#### Step 2b: Exclude a duplicate base commit without a conflict
+
+Use this path only when the active task or repository policy permits the rebase. If the
+policy leaves a conflict-free pull request to CI/CD, do not rebase it only to remove a
+duplicate.
+
+A stacked pull request can begin with the prerequisite's commit. When the prerequisite is
+squash-merged, the branch still holds the original commit. Its patch identifier no longer
+matches the squash merge, so the pull-request diff shows the prerequisite change together
+with the new work.
+
+1. Confirm the duplicate is in the branch prefix and that new work sits above it:
+
+   ```bash
+   git log --oneline origin/main..HEAD
+   ```
+
+2. Prove the base commit adds nothing to the upstream result. When the branch base was the
+   tip before the squash merge, the two commits hold the same tree and this diff is empty:
+
+   ```bash
+   git diff <upstream-squash-commit> <branch-base-commit>   # no output
+   ```
+
+   If the diff is not empty, other main changes are present. Compare only the files that the
+   base commit touches, or use the result-blob check in Step 2. A `git cherry` `+` mark is
+   not proof. It compares patch identifiers, and a squash merge changes the patch.
+
+3. Exclude the duplicate prefix and replay only the commits above it:
+
+   ```bash
+   git rebase --onto origin/main <branch-base-commit> <branch>
+   ```
+
+   `--onto` applies the commits after `<branch-base-commit>` to `origin/main`. It does not
+   process the duplicate, so no conflict or empty-commit stop occurs. Everything below the
+   boundary is excluded, so confirm that the prefix contains no unique commit. Use the
+   highest duplicate in a contiguous prefix as the boundary. For duplicates interleaved
+   with unique commits, use the conflict path with `--skip` or an interactive rebase.
+
+4. Verify the result:
+
+   ```bash
+   git log --oneline origin/main..HEAD        # only the new commits
+   git diff origin/main...HEAD --stat         # only the intended files
+   git status                                 # clean
+   ```
 
 #### Step 3: Start a permitted rebase and encounter conflicts
 
@@ -277,6 +339,19 @@ duplicate commits. Ready to push and open a follow-up PR if needed.
 
 ## Decision Tree
 
+**Before the rebase: does the branch start with a duplicate base commit?**
+
+```
+Does the branch start with a base commit that is already squash-merged?
+├─ YES, and the active task permits the rebase
+│   ├─ The base commit adds nothing upstream (empty diff, or each touched file already matches)
+│   │   └─ Exclude the prefix: git rebase --onto origin/main <branch-base-commit> <branch>
+│   └─ The base commit has content not in upstream
+│       └─ Do not exclude it; use the conflict path for the remaining duplicates
+└─ NO
+    └─ Start the normal permitted rebase and use the conflict path below
+```
+
 **During rebase, when a conflict appears:**
 
 ```
@@ -402,6 +477,7 @@ Recovery, in order:
 | Driving a skip loop with a directory check for rebase state | Used `[ -d .git/rebase-merge ]` to tell whether the rebase was still in progress | In a linked worktree `.git` is a file, so the check was never true; the loop exited immediately and reported the rebase complete while conflicts were still pending | Query Git for its own state (`git rev-parse REBASE_HEAD`, `git rev-parse --git-path rebase-merge`); never probe `.git` layout paths |
 | Matching short SHAs with exact shell patterns | Used `case "$sha" in abc1234)` to route conflicted commits in a skip loop | `git rev-parse --short` lengthens when disambiguation needs more digits; the exact pattern missed and a verified duplicate stopped for manual review | Use trailing wildcards (`abc1234*`) for short-SHA patterns, or compare full SHAs |
 | Skipping on message identity alone | Assumed that a branch commit and an upstream squash merge with the same subject were interchangeable | One counterpart pair had different patch content because a stacked change had folded extra work into it; skipping on the message would have lost that work | Prove each skip with `git patch-id --stable`, and on a mismatch compare target result blobs before you decide |
+| Trusted a `git cherry` `+` mark as proof of unique work | Ran `git cherry <upstream> <branch>` and saw `+` for every branch commit, including the duplicate | `git cherry` compares patch identifiers; a squash merge changes the patch, so a duplicate looks unique | Compare the commit result with the upstream result (`git diff <upstream> <branch-base>` or the target blobs); do not use `git cherry` alone |
 
 ## Results & Parameters
 
@@ -415,8 +491,10 @@ Recovery, in order:
 | **Commits skipped** | 7 duplicate commits |
 | **Final state** | Clean, on top of origin/main, ready for follow-up work |
 | **Verification** | `git log origin/main..HEAD` empty (or shows only new commits if any) |
-| **Verification level** | verified-local (git state verified, no PR/CI checks yet) |
+| **Verification level** | verified-local for the `--skip` path; the duplicate-base case passed required checks and merged |
 | **Duplicate proof command** | `git show <commit> \| git patch-id --stable`, run for both counterparts and compared |
+| **Duplicate-base proof command** | `git diff <upstream-squash-commit> <branch-base-commit>` (empty when the base commit adds nothing) |
+| **Duplicate-base exclusion command** | `git rebase --onto origin/main <branch-base-commit> <branch>` |
 | **Result-blob proof command** | `git show REBASE_HEAD:<path> \| git hash-object --stdin` compared with `git hash-object <path>` |
 | **Ref-update recovery** | `git rebase --quit`, `git branch -f <branch> <rebased-tip>`, `git switch <branch>` |
 
@@ -425,6 +503,7 @@ Recovery, in order:
 | Project | Context | Details |
 |---------|---------|---------|
 | Large Python monorepo (proprietary) | Long-lived PR branch with eleven cherry-picked duplicates of squash-merged upstream commits; patch-id skip list, one patch-divergent duplicate held by result-blob comparison, linked-worktree ref-update failure recovered | [notes.md](./git-rebase-skip-duplicate-merged-commits.notes.md) |
+| Large Python monorepo (proprietary) | Two-commit pull request stacked on a squash-merged prerequisite; empty tree diff proved the base commit added nothing; `--onto` dropped it and the diff showed only three intended files; required checks passed and the pull request merged | [notes.md](./git-rebase-skip-duplicate-merged-commits.notes.md) |
 
 ## References
 

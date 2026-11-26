@@ -75,3 +75,25 @@ Rebase completed with eleven skips and zero manual conflict resolutions. The fin
 contained only the unique commits; the PR diff shrank to the true payload because part of
 the branch's earlier work had already landed upstream through a stacked PR merge. CI on
 the new head passed.
+
+## Duplicate base without a conflict
+
+A second case used the same intent from the other direction. A two-commit pull request
+was stacked on a prerequisite change. The prerequisite was squash-merged. The branch
+still began with the original prerequisite commit, so the pull-request diff showed the
+prerequisite and the new fix.
+
+`git diff <upstream-squash-commit> <branch-base-commit>` was empty. Patch identifiers did
+not match because the upstream was a squash. `git cherry` marked every branch commit `+`,
+including the duplicate, so it did not identify the duplicate.
+
+The rebase excluded the duplicate prefix instead of stopping on it:
+
+```bash
+git rebase --onto origin/main <branch-base-commit> <branch>
+```
+
+The result had only the new commit. The pull-request diff changed from two commits to
+three intended files. Required checks passed and the pull request merged. The active task
+authorized the branch cleanup; a conflict-free pull request with no such authority stays
+with CI/CD.
