@@ -13,8 +13,8 @@ description: "Debug and fix the live HomericIntelligence agent mesh dispatch pip
   remote'; run_end exit 130), (10) you need to STOP the mesh touching one repo without
   killing the org-wide Agamemnon control plane."
 category: ci-cd
-date: "2026-11-25"
-version: "1.3.0"
+date: "2026-11-26"
+version: "1.3.1"
 user-invocable: false
 verification: verified-local
 tags:
@@ -130,12 +130,12 @@ def _build_container_cmd(claude_args: list[str], cwd: str = WORKING_DIR) -> list
         "--userns=keep-id",               # Fix 1: maps host UID inside container
         "--network", os.environ.get("CONTAINER_NETWORK", "odysseus_homeric-mesh"),  # Fix 5
         "-v", f"{cwd}:{CONTAINER_WORKSPACE}",
-        "-v", f"{home}/.claude:{home}/.claude",
+        "-v", f"{home}/.claude:{home}/.claude:ro",
         "-v", f"{home}/.config/gh:{home}/.config/gh:ro",
         "-w", CONTAINER_WORKSPACE,
-        "-e", f"ANTHROPIC_API_KEY={os.environ.get('ANTHROPIC_API_KEY', '')}",
+        "-e", "ANTHROPIC_API_KEY",
         "-e", f"HOME={home}",
-        *(["-v", f"{home}/.claude.json:{home}/.claude.json"] if os.path.exists(f"{home}/.claude.json") else []),
+        *(["-v", f"{home}/.claude.json:{home}/.claude.json:ro"] if os.path.exists(f"{home}/.claude.json") else []),
         *(["-v", f"{standalone}:/usr/local/bin/claude-host:ro"] if standalone else []),
         CLAUDE_IMAGE,
     ]

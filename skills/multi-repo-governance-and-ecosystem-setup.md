@@ -3,8 +3,8 @@ name: multi-repo-governance-and-ecosystem-setup
 license: BSD-3-Clause
 description: "Coordinate repository governance or ecosystem setup across multiple repositories, hosts, dependencies, and plugin integrations."
 category: tooling
-date: 2026-11-25
-version: "1.2.0"
+date: 2026-11-26
+version: "1.2.1"
 user-invocable: false
 tags:
   - multi-repo
@@ -317,9 +317,12 @@ guidance and the host adapter reference. One scope does not fit every stage.
 | nats-server | 2.10.0 | 2.10.21 | Native binary → `~/.local/bin` |
 | nats CLI | 0.1.0 | 0.1.5 | zip from GitHub → `~/.local/bin` |
 | Python | 3.10.0 | 3.11+ | System apt |
-| pixi | any | latest | `curl -fsSL https://pixi.sh/install.sh \| bash` |
+| pixi | any | pinned | Pinned release archive; verify SHA-256 before install |
 | templ | any | latest | `GOBIN=~/.local/bin go install github.com/a-h/templ/cmd/templ@latest` |
 | gh CLI | any | latest | Official GitHub apt repo |
+
+Do not pipe an unverified installer script to a shell. Download a pinned release
+archive or verify the published checksum before installation.
 
 ### justfile Recipe Checklist
 
