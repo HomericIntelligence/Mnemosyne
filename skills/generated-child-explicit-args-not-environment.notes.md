@@ -28,6 +28,22 @@ Remove all rows for a retired name and path pair in the same change. Then run th
 
 The rendered artifact text is the contract for an in-flight job. This change affects only a new render. An older artifact that is already queued or running keeps its exported values and its old behavior. No live artifact is rewritten or stopped to force the new interface.
 
+## Cross-release child context
+
+A rendered launcher probes a child command from a different release. The first
+implementation passed the launcher's absolute registry path. Each supported
+older release refused it: a release reads only the registry that it packages.
+
+The corrected launcher passes a stable context name. The child interpreter
+resolves its own package data root and joins the name. The launcher refuses an
+empty or missing result before it starts the probe. This keeps the parent from
+assuming the child's install layout and gives one actionable failure.
+
+The first peer test supplied a synthetic path. It proved option parsing and
+missed the production failure. The corrected test resolves the packaged file
+from each peer's own tree, then asserts that the command reaches a later
+refusal. A service-start test is not necessary for this contract.
+
 ## Privacy note
 
 This note records the general pattern only. It omits project, repository, host, account, and issue identifiers.
