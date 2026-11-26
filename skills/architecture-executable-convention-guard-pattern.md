@@ -7,7 +7,7 @@ description: >-
   validation, and documentation catalogs whose completeness must be enforced.
 category: architecture
 date: 2026-07-17
-version: "2.0.0"
+version: "2.1.0"
 user-invocable: false
 verification: verified-local
 license: BSD-3-Clause
@@ -109,6 +109,17 @@ For mixed doc tables, guard only the verifiable invariant. If symbol membership 
 `__all__` but an "Added" version is historical inference, compare membership in both
 directions and leave the inferred column out of the executable claim.
 
+### Pinned counts and namespace collisions
+
+When the guard pins the occurrence count of each allowlisted name, the count covers every
+token that matches the guarded prefix. An internal identifier that only shares the prefix,
+such as an internal shell variable, a test fixture key, or a generated alias, changes the
+count and fails the check even though no configuration surface changed. Do not add the
+internal identifier to the allowlist: the row would pin an implementation detail and hide
+the collision. Rename the internal identifier so it leaves the guarded namespace, then
+update the exact counts of the existing rows to the new measured values. Re-run the checker
+and confirm that each remaining row still matches one reviewed site.
+
 ### Scope the population
 
 When the issue names specific targets, pass those targets explicitly to the checker and
@@ -144,6 +155,7 @@ wide invariant requires either a clean baseline or a separately reviewed migrati
 | Add a green no-op for a canonical check name | Add a green no-op for a canonical check name | It asserts work that never happened | Perform real install/package validation or document N/A |
 | Use a filesystem glob for a tracked-file catalog | Use a filesystem glob for a tracked-file catalog | Scratch and ignored files change the claimed population | Use `git ls-files` as the source of truth |
 | Assert inferred table metadata | Assert inferred table metadata | The guard upgrades best-effort history into false certainty | Enforce only verifiable membership |
+| Add an allowlist row for an internal identifier that matches the guarded prefix | Add an allowlist row for an internal identifier that matches the guarded prefix | The row pins an implementation detail and hides the namespace collision | Rename the internal identifier and update the pinned counts |
 
 ## Results & Parameters
 
@@ -156,6 +168,7 @@ wide invariant requires either a clean baseline or a separately reviewed migrati
 | Population | Exact issue-named targets unless a clean repo-wide baseline is proven |
 | Mirror comparison | Both `A - B` and `B - A` |
 | Exceptions | Narrow allowlist with owner, rationale, and stale-entry failure |
+| Pinned counts | Rename internal collisions; update exact counts of existing rows |
 | Negative coverage | At least one mutated-input test for every failure class |
 | CI rollout | Emit check first; require it only after it exists on the target branch |
 | Catalog authority | Git tracked set, using directory-relative backticked keys |
