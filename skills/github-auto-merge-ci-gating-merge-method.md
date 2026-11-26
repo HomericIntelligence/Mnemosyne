@@ -12,15 +12,16 @@ description: >-
   unverified commit, when a reviewer must decide whether to set the GO label
   after a required check was claimed as a success before that check ran, or when
   an armed request waits with zero check runs because a trigger label that starts
-  CI was never applied, or when the required gate check itself concludes `cancelled` on the
-  current head while every other check is green.
+  CI was never applied, when the required gate check itself concludes `cancelled` on the
+  current head while every other check is green, or when a `CONFLICTING` head shows green
+  `pull_request_target` checks because no `pull_request` workflow can start.
 category: ci-cd
 date: 2026-07-30
-version: "2.13.0"
+version: "2.14.0"
 user-invocable: false
 verification: verified-ci
 license: BSD-3-Clause
-tags: [auto-merge, github, ci-cd, merge-method, required-checks, rulesets, review-threads, current-head-checks, merge-queue, toctou, armed-merge-race, ceremony-ordering, label-gating, cancelled-leg, cancelled-gate-check, checkless-rule, required-signatures, commit-verification, claim-before-check, verdict-time-check-state, stale-check-claim, trigger-label, zero-check-runs]
+tags: [auto-merge, github, ci-cd, merge-method, required-checks, rulesets, review-threads, current-head-checks, merge-queue, toctou, armed-merge-race, ceremony-ordering, label-gating, cancelled-leg, cancelled-gate-check, checkless-rule, required-signatures, commit-verification, claim-before-check, verdict-time-check-state, stale-check-claim, trigger-label, zero-check-runs, conflict-suppression, conflicting-head, mergeable-state, pull-request-workflow-start]
 history-source: "https://github.com/HomericIntelligence/Mnemosyne/blob/1956c91d76867bc2e484eaf573a57051855186f8/skills/github-auto-merge-ci-gating-merge-method.history"
 history-cleanup-date: "2026-09-20"
 ---
@@ -68,6 +69,7 @@ repository-specific policy transitions are `verified-local`; their boundaries ar
 - A verdict comment reports a required check as a success, but that run started after the comment, and the GO label decision depends on which result is real.
 - An armed request stays open with merge state `UNKNOWN` or `BLOCKED` and the head has no check runs at all because a trigger label that starts CI was never applied.
 - Every check on the head is green or skipped, but the required label gate's newest run concluded `cancelled`, and the merge state stays `BLOCKED`.
+- A PR is `CONFLICTING`, every check that did run is green, but the expected CI workflow never started because GitHub suppresses `pull_request` workflows on a conflicting head.
 
 ## Verified Workflow
 
@@ -85,7 +87,10 @@ repository-specific policy transitions are `verified-local`; their boundaries ar
    merge conflicts, required labels, commit signature/DCO failures, and required environments.
 5. **Distinguish missing from failing.** If a required context never runs because of events or
    path filters, waiting cannot fix it. Correct the workflow/check-name contract or stage a safe
-   policy transition after the context exists on the target branch.
+   policy transition after the context exists on the target branch. A `CONFLICTING` head is a
+   distinct missing-event cause: GitHub starts no `pull_request` workflow at all, so only
+   `pull_request_target` checks report. Resolve the conflict, then confirm a run starts on the
+   new head.
 6. **Respect ownership.** If another actor has an auto-merge request, a shared queue must not
    enable, disable, adopt, replace, or poll it as its own. GitHub exposes no conditional disable
    token that proves ownership across a race.
@@ -374,6 +379,9 @@ no check exists to turn green.
   issue does not satisfy it.
 - **Signature/DCO:** author, committer, signing key, and trailer policy disagree; verify the commit,
   not only local configuration.
+- **Conflicting head suppresses CI:** a `CONFLICTING` PR starts no `pull_request` workflow. Only
+  `pull_request_target` checks report, so a green gate, label, or provenance check is not test
+  evidence. Resolve the conflict, then verify a run starts on the new head.
 - **Checkless signature rule:** `required_signatures` blocks an unverified commit with no check
   run and no context. A fully green rollup does not satisfy it.
 - **Bootstrap:** a PR cannot satisfy a newly required context that is not emitted by the target
@@ -421,6 +429,7 @@ no check exists to turn green.
 | Accept a verdict's check claim of success | A reviewer comment reported `Required check: success` and a lane set the GO label. The check run started after the comment and concluded `failure` | The claim had no result behind it. Two lanes reviewed one head, so the GO decision rested on a claim, not on the check result | Read the check results at the head, compare their `created_at` with the comment `createdAt`, and state the real result. Report unmet label conditions to the owner |
 | Wait on an armed request with no check runs | Auto-merge was armed and left overnight; merge state stayed `UNKNOWN` for more than a day; the head had zero check runs | No workflow had started, because the trigger label that gates CI was never applied. Waiting could not produce a run, and no failing check existed to diagnose | Classify labels as policy, decorative, or trigger; when a trigger label is absent, apply it within authority and verify a run starts on the current head |
 | Wait on a cancelled gate check | Every check on the head was green or skipped except the required label gate, whose newest run was `cancelled`; the merge state stayed `BLOCKED` | A cancelled run never completes, so waiting produces nothing and a failed-job rerun has no completed gate run to repair | Remove and re-add the label to fire a fresh `labeled` event; verify the new gate run on the same head concludes `success` |
+| Read a green `pull_request_target` check as test evidence | Saw the gate and provenance checks pass and treated the head as reviewed while the PR was `CONFLICTING` | No `pull_request` workflow had started, so no test ran. Only `pull_request_target` checks report on a conflicting head | Check `mergeable` first; resolve the conflict, then require the CI workflow to start on the new head |
 
 ## Results & Parameters
 
@@ -442,6 +451,7 @@ no check exists to turn green.
 | Trigger labels | Start CI. An absent trigger label yields zero check runs, not zero results; apply it within authority and verify a run starts on the current head |
 | Label-gate recovery | Inspect whether the gate reads event labels or queries live labels. Use a fresh label-event run for the payload case; use a same-head rerun for the live-query case after confirming current labels and head. Never substitute an old-head run |
 | Cancelled gate check | No completed gate run exists on the head, so rerun and wait cannot repair it. Remove and re-add the label to fire a fresh `labeled` event; source-agnostic recovery when the gate's label source is unknown |
+| Conflict suppression | A `CONFLICTING` head starts no `pull_request` workflow; `pull_request_target` checks can still pass. Resolve the conflict and require a run on the new head before you trust green |
 | Verdict check claim | Accept a required-check result only from a run whose `created_at` precedes the verdict comment; a later run cannot support the claim |
 | Label authority | Set the GO label only on a clean GO with passing required checks at the reviewed head; report an unmet condition instead of removing a foreign label |
 | Verification | Read back request/result and continue current-head monitoring |
