@@ -198,3 +198,41 @@ failed-attempts row.
   key identifiers; deployment names generalized to "two deployments on one
   cluster"; the follow-up is referenced only as "a project issue" in the
   main skill, and here by its nature, not by number.
+
+## Addendum (2026-11-26): restoration branches in one live recovery
+
+Context: a saved key was rejected after a lifecycle outage. These observations
+add decision value to the main entry. All details are generalized; no account,
+host, path, key identifier, or issue number is recorded.
+
+- Public read commands succeeded while authenticated calls failed. The
+  key-state route answered `not_accepted` with HTTP 200. The key authority was
+  available, and the presented key was absent from its accepted set.
+- The lifecycle service had been down. Its start log showed a database
+  credential connection failure, and its endpoint and heartbeat records were
+  hours old. A database route check reported a loopback connection refusal.
+  Opening the documented owner-only forward made the route check pass.
+- A launch through the published wrapper succeeded after the route opened,
+  but a dispatched admin operation still said the database credential was
+  absent. The wrapper sourced the owner-only file and then stripped the
+  credential from its process environment. Restarting the service directly
+  with that credential exported made the dispatched operation work. The
+  admin dry run then reported the holder as already working, so reconciliation
+  was correctly not applied.
+- Holder rotation with `--rotate` completed and acknowledged a new key. The
+  published client failed at the no-replace rename with EINVAL on the shared
+  filesystem. A current client with the observed-directory plus relative-rename
+  fallback completed the request.
+- The gateway still served an old snapshot. Its log showed a key-sync owner
+  lease `PermissionError` and a path drift line naming the shared public root
+  mode. Restoring the registered mode cleared the lease failure; the fresh
+  snapshot was accepted, `whoami` returned 200, and key-state reported
+  `active`. No gateway restart was needed.
+- End-to-end checks after recovery: the installer completed with four declared
+  and four served models, and one real model completion returned a known short
+  answer. These checks prove admission and serving, not only a key-state answer.
+
+Verification limits: these observations come from one live recovery. They do
+not prove that every path-mode drift denies an owner lease, or that every
+shared filesystem rejects a no-replace rename. Read the named log lines before
+you act on either branch.
