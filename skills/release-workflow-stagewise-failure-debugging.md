@@ -3,8 +3,8 @@ name: release-workflow-stagewise-failure-debugging
 license: BSD-3-Clause
 description: "Trace a failed release across tag resolution, tests, artifact build, attestation, and publication to identify the first failing stage."
 category: ci-cd
-date: 2026-08-07
-version: "1.1.1"
+date: 2026-11-26
+version: "1.2.0"
 user-invocable: false
 verification: verified-ci
 tags:
@@ -46,7 +46,9 @@ history-cleanup-date: "2026-09-20"
 A tag-triggered release keeps failing, and each fix reveals the next failure —
 because a release is often the FIRST time the whole publish path runs against a
 real tag on a real (differently-provisioned) runner. Also use when a fix you
-merged to main "didn't take" in the release run.
+merged to main "didn't take" in the release run. Also use when release package
+validation fails on a local Markdown link that the pull-request checks never
+evaluated.
 
 ## Verified Workflow
 
@@ -110,6 +112,13 @@ Reusing a version is only safe if it was never published — confirm:
   the job and have `build-and-publish` BUILD ITS OWN dist (it previously reused
   the TestPyPI job's `release-dist` artifact). Update `needs:`, drop the
   `download-artifact` step for a build step, and remove the doc section.
+- **package validation: a staged doc link has no packaged target.** One packager
+  copies the full documentation tree; another stages an explicit support allowlist.
+  A new policy document linked from a staged support file exists in the full tree
+  but not in the allowlist, so release validation fails on a missing local Markdown
+  target while the pull-request checks are green. Add the document to every
+  packager's support allowlist, merge, delete the unpublished tag, run each package
+  test suite at the exact main commit, then retag.
 
 ### General method
 
@@ -160,6 +169,7 @@ the branch rules needed by ordinary or recovery workflows.
 | 4 | Tried to fix `invalid-publisher` in the workflow / retag | It is a PyPI ACCOUNT trusted-publisher config, not code or tag state — no repo change resolves it | Distinguish PyPI-side config gaps from code bugs; escalate account config to the project owner (or remove the gate that needs it). |
 | 5 | `git tag -d` / retag from the agent shell | Local safety nets block tag deletion | Hand the retag commands to the human; verify the target SHA carries every fix first. |
 | 6 | Added a version glob as a branch deployment rule, then retried a tag-triggered job | The pattern name matched, but the rule type did not match the workflow ref; the job was rejected before it started | Diagnose pre-step failures from annotations and add a least-privilege `type=tag` policy with readback before retrying. |
+| 7 | Fixed the full-docs packager and assumed the allowlist packager saw the new file | The allowlist packager omitted the linked document, so release validation failed on a missing staged target | Enumerate every packager's support roots and run each package test suite at the exact tag target. |
 
 ## Results & Parameters
 
@@ -177,6 +187,12 @@ the branch rules needed by ordinary or recovery workflows.
   sibling job is still in progress.
 - **Environment deployment rules are ref-typed:** a release tag requires a
   `type=tag` rule even when the same glob also appears in an allowed branch rule.
+- **Package staging is per packager:** a full-docs copy in one packager does not
+  cover an explicit support allowlist in another. Add each linked support document
+  to every allowlist and run each package test suite at the exact main commit.
+- **Delete a failed tag only before publication:** when no release asset is public,
+  delete the tag, fix the package, validate the exact main commit, and recreate the
+  tag. After publication, deprecate and publish the next patch instead.
 
 ### Related skills (cross-links)
 
