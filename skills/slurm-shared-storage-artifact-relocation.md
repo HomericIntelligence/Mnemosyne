@@ -1,10 +1,10 @@
 ---
 name: slurm-shared-storage-artifact-relocation
 license: BSD-3-Clause
-description: "Relocate large artifact trees through Slurm and shared storage without exposing a partial destination or deleting the only good copy. Use when: (1) a quota-bound checkpoint, model, dataset, or image tree must move to shared storage, (2) cross-parent rename may fail with EXDEV even though stat reports equal st_dev values, (3) login, sandbox, and compute nodes can see different mount or identity metadata, (4) an interrupted copy must resume by verified content, or (5) source retirement needs a separate destructive-authorization gate."
+description: "Relocate large artifact trees through Slurm and shared storage without exposing a partial destination or deleting the only good copy. Use when: (1) a quota-bound checkpoint, model, dataset, or image tree must move to shared storage, (2) cross-parent rename may fail with EXDEV even though stat reports equal st_dev values, (3) login, sandbox, and compute nodes can see different mount or identity metadata, (4) an interrupted copy must resume by verified content, (5) source retirement needs a separate destructive-authorization gate, or (6) a copy fails with ENOSPC while the mount reports large free space."
 category: tooling
 date: "2026-07-31"
-version: "1.1.0"
+version: "1.2.0"
 verification: verified-local
 user-invocable: false
 tags: [slurm, shared-storage, filesystem, exdev, renameat2, artifact-relocation, resumable-copy, atomic-promotion, integrity, quota]
@@ -31,6 +31,7 @@ history-cleanup-date: "2026-09-20"
 - A long copy must resume after preemption without accepting a truncated or stale destination file.
 - Consumers must never observe a partially populated final directory.
 - Deleting the source is destructive and requires an explicit decision after the mirror has been independently verified.
+- The destination mount reports terabytes free, but a directory or parent quota that the client cannot read may stop a multi-hundred-gigabyte write.
 
 Do not apply the immutable-tree workflow directly to a live database or application data directory. Quiesce the writer, use a storage snapshot, or follow an application-aware delta/cutover procedure first.
 
@@ -150,6 +151,8 @@ The exact probes, fresh copy, promotion, final rehash, and source retention were
    - Success is scoped to that node, those parents, that mount state, and that primitive.
    - Separately probe target-side staging-to-final rename; both names must use the same opened target parent.
 
+   Probe write headroom in the same target parent. A free-space check that reads the whole mount (`df`) cannot see a directory or parent quota. Write a disposable file of increasing size (for example 2 GiB, then 30 GiB) to the target parent, record the byte count at the first `ENOSPC`, and delete the file. Stop if the headroom is below the artifact size plus margin. Repeat the probe before a retry, because a quota shared with other writers can move between runs.
+
    Prefer `RENAME_NOREPLACE` or an equivalent atomic non-replacing primitive. An existence check followed by ordinary rename is a time-of-check/time-of-use race.
 
 3. **Establish whole-tree immutability and a byte-safe manifest.**
@@ -227,6 +230,8 @@ The exact probes, fresh copy, promotion, final rehash, and source retention were
 | Use delimiter-separated human paths | A simple path/size/digest row was treated as an unambiguous manifest | Legal filenames can contain delimiters and newlines, and malformed entries can escape the intended root | Encode raw relative path bytes canonically, reject traversal/duplicates, and anchor all opens beneath directory descriptors |
 | Cross-parent move followed by cleanup | The initial transaction moved first and left normalization or verification afterward | The move itself was unsupported, and any later failure would have left no original path for rollback | Copy independently, normalize and verify staging, then use only a same-parent target-side promotion |
 | Normalize the source before copying | A permission change was considered to simplify the destination policy | It changes source `ctime` and invalidates a seal intended to detect mutation | Leave the source untouched; normalize the independent destination staging tree |
+| Trust whole-mount free space | A preflight read `df` for the mount (hundreds of terabytes free) and passed | Two copies failed with `ENOSPC` inside the same shard after a different byte count each time; a probe write stopped after about 17 GB | `df` does not show a directory or parent quota; probe real write headroom in the target parent, and treat a moving stop point as a shared quota |
+| Retry the copy unchanged | Delete the partial copy and rerun the same script | The same shard failed again; the limit had not changed | After one `ENOSPC` with free mount space, stop and escalate to a quota owner; a retry costs hours and shows nothing new |
 | Combine copy and source deletion | One scheduled operation was proposed to copy, verify, promote, and then reclaim source storage | A fallible long copy and an irreversible deletion shared one authority boundary; deletion had not been explicitly authorized | End the copy operation with both verified copies present and request separate retirement authority |
 | Accept counts and bytes as verification | Tree file count and aggregate size were available as quick checks | Different or corrupted content can have identical counts and byte totals | Compare exact path sets and per-file cryptographic digests in independent verification passes |
 | Blindly retry a failed rename | Treat a reported network-filesystem rename error as proof that nothing happened | The server may have committed the rename even when the client reports failure | Freeze, inspect both names through anchored descriptors, and reconcile the actual state before retry or cleanup |
@@ -275,6 +280,7 @@ The captured result verifies the fresh-copy core and the central `EXDEV` lesson.
 
 | Project | Context | Details |
 | ------- | ------- | ------- |
+| Generalized model-artifact mirror (second run) | About 1.6 TB model tree copied with `rsync` into a per-service shared directory | `ENOSPC` twice at 216 GB and 234 GB with large free mount space; probe writes stopped at 16-18 GB; the source stayed intact and the move waited for a quota change. Resume and promotion not reached. |
 | Generalized model-artifact mirror | Quota-safe fresh copy from a private source namespace into shared scheduled-compute storage | Exact compute-node probing disproved cross-parent renameability. Source-stream hash checks, staging inventory/safety checks, same-parent non-replacing promotion, and an independent full final-tree validation completed for approximately 75 GB. Resume and deletion were not exercised; the source was deliberately retained. |
 
 ## References
