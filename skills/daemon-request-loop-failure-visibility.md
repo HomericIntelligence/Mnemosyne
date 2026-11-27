@@ -1,10 +1,10 @@
 ---
 name: daemon-request-loop-failure-visibility
 license: BSD-3-Clause
-description: "Make a daemon's per-request processing loop show why a request fails. Use when a background service admits requests but never answers them, when one failing request seems to block all later requests, when a pass summary never appears in the log, or when a bounded pass over a shared request dropbox shows a constant capacity-refusal count while other requesters hang."
+description: "Make a daemon's per-request processing loop show why a request fails. Use when a background service admits requests but never answers them, when one failing request seems to block all later requests, when a pass summary never appears in the log, or when a bounded pass over a shared request dropbox shows a constant capacity-refusal count while other requesters hang, or when two live processors with different code versions serve one shared request queue."
 category: debugging
 date: 2026-10-29
-version: "1.1.0"
+version: "1.2.0"
 user-invocable: false
 verification: verified-local
 tags: [daemon, request-loop, exception-handling, logging, timeout, result-slot, observability, privacy]
@@ -27,6 +27,7 @@ tags: [daemon, request-loop, exception-handling, logging, timeout, result-slot, 
 - The pass summary line never appears in the log. Check the log level before you decide that the pass does not run.
 - An external connection (database, remote service) in the loop has no explicit timeout.
 - A pass takes at most N requests from a shared dropbox, the capacity-refusal counter is constant, and requests from other requesters wait until the client times out.
+- Two live processors poll the same request dropbox. A request leaves the queue, no result appears, and the other processor never saw it.
 
 ## Verified Workflow
 
@@ -41,6 +42,7 @@ Admission:     create the result slot after the fallible connect, or clean it up
 Do not catch:  BaseException (cancellation and shutdown must pass through).
 Selection:     take up to N per requester in rotation; skip names that already have a result.
 Refusal:       publish a typed refusal result, so the client returns at once.
+Ownership:     one live processor per queue; fence the other before you patch one.
 ```
 
 ### Suggested Approach
@@ -54,6 +56,7 @@ Refusal:       publish a typed refusal result, so the client returns at once.
 7. Answer every refusal. A capacity refusal that publishes no result leaves the record in flight, so the backlog never drains. Publish a typed refusal result. Check that an older client prints any refusal code it does not know and exits.
 8. For an urgent unblock, delete only the unanswered records of the over-capacity owner. Never delete result records or the records of other owners. The pass then runs at once, but the selection and refusal fix is the durable repair.
 9. Expect noise. A warning for every non-progress counter can repeat each cycle when a counter stays non-zero. Accept it while the cause is unknown, then tune.
+10. Serve the queue with one processor. When a second processor with different code runs on the same dropbox, each one admits some requests. A request file that is gone with an empty result slot was consumed by whichever processor admitted it, and only that processor can publish its result. Stop or fence the other processor before you patch one. A patch in a checkout is not live until the patched process restarts: check the process start time against the patch time before you conclude that a patch does not work.
 
 ## Failed Attempts
 
@@ -64,6 +67,7 @@ Refusal:       publish a typed refusal result, so the client returns at once.
 | Take the first N sorted names each pass | Relied on sorted order to bound the pass. | One requester's unanswered backlog filled the window every pass, and other requesters hung. | Select per requester in rotation. |
 | Refuse at capacity without a result | Counted the refusal and moved on. | The record stayed in flight, and the backlog never drained. | Publish a typed refusal result. |
 | Log the exception message for context | Considered printing the error text. | Connection errors can quote the DSN or credential file. | Log the type name only. |
+| Patch one of two live processors | Patched a checkout and restarted one processor while a second processor with other code still polled the queue | The second processor admitted some requests and failed them, so the patch had no effect on those and the requester waited | One processor per queue; fence the other before the patch, and check the process start time after it |
 
 ## Results & Parameters
 
@@ -72,6 +76,7 @@ per_request_catch: Exception            # not BaseException
 log_on_failure: "request failed: <TypeName>"   # no text, no traceback arguments
 summary_level: WARNING_if_any_nonzero_failure_counter
 connect_timeout_s: 15                   # bounded; choose below the cycle interval
+single_processor_per_queue: true        # fence the other before you patch one
 ```
 
 Expected result: one failing request adds one counter and one warning line, and later requests still run in the same pass.
