@@ -56,6 +56,20 @@ CLI service at one reviewed revision:
 - Tolerant-read semantics stay as-is: they answer release skew, not
   corruption.
 
+## Later evidence: fallback after a skipped selection (2026-11)
+
+A tolerant config-tree reader validated records one at a time and dropped a
+malformed selected entry while returning the remaining entries. A consumer
+looked up the selected name, found no entry, and used a packaged fallback
+copy. The command appeared to succeed with different authority. The skip was
+available only as a warning, and the consumer did not check it.
+
+The added rule is: a skip is not an absence. Return the skipped names with
+the valid set. A consumer that supports a fallback must check the selected
+name against the skipped set and refuse before it uses the fallback. A
+behavior test must prove both the skipped-selection refusal and the
+absent-selection fallback.
+
 ## Verification boundary
 
 - verified-local: both defect shapes were reproduced by command-line
