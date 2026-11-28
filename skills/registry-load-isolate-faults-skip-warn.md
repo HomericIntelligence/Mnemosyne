@@ -4,7 +4,7 @@ license: BSD-3-Clause
 description: "Isolate per-record faults in a multi-record authority registry load: skip and warn for records a request does not need, refuse concisely for the record it does, and surface every skipped record. Use when one corrupt registry entry, inventory file, or profile blocks every command or consumer, when a loader validates all records in one loop, or when a raw validation dump reaches end users."
 category: architecture
 date: 2026-11-23
-version: "1.0.0"
+version: "1.1.0"
 user-invocable: false
 tags:
   - registry
@@ -53,6 +53,8 @@ tags:
    concise line: file, field, expected vs observed, remedy.
 6. List skipped records in the health or status surface.
 7. A skipped record grants no authority. Never use a partial record.
+8. A skipped record is not an absent record. Never use a packaged,
+   cached, or default fallback for a selected record that was skipped.
 ```
 
 ### Suggested Approach
@@ -94,6 +96,19 @@ tags:
    status surface listing. When no status surface exists yet, the stderr
    warning is the minimum, and the surface item becomes the follow-up.
 
+### Skip Is Not Absence
+
+A consumer that falls back to a packaged, cached, or default copy must know
+why the selected record is missing. Return the skipped identities with the
+valid set. If the requested identity is in the skipped set, refuse the
+request before the fallback. Use the fallback only when the identity is
+absent. A fallback after a skip is a silent authority change, not a recovery.
+
+Test both branches together:
+
+- selected identity skipped -> bounded refusal, fallback is not called;
+- selected identity absent -> fallback is used, and the result says so.
+
 ## Failed Attempts
 
 | Attempt | What Was Tried | Why It Failed | Lesson Learned |
@@ -102,6 +117,7 @@ tags:
 | Widen tolerant-read to absorb the bad record | Considered passing the tolerant flag to skip validation failures | Tolerant read ignores fields that a newer release wrote; it does not isolate a corrupt file, and it would hide real damage | Version skew and corruption are different failure modes with different mechanisms. Isolation is structural; tolerance is field-level. |
 | Ship the library dump to users | Let the validation library render its own multi-line error with a truncated record repr and a documentation link | Users cannot act on it, it leaks the full record structure on every command, and it repeats for every consumer | Render one bounded line yourself: file, cause, remedy. Keep the detail in a log or diagnostic surface, not the user path. |
 | Skip records silently | Considered dropping bad records without a warning or a status entry | The damage became invisible: consumers worked against fewer records and nobody knew which authority was missing | A skip is a state change. Warn once per run and list the skips where operators look. |
+| Fall back after a skip | The tolerant loader dropped a malformed selected record, so the consumer found no record and used a packaged fallback copy | The command appeared to succeed with different authority, and the skip warning was easy to miss | A skipped selected record must refuse before the fallback. Return skipped identities so the consumer can tell skip from absence. |
 
 ## Results & Parameters
 
